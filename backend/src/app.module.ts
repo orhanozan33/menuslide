@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { AppController } from './app.controller';
 import { AuthModule } from './auth/auth.module';
 import { BusinessesModule } from './businesses/businesses.module';
 import { MenusModule } from './menus/menus.module';
@@ -32,10 +33,12 @@ import { SettingsModule } from './settings/settings.module';
 import { InvoiceLayoutModule } from './invoice-layout/invoice-layout.module';
 
 @Module({
+  controllers: [AppController],
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: '.env',
+      // Render: Secret File ile tek seferde .env yükleyebilirsiniz (ENV_FILE_PATH=/etc/secrets/env)
+      envFilePath: process.env.ENV_FILE_PATH || '.env',
     }),
     DatabaseModule, // Local PostgreSQL (primary)
     SupabaseOptionalModule, // Optional Supabase (for future)
