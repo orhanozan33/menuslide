@@ -14,8 +14,20 @@ import { DatabaseService } from './database.service';
       provide: 'DATABASE_POOL',
       useFactory: (configService: ConfigService): Pool => {
         const connectionString = configService.get<string>('DATABASE_URL');
+        const nodeEnv = configService.get<string>('NODE_ENV');
+
+        if (!connectionString && nodeEnv === 'production') {
+          throw new Error(
+            'DATABASE_URL is required in production. Set it in Render → Environment (e.g. postgresql://postgres:PASSWORD@db.xxx.supabase.co:5432/postgres)',
+          );
+        }
+
+        const isSupabase = connectionString?.includes('supabase.co');
         const baseConfig = connectionString
-          ? { connectionString }
+          ? {
+              connectionString,
+              ...(isSupabase && { ssl: { rejectUnauthorized: false } }),
+            }
           : {
               host: configService.get<string>('DB_HOST') || 'localhost',
               port: configService.get<number>('DB_PORT') || 5432,
@@ -27,7 +39,7 @@ import { DatabaseService } from './database.service';
           ...baseConfig,
           max: configService.get<number>('DB_POOL_MAX') ?? 20,
           idleTimeoutMillis: configService.get<number>('DB_POOL_IDLE_TIMEOUT') ?? 10000,
-          connectionTimeoutMillis: configService.get<number>('DB_POOL_CONNECT_TIMEOUT') ?? 5000,
+          connectionTimeoutMillis: configService.get<number>('DB_POOL_CONNECT_TIMEOUT') ?? 10000,
         });
         return pool;
       },

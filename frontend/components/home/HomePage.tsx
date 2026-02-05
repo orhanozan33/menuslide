@@ -20,21 +20,21 @@ interface HomePageProps {
   localePath: (path: string) => string;
 }
 
-const TV_FRAME_IMAGE = 'https://sony.scene7.com/is/image/sonyglobalsolutions/TVFY24_UH_12_Beauty_I_M?fmt=png-alpha&wid=500';
-
 function TVFrame({
   previewUrl,
   title,
   onClick,
   thumbnail,
+  loadFailedLabel,
 }: {
   previewUrl: string;
   title: string;
   onClick: () => void;
   thumbnail?: string;
+  loadFailedLabel?: string;
 }) {
-  const [imgError, setImgError] = useState(false);
   const [inView, setInView] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -50,7 +50,12 @@ function TVFrame({
     return () => io.disconnect();
   }, []);
 
-  const showIframe = inView && previewUrl;
+  // previewUrl değişince hata bayrağını sıfırla
+  useEffect(() => {
+    setLoadFailed(false);
+  }, [previewUrl]);
+
+  const showIframe = inView && previewUrl && !loadFailed;
 
   return (
     <div
@@ -59,62 +64,43 @@ function TVFrame({
       onClick={onClick}
     >
       <div className="relative w-full max-w-[280px] sm:max-w-sm transition-transform duration-300 group-hover:scale-[1.02] group-active:scale-[0.99]">
-        {!imgError ? (
-          <>
-            <img
-              src={TV_FRAME_IMAGE}
-              alt=""
-              className="w-full h-auto block"
-              loading="lazy"
-              decoding="async"
-              onError={() => setImgError(true)}
-            />
-            <div
-              className="absolute overflow-hidden rounded-[0.3rem] bg-black"
-              style={{ top: '8%', left: '5.5%', right: '5.5%', bottom: '18%' }}
-            >
-              {showIframe ? (
-                <iframe src={previewUrl} title={title} className="absolute inset-0 w-full h-full pointer-events-none" loading="lazy" />
-              ) : (
-                <div className="absolute inset-0 flex items-center justify-center bg-[#0f172a] text-white/50 text-sm">
-                  {thumbnail ? (
-                    <img src={thumbnail} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" />
-                  ) : (
-                    <span className="animate-pulse">…</span>
-                  )}
-                </div>
-              )}
-              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/15 transition-colors pointer-events-none" />
-            </div>
-          </>
-        ) : (
-          <div className="relative rounded-xl overflow-hidden bg-[#1a1a2e] border-[10px] border-[#2d2d44] shadow-2xl" style={{ aspectRatio: '16/10' }}>
-            <div className="absolute inset-0 p-2">
-              {showIframe ? (
-                <iframe src={previewUrl} title={title} className="w-full h-full rounded pointer-events-none" loading="lazy" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center bg-[#0f172a] text-white/50 text-sm rounded">
+        <div className="relative rounded-xl overflow-hidden bg-[#1a1a2e] border-[10px] border-[#2d2d44] shadow-2xl" style={{ aspectRatio: '16/10' }}>
+          <div className="absolute inset-0 p-2">
+            {showIframe ? (
+              <iframe
+                src={previewUrl}
+                title={title}
+                className="w-full h-full rounded pointer-events-none"
+                loading="lazy"
+                onError={() => setLoadFailed(true)}
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center bg-[#0f172a] text-white/50 text-sm rounded px-2 text-center">
+                {loadFailed && loadFailedLabel ? (
+                  <span>{loadFailedLabel}</span>
+                ) : thumbnail ? (
+                  <img src={thumbnail} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" />
+                ) : (
                   <span className="animate-pulse">…</span>
-                </div>
-              )}
-            </div>
-            <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-[#1a1a2e] to-transparent" />
-            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/15 transition-colors pointer-events-none" />
+                )}
+              </div>
+            )}
           </div>
-        )}
+          <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-[#1a1a2e] to-transparent" />
+          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/15 transition-colors pointer-events-none" />
+        </div>
       </div>
     </div>
   );
 }
 
+/** Token'ı link veya slug'dan çıkar; önizleme her zaman mevcut origin'de açılsın (iframe aynı sitede yüklensin). */
 function getPreviewUrl(ch: HomeChannel, _localePath: (p: string) => string): string {
-  if (ch.link && /^https?:\/\//i.test(ch.link)) return ch.link;
   const token = ch.link
-    ? ch.link.replace(/^\/+/, '').replace(/^[a-z]{2}\/display\/?/, '').split('/').pop() || ch.slug
+    ? ch.link.replace(/^\/+/, '').replace(/^https?:\/\/[^/]+\/?/i, '').replace(/^[a-z]{2}\/display\/?/i, '').split('/').filter(Boolean).pop() || ch.slug
     : ch.slug;
   if (typeof window === 'undefined') return '';
-  // Display sayfası locale prefix kullanmıyor: /display/[token]
-  return typeof window !== 'undefined' ? `${window.location.origin}/display/${token}` : '';
+  return `${window.location.origin}/display/${encodeURIComponent(token)}`;
 }
 
 export function HomePage({ localePath }: HomePageProps) {
@@ -130,7 +116,17 @@ export function HomePage({ localePath }: HomePageProps) {
   useEffect(() => {
     fetch('/api/home-channels', { cache: 'no-store' })
       .then((res) => res.json())
-      .then((data: unknown) => setChannels(Array.isArray(data) ? data : HOME_CHANNELS))
+      .then((data: unknown) => {
+        const list = Array.isArray(data) ? data : HOME_CHANNELS;
+        // Canlıda localhost linklerini kullanma: sadece path kalsın (getPreviewUrl zaten origin kullanır)
+        setChannels(
+          list.map((c: HomeChannel) => {
+            if (!c.link || !/localhost|127\.0\.0\.1/i.test(c.link)) return c;
+            const token = c.link.replace(/^\/+/, '').replace(/^https?:\/\/[^/]+\/?/i, '').replace(/^[a-z]{2}\/display\/?/i, '').split('/').filter(Boolean).pop() || c.slug || 'channel';
+            return { ...c, link: `/display/${token}` };
+          })
+        );
+      })
       .catch(() => {});
   }, []);
 
@@ -319,6 +315,7 @@ export function HomePage({ localePath }: HomePageProps) {
                     title={ch.title}
                     onClick={() => setPreviewChannel(ch)}
                     thumbnail={ch.thumbnail}
+                    loadFailedLabel={t('home_channel_preview_unavailable')}
                   />
                 </div>
               );

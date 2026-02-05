@@ -111,7 +111,7 @@ export class StripeLocalService {
     const corporateAfter = 'Manage or cancel your subscription anytime from your account. Support: www.menuslide.com';
 
     // Package preview image URL (Stripe fetches server-side - must be publicly accessible)
-    const appUrl = this.configService.get<string>('CORS_ORIGIN') || 'http://localhost:3000';
+    const appUrl = this.configService.get<string>('CORS_ORIGIN') || this.configService.get<string>('FRONTEND_URL') || 'https://menuslide.com';
     const previewImageUrl = this.configService.get<string>('STRIPE_CHECKOUT_PREVIEW_IMAGE')
       || `${appUrl.replace(/\/$/, '')}/checkout-package-preview.png`;
     const isPublicUrl = /^https?:\/\/(?!localhost|127\.0\.0\.1)[^/]+/i.test(previewImageUrl);

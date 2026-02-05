@@ -45,3 +45,6 @@ logs/
 
 # Supabase
 .supabase/
+
+# Large DB exports (do not commit)
+database/export-from-local-data.sql

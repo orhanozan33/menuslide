@@ -16,7 +16,7 @@ export class QrMenusLocalService {
    * Uses short URL with business slug when available: /qr/{slug} (like TV display).
    */
   async getOrCreateQrMenu(businessId: string, screenId?: string) {
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const frontendUrl = process.env.FRONTEND_URL || process.env.CORS_ORIGIN || 'https://menuslide.com';
 
     // Resolve business slug for short URL
     const bizResult = await this.database.query(

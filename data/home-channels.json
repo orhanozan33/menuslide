@@ -1,20 +1,5 @@
 [
-  {
-    "slug": "ana-salon",
-    "title": "Ana Salon",
-    "description": "Ana salon ekranı",
-    "link": "http://localhost:3000/display/metro-tv1"
-  },
-  {
-    "slug": "bar",
-    "title": "Bar",
-    "description": "Bar ekranı",
-    "link": "http://localhost:3000/display/metro-tv2"
-  },
-  {
-    "slug": "teras",
-    "title": "Teras",
-    "description": "Teras ekranı",
-    "link": "http://localhost:3000/display/metro-pizza-tv3"
-  }
+  { "slug": "metro-tv1", "title": "Ana Salon", "description": "Ana salon ekranı", "link": "/display/metro-tv1" },
+  { "slug": "metro-tv2", "title": "Bar", "description": "Bar ekranı", "link": "/display/metro-tv2" },
+  { "slug": "metro-pizza-tv3", "title": "Teras", "description": "Teras ekranı", "link": "/display/metro-pizza-tv3" }
 ]

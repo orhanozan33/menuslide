@@ -18,9 +18,11 @@ async function bootstrap() {
   app.use(json({ limit: '100mb' }));
   app.use(urlencoded({ extended: true, limit: '100mb' }));
 
-  // Enable CORS - allow frontend origins
+  // Enable CORS - allow frontend origins (production: menuslide.com)
   const allowedOrigins = [
     corsOrigin,
+    'https://menuslide.com',
+    'https://www.menuslide.com',
     'http://localhost:3000',
     'http://127.0.0.1:3000',
     'http://localhost:3002',
@@ -30,10 +32,10 @@ async function bootstrap() {
     origin: (origin, callback) => {
       if (!origin) return callback(null, true);
       if (allowedOrigins.includes(origin)) return callback(null, true);
+      // Vercel preview (*.vercel.app)
+      if (/^https:\/\/[a-z0-9-]+\.vercel\.app$/i.test(origin)) return callback(null, true);
       // Development: allow localhost and 127.0.0.1 on any port
-      if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
-        return callback(null, true);
-      }
+      if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return callback(null, true);
       callback(null, true);
     },
     credentials: true,

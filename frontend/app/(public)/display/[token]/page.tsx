@@ -10,8 +10,13 @@ const MenuViewer = dynamic(
   { ssr: false },
 );
 
+// react-konva uses React internals (ReactCurrentOwner) — load only on client to avoid React 19 SSR issues
+const CanvasDisplay = dynamic(
+  () => import('@/components/display/CanvasDisplay'),
+  { ssr: false },
+);
+
 import { TemplateDisplay } from '@/components/display/TemplateDisplay';
-import CanvasDisplay from '@/components/display/CanvasDisplay';
 import { DisplayFrame } from '@/components/display/DisplayFrame';
 import { TickerTape } from '@/components/display/TickerTape';
 import { formatPrice } from '@/lib/formatPrice';
