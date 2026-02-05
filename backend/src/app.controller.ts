@@ -1,7 +1,10 @@
 import { Controller, Get } from '@nestjs/common';
+import { SeedService } from './seed/seed.service';
 
 @Controller()
 export class AppController {
+  constructor(private readonly seed: SeedService) {}
+
   @Get()
   root() {
     return {

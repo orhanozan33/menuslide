@@ -22,30 +22,37 @@ export default function AdminLayout({
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
-    // Check if user is authenticated (local auth veya impersonation)
+    const LOGIN_PATH = localePath('/login');
+    const MAX_WAIT_MS = 12000; // En fazla 12 saniye "Yükleniyor...", sonra login'e yönlendir veya içeriği göster
+
     const checkAuth = async () => {
       const token = sessionStorage.getItem('impersonation_token') || localStorage.getItem('auth_token');
       const userStr = sessionStorage.getItem('impersonation_user') || localStorage.getItem('user');
-      
+
       if (!token || !userStr) {
         setLoading(false);
-        router.push(localePath('/login'));
+        router.push(LOGIN_PATH);
         return;
       }
-      
+
       let userData: any;
       try {
         userData = JSON.parse(userStr);
       } catch {
         setLoading(false);
-        router.push(localePath('/login'));
+        router.push(LOGIN_PATH);
         return;
       }
 
-      // Admin (non-super) için yetkileri backend'den al; böylece sayfalar mount olduğunda güncel admin_permissions kullanılır
       if (userData.role === 'admin') {
         try {
-          const res = await fetch('/api/proxy/auth/me', { headers: { Authorization: `Bearer ${token}` } });
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 8000);
+          const res = await fetch('/api/proxy/auth/me', {
+            headers: { Authorization: `Bearer ${token}` },
+            signal: controller.signal,
+          });
+          clearTimeout(timeoutId);
           const me = res.ok ? (await res.json()) : null;
           if (me?.admin_permissions != null) {
             const merged = {
@@ -67,22 +74,35 @@ export default function AdminLayout({
       } else {
         setUser(userData);
       }
-      
+
       setLoading(false);
     };
 
     checkAuth();
 
-    // Supabase varsa session kontrolü (opsiyonel) - impersonation token'ı da kabul et
+    const timeoutId = setTimeout(() => {
+      setLoading((prev) => {
+        if (prev) {
+          const token = sessionStorage.getItem('impersonation_token') || localStorage.getItem('auth_token');
+          const userStr = sessionStorage.getItem('impersonation_user') || localStorage.getItem('user');
+          if (!token || !userStr) router.push(LOGIN_PATH);
+          return false;
+        }
+        return prev;
+      });
+    }, MAX_WAIT_MS);
+
     if (supabase) {
       supabase.auth.getSession().then(({ data }: { data: { session: any } }) => {
         const token = sessionStorage.getItem('impersonation_token') || localStorage.getItem('auth_token');
         if (!token && !data.session) {
           setLoading(false);
-          router.push(localePath('/login'));
+          router.push(LOGIN_PATH);
         }
       }).catch(() => checkAuth());
     }
+
+    return () => clearTimeout(timeoutId);
   }, [router, localePath]);
 
   // Backend'den güncel profil al (reference_number vb.) - admin referans numarası sidebar'da görünsün

@@ -1,6 +1,6 @@
 # Render Blueprint – Backend (NestJS) Web Service
 # Repo root'ta olmalı. Render Dashboard'da "New > Blueprint" ile bu repo'yu bağlayın.
-# İlk oluşturmada sync: false olan env değişkenleri için değer girmeniz istenir.
+# GitHub'a push → Render otomatik deploy yapar (Auto-Deploy açıksa).
 
 services:
   - type: web
@@ -9,7 +9,6 @@ services:
     region: frankfurt
 
     rootDir: backend
-    # NODE_ENV=production ile npm ci devDependencies atlar; nest build için @nestjs/cli gerekir.
     buildCommand: npm ci --include=dev && npm run build
     startCommand: npm run start:prod
 
@@ -20,7 +19,6 @@ services:
         value: production
       - key: PORT
         value: 10000
-      # Aşağıdakileri ilk Blueprint oluştururken Dashboard'da gireceksiniz (sync: false).
       - key: DATABASE_URL
         sync: false
       - key: JWT_SECRET
@@ -31,10 +29,12 @@ services:
         sync: false
       - key: CORS_ORIGIN
         sync: false
-      # Stripe (ödeme) kullanacaksanız ekleyin:
       - key: STRIPE_SECRET_KEY
         sync: false
       - key: STRIPE_WEBHOOK_SECRET
         sync: false
       - key: STRIPE_PUBLISHABLE_KEY
+        sync: false
+      # İlk canlıya alımda bir kerelik veri import'u için (docs/BIR_KERELIK_IMPORT_CANLI.md)
+      - key: ONE_TIME_IMPORT
         sync: false

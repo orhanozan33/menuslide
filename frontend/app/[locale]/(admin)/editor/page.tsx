@@ -4,7 +4,10 @@ import { useTranslation } from '@/lib/i18n/useTranslation';
 import { useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 
-const CanvasDesignEditor = dynamic(() => import('@/components/CanvasDesignEditor'), { ssr: false });
+const CanvasDesignEditor = dynamic(() => import('@/components/CanvasDesignEditor'), {
+  ssr: false,
+  loading: () => <div className="flex items-center justify-center min-h-[400px] text-slate-500">Yükleniyor...</div>,
+});
 
 export default function EditorPage() {
   const { t } = useTranslation();

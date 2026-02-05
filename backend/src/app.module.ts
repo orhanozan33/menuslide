@@ -31,10 +31,12 @@ import { ReportsModule } from './reports/reports.module';
 import { SupabaseOptionalModule } from './supabase/supabase-optional.module';
 import { SettingsModule } from './settings/settings.module';
 import { InvoiceLayoutModule } from './invoice-layout/invoice-layout.module';
+import { SeedModule } from './seed/seed.module';
 
 @Module({
   controllers: [AppController],
   imports: [
+    SeedModule,
     ConfigModule.forRoot({
       isGlobal: true,
       // Render: Secret File ile tek seferde .env yükleyebilirsiniz (ENV_FILE_PATH=/etc/secrets/env)

@@ -323,27 +323,53 @@ export class ScreensLocalService {
       : userId;
 
     if (userRole === 'super_admin' || userRole === 'admin') {
-      // Admin: sadece user_id verildiğinde o kullanıcının ekranları; verilmezse boş
       const hasTargetUser = targetUserId != null && String(targetUserId).trim() !== '';
-      if (!hasTargetUser) {
+      if (hasTargetUser) {
+        const userResult = await this.database.query(
+          'SELECT business_id FROM users WHERE id = $1',
+          [targetUserId!.trim()]
+        );
+        const targetBusinessId = userResult.rows[0]?.business_id;
+        if (!targetBusinessId) {
+          return { screens: [], subscription_active: true };
+        }
+        const subActive = await this.isBusinessSubscriptionActive(targetBusinessId);
+        if (!subActive) {
+          await this.stopAllScreensForBusiness(targetBusinessId);
+        }
+        const result = await this.database.query(
+          `SELECT * FROM screens WHERE business_id = $1
+           ORDER BY COALESCE((SUBSTRING(name FROM 'TV([0-9]+)'))::int, 999999), name ASC`,
+          [targetBusinessId]
+        );
+        const viewerCounts = await this.getViewerCountsMap(result.rows.map((r: any) => r.id));
+        const screens = result.rows.map((r: any) => ({ ...r, active_viewer_count: viewerCounts[r.id] ?? 0 }));
+        return { screens, subscription_active: subActive };
+      }
+      // super_admin: user_id yoksa tüm ekranları döndür; admin: kendi business_id ekranları
+      if (userRole === 'super_admin') {
+        const result = await this.database.query(
+          `SELECT s.* FROM screens s
+           INNER JOIN businesses b ON s.business_id = b.id
+           ORDER BY b.name ASC, COALESCE((SUBSTRING(s.name FROM 'TV([0-9]+)'))::int, 999999), s.name ASC`
+        );
+        const viewerCounts = await this.getViewerCountsMap(result.rows.map((r: any) => r.id));
+        const screens = result.rows.map((r: any) => ({ ...r, active_viewer_count: viewerCounts[r.id] ?? 0 }));
+        return { screens, subscription_active: true };
+      }
+      // admin, no targetUserId: kendi işletmesinin ekranları
+      const myBusinessId = (await this.getUserBusinessId(userId, userRole)) ?? null;
+      if (!myBusinessId) {
         return { screens: [], subscription_active: true };
       }
-      const userResult = await this.database.query(
-        'SELECT business_id FROM users WHERE id = $1',
-        [targetUserId!.trim()]
-      );
-      const targetBusinessId = userResult.rows[0]?.business_id;
-      if (!targetBusinessId) {
-        return { screens: [], subscription_active: true };
-      }
-      const subActive = await this.isBusinessSubscriptionActive(targetBusinessId);
+      const subActive = await this.isBusinessSubscriptionActive(myBusinessId);
       if (!subActive) {
-        await this.stopAllScreensForBusiness(targetBusinessId);
+        await this.stopAllScreensForBusiness(myBusinessId);
       }
       const result = await this.database.query(
         `SELECT * FROM screens WHERE business_id = $1
          ORDER BY COALESCE((SUBSTRING(name FROM 'TV([0-9]+)'))::int, 999999), name ASC`,
-        [targetBusinessId]
+        [myBusinessId]
       );
       const viewerCounts = await this.getViewerCountsMap(result.rows.map((r: any) => r.id));
       const screens = result.rows.map((r: any) => ({ ...r, active_viewer_count: viewerCounts[r.id] ?? 0 }));

@@ -66,7 +66,12 @@ async function bootstrap() {
   // Stripe webhook route uses raw body (handled in controller)
 
   await app.listen(port);
-  console.log(`🚀 Backend server running on http://localhost:${port}`);
+  const isProd = configService.get('NODE_ENV') === 'production';
+  if (isProd) {
+    console.log(`🚀 Backend listening on port ${port} (production – use Render URL)`);
+  } else {
+    console.log(`🚀 Backend server running on http://localhost:${port}`);
+  }
 }
 
 bootstrap();

@@ -14,8 +14,6 @@ export class TemplatesLocalService {
   constructor(private database: DatabaseService) {}
 
   async findAll(userId?: string, userRole?: string) {
-    // Admin: user_id verilmişse o kullanıcının template'leri, verilmemişse tümü
-    // Normal kullanıcı: sadece kendi oluşturduğu template'leri
     let query = 'SELECT * FROM templates WHERE is_active = true';
     const params: any[] = [];
 
@@ -25,7 +23,6 @@ export class TemplatesLocalService {
         params.push(String(userId).trim());
       }
     } else {
-      // Normal kullanıcılar sadece kendi oluşturduğu template'leri görebilir (sistem template'leri hariç)
       if (userId) {
         query += ' AND created_by = $1 AND (scope IS NULL OR scope != \'system\')';
         params.push(userId);
@@ -35,8 +32,30 @@ export class TemplatesLocalService {
     }
 
     query += ' ORDER BY block_count ASC, name ASC';
-    
-    const result = await this.database.query(query, params);
+
+    try {
+      const result = await this.database.query(query, params);
+      return result.rows;
+    } catch (err: any) {
+      const msg = err?.message || String(err);
+      if ((msg.includes('scope') || msg.includes('created_by')) && (msg.includes('does not exist') || msg.includes('column'))) {
+        return this.findAllFallback(userId, userRole);
+      }
+      throw err;
+    }
+  }
+
+  private async findAllFallback(userId?: string, userRole?: string) {
+    if (userRole === 'super_admin' || userRole === 'admin') {
+      const result = await this.database.query(
+        'SELECT * FROM templates WHERE is_active = true ORDER BY block_count ASC, name ASC'
+      );
+      return result.rows;
+    }
+    if (!userId) return [];
+    const result = await this.database.query(
+      'SELECT * FROM templates WHERE is_active = true AND (is_system = false OR is_system IS NULL) ORDER BY block_count ASC, name ASC'
+    );
     return result.rows;
   }
 
@@ -443,32 +462,45 @@ export class TemplatesLocalService {
   }
 
   async findByScope(scope: 'system' | 'user', businessId?: string, userId?: string, userRole?: string) {
+    try {
+      if (scope === 'system') {
+        const result = await this.database.query(
+          'SELECT * FROM templates WHERE scope = $1 AND is_active = true ORDER BY block_count ASC, display_name ASC',
+          ['system']
+        );
+        return result.rows;
+      } else {
+        let query = 'SELECT * FROM templates WHERE scope = $1 AND is_active = true';
+        const params: any[] = ['user'];
+        if (userId) {
+          query += ' AND created_by = $2';
+          params.push(userId);
+        }
+        query += ' ORDER BY created_at DESC, display_name ASC';
+        const result = await this.database.query(query, params);
+        return result.rows;
+      }
+    } catch (err: any) {
+      const msg = err?.message || String(err);
+      if (msg.includes('scope') && (msg.includes('does not exist') || msg.includes('column'))) {
+        return this.findByScopeFallback(scope, userId, userRole);
+      }
+      throw err;
+    }
+  }
+
+  /** Eski şema: scope/created_by yok, sadece is_system var */
+  private async findByScopeFallback(scope: 'system' | 'user', userId?: string, userRole?: string) {
     if (scope === 'system') {
       const result = await this.database.query(
-        'SELECT * FROM templates WHERE scope = $1 AND is_active = true ORDER BY block_count ASC, display_name ASC',
-        ['system']
+        'SELECT * FROM templates WHERE is_system = true AND is_active = true ORDER BY block_count ASC, display_name ASC'
       );
       return result.rows;
-    } else {
-      // User templates - filter by created_by if userId provided and not admin
-      let query = 'SELECT * FROM templates WHERE scope = $1 AND is_active = true';
-      const params: any[] = ['user'];
-
-      if (userId && userRole !== 'super_admin' && userRole !== 'admin') {
-        // Normal kullanıcı sadece kendi template'lerini görür
-        query += ' AND created_by = $2';
-        params.push(userId);
-      } else if (userId && (userRole === 'super_admin' || userRole === 'admin')) {
-        // Admin belirli bir kullanıcının template'lerini filtreleyebilir
-        query += ' AND created_by = $2';
-        params.push(userId);
-      }
-
-      query += ' ORDER BY created_at DESC, display_name ASC';
-      
-      const result = await this.database.query(query, params);
-      return result.rows;
     }
+    const result = await this.database.query(
+      'SELECT * FROM templates WHERE (is_system = false OR is_system IS NULL) AND is_active = true ORDER BY created_at DESC, display_name ASC'
+    );
+    return result.rows;
   }
 
   /**

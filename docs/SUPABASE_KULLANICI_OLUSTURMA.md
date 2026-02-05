@@ -65,3 +65,22 @@ WHERE email = 'orhanozan33@hotmail.com';
 ```
 
 Giriş: bu e‑posta + şifre **33333333**.
+
+---
+
+## Super admin giriş yaptı ama “tüm veriler yok”
+
+Giriş çalışıyor ama panelde işletme, menü, ekran görünmüyorsa Supabase’de **sadece kullanıcı** var, **iş verisi** yok demektir. ### Otomatik veri oluşumu (önerilen)
+
+**Backend** (Render veya yerel) ilk çalıştığında veritabanında **hiç dil kaydı yoksa** başlangıç verisini **kendisi oluşturur**: diller, planlar, contact_info, **Demo İşletme**, **Demo Menü**, **TV 1** ekranı. Supabase'i yeni kurduysanız backend'i bir kez deploy edip çalıştırmanız yeterli; tablolar boşsa veri otomatik oluşur (log'da "Başlangıç verisi oluşturuldu" mesajı görünür).
+
+### A) Elle seed (isteğe bağlı)
+
+**Supabase** → **SQL Editor** → `database/seed-supabase-minimal-data.sql` dosyasını çalıştırarak aynı veriyi elle de ekleyebilirsiniz.
+
+### B) Yereldeki tüm veriyi taşımak
+
+Yerel PostgreSQL’deki işletmeler, menüler, ekranlar, şablonlar vb. hepsini Supabase’e taşımak için:
+
+- **Rehber:** `docs/YERELDEN_SUPABASE_VERI_TASIMA.md`
+- Yerelde `pg_dump --data-only` ile export alıp çıkan SQL’i Supabase SQL Editor’da çalıştırın.
