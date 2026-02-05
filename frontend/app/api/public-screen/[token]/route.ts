@@ -8,9 +8,9 @@ const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { token: string } }
+  { params }: { params: Promise<{ token: string }> }
 ) {
-  const token = params?.token;
+  const { token } = await params;
   if (!token) {
     return NextResponse.json({ screen: null, notFound: true, menus: [] }, { status: 200 });
   }

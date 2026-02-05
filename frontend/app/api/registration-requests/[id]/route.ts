@@ -7,10 +7,10 @@ export const dynamic = 'force-dynamic';
 /** Admin: Başvuruyu siler */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const id = params?.id;
+    const { id } = await params;
     if (!id) return NextResponse.json({ message: 'ID required' }, { status: 400 });
     const auth = request.headers.get('authorization') || '';
     const res = await fetch(`${BACKEND_URL}/registration-requests/${id}`, {
