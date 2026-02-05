@@ -1,0 +1,253 @@
+{
+  "business_type": "burger",
+  "language": "tr",
+  "categories": [
+    {
+      "category": "Klasik Burgerler",
+      "language": "tr",
+      "items": [
+        {
+          "title": "Klasik Burger",
+          "description": "Izgara köfte, marul, domates, özel sos",
+          "price": "₺9.99",
+          "badges": ["BEST_SELLER"],
+          "iconHints": ["🍔"]
+        },
+        {
+          "title": "Cheeseburger",
+          "description": "Çift kaşar peyniri, köfte, marul, domates",
+          "price": "₺11.99",
+          "badges": ["BEST_SELLER"],
+          "iconHints": ["🍔", "🧀"]
+        },
+        {
+          "title": "Bacon Burger",
+          "description": "Çıtır bacon, köfte, kaşar, özel sos",
+          "price": "₺13.99",
+          "badges": ["HOT"],
+          "iconHints": ["🍔", "🥓"]
+        },
+        {
+          "title": "Double Burger",
+          "description": "Çift köfte, çift peynir, özel sos",
+          "price": "₺15.99",
+          "badges": ["CHEF_SPECIAL"],
+          "iconHints": ["🍔"]
+        }
+      ]
+    },
+    {
+      "category": "Özel Burgerler",
+      "language": "tr",
+      "items": [
+        {
+          "title": "Tavuk Burger",
+          "description": "Izgara tavuk göğsü, marul, domates, mayonez",
+          "price": "₺10.99",
+          "badges": [],
+          "iconHints": ["🍔"]
+        },
+        {
+          "title": "Vejetaryen Burger",
+          "description": "Sebze köftesi, marul, domates, özel sos",
+          "price": "₺9.99",
+          "badges": ["NEW"],
+          "iconHints": ["🍔"]
+        },
+        {
+          "title": "Acılı Burger",
+          "description": "Acılı köfte, jalapeno, kaşar, acı sos",
+          "price": "₺12.99",
+          "badges": ["HOT", "NEW"],
+          "iconHints": ["🍔", "🌶️"]
+        }
+      ]
+    },
+    {
+      "category": "Yan Lezzetler",
+      "language": "tr",
+      "items": [
+        {
+          "title": "Patates Kızartması",
+          "description": "Taze kesilmiş, altın sarısı patates",
+          "price": "₺4.99",
+          "badges": ["BEST_SELLER"],
+          "iconHints": ["🍟"]
+        },
+        {
+          "title": "Soğan Halkaları",
+          "description": "Çıtır soğan halkaları, özel sos",
+          "price": "₺5.99",
+          "badges": [],
+          "iconHints": ["🧅"]
+        },
+        {
+          "title": "Tavuk Kanat",
+          "description": "Acılı tavuk kanat, ranch sos",
+          "price": "₺8.99",
+          "badges": ["HOT"],
+          "iconHints": ["🍗", "🌶️"]
+        }
+      ]
+    },
+    {
+      "category": "İçecekler",
+      "language": "tr",
+      "items": [
+        {
+          "title": "Kola",
+          "description": "Buzlu soğuk kola",
+          "price": "₺3.99",
+          "badges": ["BEST_SELLER"],
+          "iconHints": ["🥤"]
+        },
+        {
+          "title": "Ayran",
+          "description": "Taze ayran",
+          "price": "₺2.99",
+          "badges": [],
+          "iconHints": ["🥛"]
+        },
+        {
+          "title": "Meyve Suyu",
+          "description": "Portakal, elma, şeftali",
+          "price": "₺4.99",
+          "badges": [],
+          "iconHints": ["🧃"]
+        }
+      ]
+    }
+  ],
+  "language_variants": {
+    "en": {
+      "categories": [
+        {
+          "category": "Classic Burgers",
+          "language": "en",
+          "items": [
+            {
+              "title": "Classic Burger",
+              "description": "Grilled patty, lettuce, tomato, special sauce",
+              "price": "$9.99",
+              "badges": ["BEST_SELLER"],
+              "iconHints": ["🍔"]
+            },
+            {
+              "title": "Cheeseburger",
+              "description": "Double cheddar, patty, lettuce, tomato",
+              "price": "$11.99",
+              "badges": ["BEST_SELLER"],
+              "iconHints": ["🍔", "🧀"]
+            },
+            {
+              "title": "Bacon Burger",
+              "description": "Crispy bacon, patty, cheddar, special sauce",
+              "price": "$13.99",
+              "badges": ["HOT"],
+              "iconHints": ["🍔", "🥓"]
+            },
+            {
+              "title": "Double Burger",
+              "description": "Double patty, double cheese, special sauce",
+              "price": "$15.99",
+              "badges": ["CHEF_SPECIAL"],
+              "iconHints": ["🍔"]
+            }
+          ]
+        },
+        {
+          "category": "Special Burgers",
+          "language": "en",
+          "items": [
+            {
+              "title": "Chicken Burger",
+              "description": "Grilled chicken breast, lettuce, tomato, mayo",
+              "price": "$10.99",
+              "badges": [],
+              "iconHints": ["🍔"]
+            },
+            {
+              "title": "Vegetarian Burger",
+              "description": "Veggie patty, lettuce, tomato, special sauce",
+              "price": "$9.99",
+              "badges": ["NEW"],
+              "iconHints": ["🍔"]
+            },
+            {
+              "title": "Spicy Burger",
+              "description": "Spicy patty, jalapeno, cheddar, hot sauce",
+              "price": "$12.99",
+              "badges": ["HOT", "NEW"],
+              "iconHints": ["🍔", "🌶️"]
+            }
+          ]
+        },
+        {
+          "category": "Sides",
+          "language": "en",
+          "items": [
+            {
+              "title": "French Fries",
+              "description": "Fresh cut, golden fries",
+              "price": "$4.99",
+              "badges": ["BEST_SELLER"],
+              "iconHints": ["🍟"]
+            },
+            {
+              "title": "Onion Rings",
+              "description": "Crispy onion rings, special sauce",
+              "price": "$5.99",
+              "badges": [],
+              "iconHints": ["🧅"]
+            },
+            {
+              "title": "Chicken Wings",
+              "description": "Spicy wings, ranch sauce",
+              "price": "$8.99",
+              "badges": ["HOT"],
+              "iconHints": ["🍗", "🌶️"]
+            }
+          ]
+        },
+        {
+          "category": "Beverages",
+          "language": "en",
+          "items": [
+            {
+              "title": "Cola",
+              "description": "Iced cold cola",
+              "price": "$3.99",
+              "badges": ["BEST_SELLER"],
+              "iconHints": ["🥤"]
+            },
+            {
+              "title": "Ayran",
+              "description": "Fresh ayran",
+              "price": "$2.99",
+              "badges": [],
+              "iconHints": ["🥛"]
+            },
+            {
+              "title": "Fruit Juice",
+              "description": "Orange, apple, peach",
+              "price": "$4.99",
+              "badges": [],
+              "iconHints": ["🧃"]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "time_based_menus": {
+    "breakfast": [],
+    "lunch": ["Klasik Burgerler", "Özel Burgerler", "Yan Lezzetler", "İçecekler"],
+    "dinner": ["Klasik Burgerler", "Özel Burgerler", "Yan Lezzetler", "İçecekler"]
+  },
+  "tv_optimization": {
+    "max_items_per_category": 6,
+    "max_chars_title": 20,
+    "max_chars_description": 50,
+    "price_format": "currency_symbol_prefix"
+  }
+}

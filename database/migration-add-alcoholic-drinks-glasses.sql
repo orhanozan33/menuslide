@@ -1,0 +1,22 @@
+-- İçecek kategorisine alkollü içkiler ekle: kokteyl, viski, votka, tekila, vb. (bardakta)
+INSERT INTO content_library (name, category, type, url, display_order) VALUES
+  ('Whisky', 'drinks', 'drink', 'https://images.unsplash.com/photo-1470337458703-46ad1756a187?w=800&q=90', 350),
+  ('Whiskey on the Rocks', 'drinks', 'drink', 'https://images.unsplash.com/photo-1569529465841-dfecdab7503b?w=800&q=90', 351),
+  ('Vodka', 'drinks', 'drink', 'https://images.unsplash.com/photo-1551024709-8f23befc6f87?w=800&q=90', 352),
+  ('Tequila', 'drinks', 'drink', 'https://images.unsplash.com/photo-1544145945-f90425340c7e?w=800&q=90', 353),
+  ('Rum', 'drinks', 'drink', 'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?w=800&q=90', 354),
+  ('Gin', 'drinks', 'drink', 'https://images.unsplash.com/photo-1551538827-9c037cb4f32a?w=800&q=90', 355),
+  ('Martini', 'drinks', 'drink', 'https://images.unsplash.com/photo-1575023782549-62c0e1270490?w=800&q=90', 356),
+  ('Margarita', 'drinks', 'drink', 'https://images.unsplash.com/photo-1544145945-f90425340c7e?w=800&q=90', 357),
+  ('Old Fashioned', 'drinks', 'drink', 'https://images.unsplash.com/photo-1470337458703-46ad1756a187?w=800&q=90', 358),
+  ('Negroni', 'drinks', 'drink', 'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?w=800&q=90', 359),
+  ('Aperol Spritz', 'drinks', 'drink', 'https://images.unsplash.com/photo-1575023782549-62c0e1270490?w=800&q=90', 360),
+  ('Champagne', 'drinks', 'drink', 'https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?w=800&q=90', 361),
+  ('Wine Glass', 'drinks', 'drink', 'https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?w=800&q=90', 362),
+  ('Mojito', 'drinks', 'drink', 'https://images.unsplash.com/photo-1551538827-9c037cb4f32a?w=800&q=90', 363),
+  ('Cocktail', 'drinks', 'drink', 'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?w=800&q=90', 364),
+  ('Bloody Mary', 'drinks', 'drink', 'https://images.unsplash.com/photo-1551538827-9c037cb4f32a?w=800&q=90', 365),
+  ('Piña Colada', 'drinks', 'drink', 'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?w=800&q=90', 366),
+  ('Beer Glass', 'drinks', 'drink', 'https://images.unsplash.com/photo-1535958636474-b021ee887b13?w=800&q=90', 367),
+  ('Sangria', 'drinks', 'drink', 'https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?w=800&q=90', 368),
+  ('Espresso Martini', 'drinks', 'drink', 'https://images.unsplash.com/photo-1575023782549-62c0e1270490?w=800&q=90', 369);

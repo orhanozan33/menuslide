@@ -1,0 +1,629 @@
+@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600;700&family=Dancing+Script:wght@400;500;600;700&family=Great+Vibes&family=Indie+Flower&family=Kaushan+Script&family=Pacifico&family=Permanent+Marker&family=Sacramento&family=Satisfy&family=Shadows+Into+Light&family=Patrick+Hand&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 0, 0, 0;
+  --background-start-rgb: 214, 219, 220;
+  --background-end-rgb: 255, 255, 255;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --foreground-rgb: 255, 255, 255;
+    --background-start-rgb: 0, 0, 0;
+    --background-end-rgb: 0, 0, 0;
+  }
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: linear-gradient(
+      to bottom,
+      transparent,
+      rgb(var(--background-end-rgb))
+    )
+    rgb(var(--background-start-rgb));
+}
+
+/* Tüm input ve textarea alanlarındaki yazılar siyah, arka plan beyaz olsun */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+input[type="url"],
+input[type="tel"],
+input[type="search"],
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"],
+textarea,
+select {
+  color: #000000 !important;
+  background-color: #ffffff !important;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #9ca3af !important;
+}
+
+/* Rozet animasyonu - Küçülüp büyüyen dikkat çekici animasyon */
+@keyframes pulse-scale {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.95;
+  }
+}
+
+.badge-pulse {
+  animation: pulse-scale 1.5s ease-in-out infinite;
+}
+
+/* Hareketli indirim bloğu - hareket çeşitleri */
+@keyframes discount-pulse {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); box-shadow: 0 0 8px 2px currentColor; filter: brightness(1); }
+  50% { transform: translate(-50%, -50%) scale(1.12); box-shadow: 0 0 20px 6px currentColor; filter: brightness(1.2); }
+}
+@keyframes discount-bounce {
+  0%, 100% { transform: translate(-50%, -50%) scale(1) translateY(0); }
+  25% { transform: translate(-50%, -50%) scale(1.05) translateY(-4px); }
+  50% { transform: translate(-50%, -50%) scale(1.1) translateY(0); }
+  75% { transform: translate(-50%, -50%) scale(1.05) translateY(-2px); }
+}
+@keyframes discount-shake {
+  0%, 100% { transform: translate(-50%, -50%) rotate(0deg); }
+  10%, 30%, 50%, 70%, 90% { transform: translate(-50%, -50%) rotate(-3deg); }
+  20%, 40%, 60%, 80% { transform: translate(-50%, -50%) rotate(3deg); }
+}
+@keyframes discount-glow {
+  0%, 100% { box-shadow: 0 0 6px 2px currentColor; filter: brightness(1); opacity: 1; }
+  50% { box-shadow: 0 0 20px 8px currentColor; filter: brightness(1.25); opacity: 0.95; }
+}
+@keyframes discount-wave {
+  0%, 100% { transform: translate(-50%, -50%) scaleY(1); }
+  25% { transform: translate(-50%, -50%) scaleY(1.08); }
+  50% { transform: translate(-50%, -50%) scaleY(0.96); }
+  75% { transform: translate(-50%, -50%) scaleY(1.05); }
+}
+@keyframes discount-flash {
+  0%, 45%, 55%, 100% { opacity: 1; filter: brightness(1); }
+  50% { opacity: 0.85; filter: brightness(1.4); }
+}
+@keyframes discount-swing {
+  0%, 100% { transform: translate(-50%, -50%) rotate(-6deg); }
+  50% { transform: translate(-50%, -50%) rotate(6deg); }
+}
+@keyframes discount-wiggle {
+  0%, 100% { transform: translate(-50%, -50%) skewX(0deg); }
+  25% { transform: translate(-50%, -50%) skewX(-8deg); }
+  75% { transform: translate(-50%, -50%) skewX(8deg); }
+}
+@keyframes discount-float {
+  0%, 100% { transform: translate(-50%, -50%) translateY(0); }
+  50% { transform: translate(-50%, -50%) translateY(-6px); }
+}
+@keyframes discount-spin {
+  0% { transform: translate(-50%, -50%) rotate(0deg); }
+  100% { transform: translate(-50%, -50%) rotate(360deg); }
+}
+@keyframes discount-heartbeat {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); }
+  14% { transform: translate(-50%, -50%) scale(1.15); }
+  28% { transform: translate(-50%, -50%) scale(1); }
+  42% { transform: translate(-50%, -50%) scale(1.12); }
+  70% { transform: translate(-50%, -50%) scale(1); }
+}
+
+.discount-anim-pulse { animation: discount-pulse 1.2s ease-in-out infinite; }
+.discount-anim-bounce { animation: discount-bounce 1.4s ease-in-out infinite; }
+.discount-anim-shake { animation: discount-shake 0.6s ease-in-out infinite; }
+.discount-anim-glow { animation: discount-glow 1.5s ease-in-out infinite; }
+.discount-anim-wave { animation: discount-wave 1.3s ease-in-out infinite; }
+.discount-anim-flash { animation: discount-flash 1.8s ease-in-out infinite; }
+.discount-anim-swing { animation: discount-swing 1.5s ease-in-out infinite; }
+.discount-anim-wiggle { animation: discount-wiggle 0.8s ease-in-out infinite; }
+.discount-anim-float { animation: discount-float 2s ease-in-out infinite; }
+.discount-anim-spin { animation: discount-spin 3s linear infinite; }
+.discount-anim-heartbeat { animation: discount-heartbeat 1.2s ease-in-out infinite; }
+
+/* Blok modelleri - border-radius ve padding */
+.discount-style-pill { border-radius: 9999px; padding-left: 1rem; padding-right: 1rem; }
+.discount-style-rounded { border-radius: 0.75rem; padding-left: 1rem; padding-right: 1rem; }
+.discount-style-badge { border-radius: 0.5rem; padding-left: 0.75rem; padding-right: 0.75rem; padding-top: 0.25rem; padding-bottom: 0.25rem; font-size: 0.9em; }
+.discount-style-ribbon { border-radius: 0 9999px 9999px 0; padding-left: 1.25rem; padding-right: 1rem; box-shadow: 2px 2px 8px rgba(0,0,0,0.25); }
+.discount-style-outline { background: transparent !important; border-width: 3px; }
+.discount-style-star { clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%); padding: 0.5rem 1rem; }
+.discount-style-bubble { border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%; padding: 0.5rem 1.25rem; box-shadow: inset 0 -2px 8px rgba(0,0,0,0.15); }
+.discount-style-tag { border-radius: 0.5rem 0.5rem 0.5rem 0; padding-left: 1rem; padding-right: 0.75rem; border-right: 3px solid rgba(0,0,0,0.2); }
+.discount-style-ticket { border-radius: 0.5rem; padding: 0.4rem 1rem; border: 2px dashed currentColor; background-clip: padding-box; }
+.discount-style-diamond { clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%); padding: 0.6rem 1rem; }
+/* Sale label / Freepik-style block models */
+.discount-style-starburst { clip-path: polygon(50% 0%, 61% 20%, 98% 20%, 68% 35%, 82% 60%, 50% 45%, 18% 60%, 32% 35%, 2% 20%, 39% 20%); padding: 0.6rem 1.2rem; box-shadow: 2px 2px 10px rgba(0,0,0,0.3); }
+.discount-style-price_tag { border-radius: 0.5rem 0.5rem 0.5rem 0; padding: 0.5rem 1rem 0.5rem 1.25rem; border-right: 4px solid rgba(0,0,0,0.25); box-shadow: 2px 2px 8px rgba(0,0,0,0.2); }
+.discount-style-angular_banner { clip-path: polygon(4% 0%, 100% 0%, 96% 100%, 0% 100%); padding: 0.5rem 1.5rem; box-shadow: 2px 2px 8px rgba(0,0,0,0.25); }
+.discount-style-circle_sticker { border-radius: 9999px; padding: 0.6rem 1.2rem; box-shadow: 2px 2px 10px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.2); }
+
+/* Görsel seç paneli — sağda her zaman görünür kaydırma çubuğu */
+.content-library-scroll {
+  scrollbar-width: auto;
+  scrollbar-color: #64748b #e2e8f0;
+}
+.content-library-scroll::-webkit-scrollbar {
+  width: 12px;
+}
+.content-library-scroll::-webkit-scrollbar-track {
+  background: #e2e8f0;
+  border-radius: 4px;
+}
+.content-library-scroll::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 4px;
+}
+.content-library-scroll::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+/* Döngü resimleri listesi (önizleme altı) — sağda ufak kaydırma çubuğu, her zaman görünür */
+.image-rotation-list-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #94a3b8 #e2e8f0;
+}
+.image-rotation-list-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.image-rotation-list-scroll::-webkit-scrollbar-track {
+  background: #e2e8f0;
+  border-radius: 3px;
+}
+.image-rotation-list-scroll::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 3px;
+}
+.image-rotation-list-scroll::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+/* Fiyat etiketi (price badge) – resim önizleme container içinde köşede badge */
+.price-badge {
+  position: absolute;
+  padding: 12px 16px;
+  font-weight: bold;
+  text-align: center;
+  z-index: 20;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+}
+.price-badge .badge-top {
+  font-size: 12px;
+  opacity: 0.9;
+}
+.price-badge .badge-price {
+  font-size: 28px;
+}
+.price-badge .badge-bottom {
+  font-size: 13px;
+}
+/* Modeller – resimdeki birebir modeller */
+.price-badge.rounded {
+  border-radius: 999px;
+}
+.price-badge.serit {
+  transform: skew(-12deg);
+}
+.price-badge.balon {
+  border-radius: 50% 50% 50% 0;
+}
+.price-badge.fiyat-etiketi,
+.price-badge.price-tag {
+  border-radius: 6px;
+}
+.price-badge.fiyat-etiketi::after,
+.price-badge.price-tag::after {
+  content: "";
+  position: absolute;
+  right: -8px;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  background: inherit;
+  transform: translateY(-50%) rotate(45deg);
+}
+/* Köşe kalkık daire (peeled corner circle) – fiyat uzunluğundan bağımsız her zaman daire */
+.price-badge.peeled_circle {
+  border-radius: 50%;
+  aspect-ratio: 1;
+  width: max-content;
+  min-width: 88px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25), inset 0 2px 0 rgba(255, 255, 255, 0.2);
+}
+.price-badge.peeled_circle::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 28%;
+  height: 28%;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 0 0 100% 0;
+  box-shadow: -2px -2px 6px rgba(0, 0, 0, 0.15);
+  transform: none;
+  top: auto;
+}
+/* Basit daire – fiyat uzunluğundan bağımsız her zaman daire */
+.price-badge.simple_circle {
+  border-radius: 50%;
+  aspect-ratio: 1;
+  width: max-content;
+  min-width: 88px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+/* Asma etiket + banner (üstte delik, altta sivri banner) */
+.price-badge.hang_tag_banner {
+  border-radius: 8px 8px 0 0;
+  clip-path: none;
+  padding-top: 18px;
+}
+.price-badge.hang_tag_banner::before {
+  content: "";
+  position: absolute;
+  top: -2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.15);
+}
+.price-badge.hang_tag_banner::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -20px;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 20px solid transparent;
+  border-right: 20px solid transparent;
+  border-top: 22px solid inherit;
+  filter: brightness(0.85);
+  background: transparent !important;
+}
+/* Basit asma etiket (damla kesik üst) */
+.price-badge.simple_hang_tag {
+  border-radius: 8px;
+  clip-path: polygon(50% 0%, 58% 0%, 50% 12%, 42% 0%, 0% 0%, 0% 100%, 100% 100%, 100% 0%);
+  padding-top: 14px;
+}
+/* Katlı köşe (folded corner) */
+.price-badge.folded_corner {
+  border-radius: 6px;
+  box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.2);
+}
+.price-badge.folded_corner::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: 24px 24px 0 0;
+  border-color: rgba(0, 0, 0, 0.2) transparent transparent transparent;
+  border-radius: 4px 0 0 0;
+  background: transparent !important;
+  right: auto;
+  bottom: auto;
+  transform: none;
+}
+/* Yıldız patlaması (starburst – jagged) */
+.price-badge.starburst {
+  clip-path: polygon(
+    50% 0%, 58% 18%, 78% 18%, 62% 30%, 70% 48%, 50% 38%, 30% 48%, 38% 30%, 22% 18%, 42% 18%
+  );
+  padding: 14px 18px;
+}
+/* Katlı kurdele (folded ribbon) */
+.price-badge.folded_ribbon {
+  clip-path: polygon(0 0, calc(100% - 20px) 0, 100% 50%, calc(100% - 20px) 100%, 0 100%, 20px 50%);
+  transform: skew(-5deg);
+  padding: 12px 24px;
+}
+.price-badge.folded_ribbon::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 28%;
+  height: 100%;
+  background: inherit;
+  filter: brightness(1.15);
+  clip-path: polygon(30% 0, 100% 0, 100% 100%, 30% 100%);
+  border-radius: 0 4px 4px 0;
+  transform: none;
+  left: auto;
+  bottom: auto;
+}
+/* 3D kutu */
+.price-badge.box_3d {
+  border-radius: 6px;
+  transform: perspective(120px) rotateX(8deg) rotateY(-4deg);
+  box-shadow: 2px 4px 12px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+/* Klasik asma etiket (yaylı üst, delik) */
+.price-badge.classic_hang_tag {
+  border-radius: 8px 8px 20px 20px;
+  padding-top: 16px;
+}
+.price-badge.classic_hang_tag::before {
+  content: "";
+  position: absolute;
+  top: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.2);
+}
+.price-badge.classic_hang_tag::after {
+  display: none;
+}
+/* Sivri dikdörtgen (pointed rectangle – solda kuyruk, delik) */
+.price-badge.pointed_rectangle {
+  border-radius: 6px 12px 12px 6px;
+  padding-left: 20px;
+}
+.price-badge.pointed_rectangle::after {
+  content: "";
+  position: absolute;
+  left: -10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+  border-top: 10px solid transparent;
+  border-bottom: 10px solid transparent;
+  border-right: 12px solid inherit;
+  background: transparent !important;
+}
+.price-badge.pointed_rectangle::before {
+  content: "";
+  position: absolute;
+  left: -6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.25);
+}
+/* Pozisyon */
+.price-badge.top-left {
+  top: 12px;
+  left: 12px;
+}
+.price-badge.top-right {
+  top: 12px;
+  right: 12px;
+}
+.price-badge.bottom-left {
+  bottom: 12px;
+  left: 12px;
+}
+.price-badge.bottom-right {
+  bottom: 12px;
+  right: 12px;
+}
+
+/* Resim döngüsü geçiş efektleri */
+.image-rotation-transition-wrap {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+.image-rotation-transition-wrap .image-rot-media {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+@keyframes imageRotFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes imageRotSlideLeftIn {
+  from { opacity: 0; transform: translateX(30%); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes imageRotSlideRightIn {
+  from { opacity: 0; transform: translateX(-30%); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes imageRotSlideUpIn {
+  from { opacity: 0; transform: translateY(30%); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes imageRotSlideDownIn {
+  from { opacity: 0; transform: translateY(-30%); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes imageRotZoomIn {
+  from { opacity: 0; transform: scale(0.85); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes imageRotZoomOut {
+  from { opacity: 0; transform: scale(1.15); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes imageRotBlurIn {
+  from { opacity: 0; filter: blur(20px); }
+  to { opacity: 1; filter: blur(0); }
+}
+@keyframes imageRotFlipH {
+  from { opacity: 0; transform: perspective(800px) rotateY(-90deg); }
+  to { opacity: 1; transform: perspective(800px) rotateY(0); }
+}
+@keyframes imageRotFlipV {
+  from { opacity: 0; transform: perspective(800px) rotateX(-90deg); }
+  to { opacity: 1; transform: perspective(800px) rotateX(0); }
+}
+@keyframes imageRotRotateIn {
+  from { opacity: 0; transform: rotate(-18deg) scale(0.88); }
+  to { opacity: 1; transform: rotate(0) scale(1); }
+}
+@keyframes imageRotRevealCenter {
+  from { opacity: 0; transform: scale(0); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes imageRotDissolve {
+  from { opacity: 0; filter: blur(12px); transform: scale(1.08); }
+  to { opacity: 1; filter: blur(0); transform: scale(1); }
+}
+/* Merkezden daire açılma (iris) */
+@keyframes imageRotIrisOpen {
+  from { opacity: 1; clip-path: circle(0% at 50% 50%); }
+  to { opacity: 1; clip-path: circle(150% at 50% 50%); }
+}
+/* Daire kapanma (içten dışa) */
+@keyframes imageRotIrisClose {
+  from { opacity: 1; clip-path: circle(150% at 50% 50%); }
+  to { opacity: 1; clip-path: circle(0% at 50% 50%); }
+}
+/* Hortum / spiral: dönerek büyüyerek gelme */
+@keyframes imageRotSpiralIn {
+  from { opacity: 0; transform: rotate(-720deg) scale(0); }
+  to { opacity: 1; transform: rotate(0) scale(1); }
+}
+/* Yatay jaluz: üstten alta şerit şerit açılma */
+@keyframes imageRotBlindsH {
+  0% { clip-path: inset(100% 0 0 0); }
+  12.5% { clip-path: inset(87.5% 0 0 0); }
+  25% { clip-path: inset(75% 0 0 0); }
+  37.5% { clip-path: inset(62.5% 0 0 0); }
+  50% { clip-path: inset(50% 0 0 0); }
+  62.5% { clip-path: inset(37.5% 0 0 0); }
+  75% { clip-path: inset(25% 0 0 0); }
+  87.5% { clip-path: inset(12.5% 0 0 0); }
+  100% { clip-path: inset(0 0 0 0); }
+}
+/* Dikey jaluz: soldan sağa şerit şerit açılma */
+@keyframes imageRotBlindsV {
+  0% { clip-path: inset(0 100% 0 0); }
+  12.5% { clip-path: inset(0 87.5% 0 0); }
+  25% { clip-path: inset(0 75% 0 0); }
+  37.5% { clip-path: inset(0 62.5% 0 0); }
+  50% { clip-path: inset(0 50% 0 0); }
+  62.5% { clip-path: inset(0 37.5% 0 0); }
+  75% { clip-path: inset(0 25% 0 0); }
+  87.5% { clip-path: inset(0 12.5% 0 0); }
+  100% { clip-path: inset(0 0 0 0); }
+}
+/* Kare kare birleşme: merkezden dışa kare kare açılma */
+@keyframes imageRotTiles {
+  0% { clip-path: inset(50% 50% 50% 50%); opacity: 0.6; }
+  25% { clip-path: inset(37.5% 37.5% 37.5% 37.5%); opacity: 0.8; }
+  50% { clip-path: inset(25% 25% 25% 25%); opacity: 0.9; }
+  75% { clip-path: inset(12.5% 12.5% 12.5% 12.5%); opacity: 1; }
+  100% { clip-path: inset(0 0 0 0); opacity: 1; }
+}
+/* Yapboz: 9 parça merkezden birleşme */
+@keyframes imageRotPuzzleExpand {
+  0% { clip-path: inset(50% 50% 50% 50%); opacity: 0.7; }
+  11.11% { clip-path: inset(44.45% 44.45% 44.45% 44.45%); opacity: 0.75; }
+  22.22% { clip-path: inset(38.9% 38.9% 38.9% 38.9%); opacity: 0.8; }
+  33.33% { clip-path: inset(33.35% 33.35% 33.35% 33.35%); opacity: 0.85; }
+  44.44% { clip-path: inset(27.8% 27.8% 27.8% 27.8%); opacity: 0.9; }
+  55.55% { clip-path: inset(22.25% 22.25% 22.25% 22.25%); opacity: 0.92; }
+  66.66% { clip-path: inset(16.7% 16.7% 16.7% 16.7%); opacity: 0.95; }
+  77.77% { clip-path: inset(11.15% 11.15% 11.15% 11.15%); opacity: 0.98; }
+  88.88% { clip-path: inset(5.55% 5.55% 5.55% 5.55%); opacity: 1; }
+  100% { clip-path: inset(0 0 0 0); opacity: 1; }
+}
+/* Yapboz: yatay şeritler merkezden (satır satır birleşme) */
+@keyframes imageRotPuzzleRows {
+  0% { clip-path: inset(45% 0 45% 0); opacity: 0.8; }
+  16.66% { clip-path: inset(35% 0 35% 0); opacity: 0.85; }
+  33.33% { clip-path: inset(25% 0 25% 0); opacity: 0.9; }
+  50% { clip-path: inset(15% 0 15% 0); opacity: 0.95; }
+  66.66% { clip-path: inset(8% 0 8% 0); opacity: 0.98; }
+  83.33% { clip-path: inset(3% 0 3% 0); opacity: 1; }
+  100% { clip-path: inset(0 0 0 0); opacity: 1; }
+}
+/* Yapboz: dikey şeritler merkezden (sütun sütun birleşme) */
+@keyframes imageRotPuzzleCols {
+  0% { clip-path: inset(0 45% 0 45%); opacity: 0.8; }
+  16.66% { clip-path: inset(0 35% 0 35%); opacity: 0.85; }
+  33.33% { clip-path: inset(0 25% 0 25%); opacity: 0.9; }
+  50% { clip-path: inset(0 15% 0 15%); opacity: 0.95; }
+  66.66% { clip-path: inset(0 8% 0 8%); opacity: 0.98; }
+  83.33% { clip-path: inset(0 3% 0 3%); opacity: 1; }
+  100% { clip-path: inset(0 0 0 0); opacity: 1; }
+}
+/* Yapboz: çapraz açılma (köşeden üçgen birleşme) */
+@keyframes imageRotPuzzleDiagonal {
+  0% { clip-path: polygon(50% 50%, 50% 50%, 50% 50%); opacity: 0; }
+  20% { clip-path: polygon(0 100%, 0 80%, 20% 100%); opacity: 0.9; }
+  40% { clip-path: polygon(0 100%, 0 60%, 40% 100%); opacity: 0.95; }
+  60% { clip-path: polygon(0 100%, 0 40%, 60% 100%); opacity: 1; }
+  80% { clip-path: polygon(0 100%, 0 20%, 80% 100%); opacity: 1; }
+  100% { clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%); opacity: 1; }
+}
+/* Yapboz: 4x4 grid hissi (16 kademe parça birleşme) */
+@keyframes imageRotPuzzleGrid {
+  0% { clip-path: inset(50% 50% 50% 50%); opacity: 0.6; }
+  6.25% { clip-path: inset(46.875% 46.875% 46.875% 46.875%); opacity: 0.65; }
+  12.5% { clip-path: inset(43.75% 43.75% 43.75% 43.75%); opacity: 0.7; }
+  18.75% { clip-path: inset(40.625% 40.625% 40.625% 40.625%); opacity: 0.75; }
+  25% { clip-path: inset(37.5% 37.5% 37.5% 37.5%); opacity: 0.8; }
+  31.25% { clip-path: inset(34.375% 34.375% 34.375% 34.375%); opacity: 0.82; }
+  37.5% { clip-path: inset(31.25% 31.25% 31.25% 31.25%); opacity: 0.85; }
+  43.75% { clip-path: inset(28.125% 28.125% 28.125% 28.125%); opacity: 0.88; }
+  50% { clip-path: inset(25% 25% 25% 25%); opacity: 0.9; }
+  56.25% { clip-path: inset(21.875% 21.875% 21.875% 21.875%); opacity: 0.92; }
+  62.5% { clip-path: inset(18.75% 18.75% 18.75% 18.75%); opacity: 0.94; }
+  68.75% { clip-path: inset(15.625% 15.625% 15.625% 15.625%); opacity: 0.96; }
+  75% { clip-path: inset(12.5% 12.5% 12.5% 12.5%); opacity: 0.98; }
+  81.25% { clip-path: inset(9.375% 9.375% 9.375% 9.375%); opacity: 0.99; }
+  87.5% { clip-path: inset(6.25% 6.25% 6.25% 6.25%); opacity: 1; }
+  93.75% { clip-path: inset(3.125% 3.125% 3.125% 3.125%); opacity: 1; }
+  100% { clip-path: inset(0 0 0 0); opacity: 1; }
+}
+.image-rotation-transition-fade .image-rot-media { animation-name: imageRotFadeIn; }
+.image-rotation-transition-slide-left .image-rot-media { animation-name: imageRotSlideLeftIn; }
+.image-rotation-transition-slide-right .image-rot-media { animation-name: imageRotSlideRightIn; }
+.image-rotation-transition-slide-up .image-rot-media { animation-name: imageRotSlideUpIn; }
+.image-rotation-transition-slide-down .image-rot-media { animation-name: imageRotSlideDownIn; }
+.image-rotation-transition-zoom-in .image-rot-media { animation-name: imageRotZoomIn; }
+.image-rotation-transition-zoom-out .image-rot-media { animation-name: imageRotZoomOut; }
+.image-rotation-transition-blur-in .image-rot-media { animation-name: imageRotBlurIn; }
+.image-rotation-transition-flip-h .image-rot-media { animation-name: imageRotFlipH; }
+.image-rotation-transition-flip-v .image-rot-media { animation-name: imageRotFlipV; }
+.image-rotation-transition-rotate-in .image-rot-media { animation-name: imageRotRotateIn; }
+.image-rotation-transition-reveal-center .image-rot-media { animation-name: imageRotRevealCenter; }
+.image-rotation-transition-dissolve .image-rot-media { animation-name: imageRotDissolve; }
+.image-rotation-transition-iris-open .image-rot-media { animation-name: imageRotIrisOpen; }
+.image-rotation-transition-iris-close .image-rot-media { animation-name: imageRotIrisClose; }
+.image-rotation-transition-spiral-in .image-rot-media { animation-name: imageRotSpiralIn; }
+.image-rotation-transition-blinds-h .image-rot-media { animation-name: imageRotBlindsH; }
+.image-rotation-transition-blinds-v .image-rot-media { animation-name: imageRotBlindsV; }
+.image-rotation-transition-tiles .image-rot-media { animation-name: imageRotTiles; }
+.image-rotation-transition-puzzle-expand .image-rot-media { animation-name: imageRotPuzzleExpand; }
+.image-rotation-transition-puzzle-rows .image-rot-media { animation-name: imageRotPuzzleRows; }
+.image-rotation-transition-puzzle-cols .image-rot-media { animation-name: imageRotPuzzleCols; }
+.image-rotation-transition-puzzle-diagonal .image-rot-media { animation-name: imageRotPuzzleDiagonal; }
+.image-rotation-transition-puzzle-grid .image-rot-media { animation-name: imageRotPuzzleGrid; }
+.image-rotation-transition-none .image-rot-media { animation: none; }

@@ -1,0 +1,20 @@
+[
+  {
+    "slug": "ana-salon",
+    "title": "Ana Salon",
+    "description": "Ana salon ekranı",
+    "link": "http://localhost:3000/display/metro-tv2"
+  },
+  {
+    "slug": "bar",
+    "title": "Bar",
+    "description": "Bar ekranı",
+    "link": "http://localhost:3000/display/metro-tv1"
+  },
+  {
+    "slug": "teras",
+    "title": "Teras",
+    "description": "Teras ekranı",
+    "link": "/display/teras"
+  }
+]
