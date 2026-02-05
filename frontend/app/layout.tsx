@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { ClientProviders } from '@/components/ClientProviders';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: 'Menu Slide',
   description: 'Manage your digital menu displays with Menu Slide',

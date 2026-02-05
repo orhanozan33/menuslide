@@ -3,10 +3,9 @@ const path = require('path');
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: false,
-  // react-konva + Next: tek React instance için (ReactCurrentBatchConfig hatası önlemi)
   transpilePackages: ['react-konva', 'konva'],
-  webpack: (config) => {
-    // Force single React instance (avoids ReactCurrentBatchConfig with react-konva)
+  webpack: (config, { isServer }) => {
+    // Single React instance (avoids useContext null during SSG and react-konva issues)
     const dir = path.join(__dirname, 'node_modules');
     config.resolve.alias = {
       ...config.resolve.alias,
