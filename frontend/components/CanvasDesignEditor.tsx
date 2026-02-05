@@ -783,7 +783,7 @@ export default function CanvasDesignEditor({ templateId }: CanvasDesignEditorPro
     return () => { anim.stop(); };
   }, [hasVideoOrRotationShapes]);
 
-  const handleStageClick = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
+  const handleStageClick = useCallback((e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
     if (e.target === e.target.getStage()) {
       setSelectedId(null);
       setSelectedOverlayNodeId(null);
