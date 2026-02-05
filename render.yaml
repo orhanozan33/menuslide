@@ -9,7 +9,8 @@ services:
     region: frankfurt
 
     rootDir: backend
-    buildCommand: npm ci && npm run build
+    # NODE_ENV=production ile npm ci devDependencies atlar; nest build için @nestjs/cli gerekir.
+    buildCommand: npm ci --include=dev && npm run build
     startCommand: npm run start:prod
 
     plan: free
