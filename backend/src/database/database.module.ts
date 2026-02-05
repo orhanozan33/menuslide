@@ -13,8 +13,8 @@ import { DatabaseService } from './database.service';
     {
       provide: 'DATABASE_POOL',
       useFactory: (configService: ConfigService): Pool => {
-        const connectionString = configService.get<string>('DATABASE_URL');
-        const nodeEnv = configService.get<string>('NODE_ENV');
+        const connectionString = configService.get<string>('DATABASE_URL') || process.env.DATABASE_URL;
+        const nodeEnv = configService.get<string>('NODE_ENV') || process.env.NODE_ENV;
 
         if (!connectionString && nodeEnv === 'production') {
           throw new Error(
