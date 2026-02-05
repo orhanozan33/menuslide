@@ -73,6 +73,9 @@ export class SubscriptionsController {
 
     const interval = body.interval || 'monthly';
     const locale = body.locale || 'en';
+    if (!this.stripeLocalService.isAvailable() && !this.stripeService.isAvailable()) {
+      throw new BadRequestException('Stripe is not configured. Add STRIPE_SECRET_KEY to environment.');
+    }
     let session;
     try {
       session = this.stripeLocalService.isAvailable()
@@ -112,6 +115,9 @@ export class SubscriptionsController {
     if (!rawBody) {
       throw new BadRequestException('Raw body required for webhook verification');
     }
+    if (!this.stripeLocalService.isAvailable() && !this.stripeService.isAvailable()) {
+      throw new BadRequestException('Stripe is not configured.');
+    }
     if (this.stripeLocalService.isAvailable()) {
       return this.stripeLocalService.handleWebhook(rawBody, signature);
     }
@@ -145,6 +151,12 @@ export class SubscriptionsController {
       }
     }
 
-    return this.stripeService.cancelSubscription(subscription.stripe_subscription_id);
+    if (!this.stripeService.isAvailable() && !this.stripeLocalService.isAvailable()) {
+      throw new BadRequestException('Stripe is not configured. Cannot cancel subscription.');
+    }
+    if (this.stripeService.isAvailable()) {
+      return this.stripeService.cancelSubscription(subscription.stripe_subscription_id);
+    }
+    throw new BadRequestException('Cancel subscription is only available when Stripe is configured.');
   }
 }

@@ -5,7 +5,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
 
 @Injectable()
 export class StripeService {
-  private stripe: Stripe;
+  private stripe: Stripe | null = null;
   private supabase: SupabaseClient | null;
 
   constructor(
@@ -14,12 +14,22 @@ export class StripeService {
   ) {
     this.supabase = supabase ?? null;
     const stripeSecretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
-    if (!stripeSecretKey) {
-      throw new Error('STRIPE_SECRET_KEY is required');
+    if (stripeSecretKey && stripeSecretKey.trim().length > 0) {
+      this.stripe = new Stripe(stripeSecretKey, {
+        apiVersion: '2023-10-16',
+      });
     }
-    this.stripe = new Stripe(stripeSecretKey, {
-      apiVersion: '2023-10-16',
-    });
+  }
+
+  isAvailable(): boolean {
+    return !!this.stripe;
+  }
+
+  private ensureStripe(): Stripe {
+    if (!this.stripe) {
+      throw new Error('Stripe is not configured. Set STRIPE_SECRET_KEY in environment.');
+    }
+    return this.stripe;
   }
 
   /**
@@ -31,6 +41,7 @@ export class StripeService {
     successUrl: string,
     cancelUrl: string,
   ) {
+    const stripe = this.ensureStripe();
     if (!this.supabase) {
       throw new Error('Stripe checkout requires Supabase. Use StripeLocalService for local PostgreSQL.');
     }
@@ -72,7 +83,7 @@ export class StripeService {
         .single();
 
       // Create Stripe customer
-      const customer = await this.stripe.customers.create({
+      const customer = await stripe.customers.create({
         email: user?.email,
         name: business?.name,
         metadata: {
@@ -96,7 +107,7 @@ export class StripeService {
     }
 
     // Create checkout session (TEST MODE)
-    const session = await this.stripe.checkout.sessions.create({
+    const session = await stripe.checkout.sessions.create({
       customer: customerId,
       payment_method_types: ['card'],
       line_items: [
@@ -123,6 +134,7 @@ export class StripeService {
    * Handle Stripe webhook
    */
   async handleWebhook(payload: Buffer, signature: string) {
+    const stripe = this.ensureStripe();
     const webhookSecret = this.configService.get<string>('STRIPE_WEBHOOK_SECRET');
     if (!webhookSecret) {
       throw new Error('STRIPE_WEBHOOK_SECRET is required');
@@ -131,7 +143,7 @@ export class StripeService {
     let event: Stripe.Event;
 
     try {
-      event = this.stripe.webhooks.constructEvent(payload, signature, webhookSecret);
+      event = stripe.webhooks.constructEvent(payload, signature, webhookSecret);
     } catch (err) {
       throw new Error(`Webhook signature verification failed: ${err.message}`);
     }
@@ -166,7 +178,8 @@ export class StripeService {
       throw new Error('Missing metadata in checkout session');
     }
 
-    const subscription = await this.stripe.subscriptions.retrieve(
+    const stripe = this.ensureStripe();
+    const subscription = await stripe.subscriptions.retrieve(
       session.subscription as string,
     );
 
@@ -254,7 +267,8 @@ export class StripeService {
    * Cancel subscription
    */
   async cancelSubscription(stripeSubscriptionId: string) {
-    const subscription = await this.stripe.subscriptions.update(stripeSubscriptionId, {
+    const stripe = this.ensureStripe();
+    const subscription = await stripe.subscriptions.update(stripeSubscriptionId, {
       cancel_at_period_end: true,
     });
 
