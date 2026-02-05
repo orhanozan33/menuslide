@@ -1,0 +1,39 @@
+# Render Blueprint – Backend (NestJS) Web Service
+# Repo root'ta olmalı. Render Dashboard'da "New > Blueprint" ile bu repo'yu bağlayın.
+# İlk oluşturmada sync: false olan env değişkenleri için değer girmeniz istenir.
+
+services:
+  - type: web
+    name: tvproje-backend
+    runtime: node
+    region: frankfurt
+
+    rootDir: backend
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start:prod
+
+    plan: free
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      # Aşağıdakileri ilk Blueprint oluştururken Dashboard'da gireceksiniz (sync: false).
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false
+      # Stripe (ödeme) kullanacaksanız ekleyin:
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: STRIPE_PUBLISHABLE_KEY
+        sync: false
