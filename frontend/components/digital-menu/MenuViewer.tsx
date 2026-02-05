@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useMemo, useState, useEffect } from 'react';
+import { resolveMediaUrl } from '@/lib/resolveMediaUrl';
 
 export interface MenuViewerLayer {
   id: string;
@@ -71,7 +72,7 @@ export default function MenuViewer({ data, scaleToFit = true, className = '' }: 
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: backgroundImage ? `url(${backgroundImage}) center/cover` : '#111',
+        background: backgroundImage ? `url(${resolveMediaUrl(backgroundImage)}) center/cover` : '#111',
       }}
     >
       <div
@@ -98,7 +99,7 @@ export default function MenuViewer({ data, scaleToFit = true, className = '' }: 
             return (
               <div key={layer.id} style={baseStyle}>
                 <img
-                  src={layer.imageUrl}
+                  src={resolveMediaUrl(layer.imageUrl)}
                   alt=""
                   style={{
                     width: '100%',

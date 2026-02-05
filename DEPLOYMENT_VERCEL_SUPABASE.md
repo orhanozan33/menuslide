@@ -29,6 +29,7 @@ Bu rehber, Menu Slide projesini **Vercel** (frontend) ve **Supabase** (veritaban
    - `database/schema-local.sql` veya Supabase auth kullanacaksanız `database/schema.sql`
    - `database/migrations/*.sql` dosyaları
    - `database/migration-pricing-*.sql` (varsa)
+   - `database/migration-contact-info-home-channels.sql` (iletişim bilgisi + ana sayfa kanalları)
 
 ### 1.3 Storage Bucket
 
@@ -129,10 +130,21 @@ images: {
 
 ---
 
-## 5. Kontrol Listesi
+## 5. İletişim Bilgisi ve Ana Sayfa Kanalları (Supabase)
+
+Backend artık `contact_info` ve `home_channels` tablolarını kullanıyor. Supabase'e geçince:
+
+- **contact_info**: Ayarlar'dan girilen e-posta, telefon, adres bu tabloda saklanır. Başlangıçta boş satır vardır.
+- **home_channels**: Ana sayfa kanalları bu tabloda saklanır.
+
+Mevcut JSON verilerinizi (data/contact-info.json, data/home-channels.json) taşımak isterseniz, Supabase SQL Editor'de manuel INSERT yapabilir veya Ayarlar üzerinden tekrar girebilirsiniz.
+
+---
+
+## 6. Kontrol Listesi
 
 - [ ] Supabase projesi oluşturuldu
-- [ ] Veritabanı şeması ve migrasyonlar çalıştırıldı
+- [ ] Veritabanı şeması ve migrasyonlar çalıştırıldı (migration-contact-info-home-channels dahil)
 - [ ] Storage bucket oluşturuldu
 - [ ] Backend deploy edildi (Railway/Render)
 - [ ] Backend env değişkenleri ayarlandı
@@ -143,7 +155,7 @@ images: {
 
 ---
 
-## 6. Sorun Giderme
+## 7. Sorun Giderme
 
 **API bağlantı hatası**: `NEXT_PUBLIC_API_URL` doğru backend URL'ini gösteriyor mu kontrol edin.
 

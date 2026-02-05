@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useRef, useState, useEffect, useCallback } from 'react';
+import { resolveMediaUrl } from '@/lib/resolveMediaUrl';
 
 export interface ImageRotationItem {
   url: string;
@@ -205,7 +206,7 @@ export function ImageRotationPlayer({
         {isVideoUrl ? (
           <video
             key={currentUrl}
-            src={currentUrl}
+            src={resolveMediaUrl(currentUrl)}
             className="image-rot-media w-full h-full"
             style={{
               display: 'block',
@@ -227,7 +228,7 @@ export function ImageRotationPlayer({
         ) : (
           <img
             key={currentUrl}
-            src={currentUrl}
+            src={resolveMediaUrl(currentUrl)}
             alt=""
             className="image-rot-media w-full h-full"
             style={{

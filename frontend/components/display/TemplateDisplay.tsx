@@ -2,6 +2,7 @@
 
 import React, { useMemo, useState, useCallback } from 'react';
 import { useTranslation } from '@/lib/i18n/useTranslation';
+import { resolveMediaUrl } from '@/lib/resolveMediaUrl';
 import { DisplayFrame } from './DisplayFrame';
 import { VideoRotationPlayer } from './VideoRotationPlayer';
 import { ImageRotationPlayer, type ImageRotationItem } from './ImageRotationPlayer';
@@ -152,10 +153,10 @@ function VideoBlockWithRotation({
             transform: 'translate(-50%, -50%)',
             borderRadius: o.shape === 'round' ? '50%' : o.shape === 'rounded' ? '12px' : 0,
             boxShadow: o.shape === 'shadow' ? '0 4px 12px rgba(0,0,0,0.35)' : undefined,
-            overflow: 'hidden',
-          }}
-        >
-          <img src={o.image_url} alt="" className="w-full h-full object-cover" />
+overflow: 'hidden',
+            }}
+          >
+          <img src={resolveMediaUrl(o.image_url)} alt="" className="w-full h-full object-cover" />
         </div>
       ))}
       {activeTextLayers.map((layer: Record<string, unknown>) => {
@@ -363,7 +364,7 @@ export function TemplateDisplay({
               style={{
                 ...blockStyle,
                 backgroundColor: bgColor,
-                backgroundImage: bgImage ? `url(${bgImage})` : undefined,
+                backgroundImage: bgImage ? `url(${resolveMediaUrl(bgImage)})` : undefined,
                 backgroundSize: bgImage ? 'cover' : undefined,
                 backgroundPosition: bgImage ? 'center' : undefined,
                 minWidth: 0,
@@ -395,7 +396,7 @@ export function TemplateDisplay({
                           <div key={cat.id || idx} className="flex-1 flex flex-col min-w-0 border-r border-amber-400/40 last:border-r-0 overflow-hidden">
                             {cat.image_url && (
                               <div className="flex-shrink-0 w-full overflow-hidden border-b border-amber-400/50" style={{ minHeight: '22%', maxHeight: '28%' }}>
-                                <img src={cat.image_url} alt="" className="w-full h-full object-cover" />
+                                <img src={resolveMediaUrl(cat.image_url)} alt="" className="w-full h-full object-cover" />
                               </div>
                             )}
                             <p className="flex-shrink-0 text-center text-amber-400 font-bold text-xs py-1 uppercase border-b border-amber-400/30">{cat.name}</p>
@@ -419,7 +420,7 @@ export function TemplateDisplay({
                   <div className="w-full h-full flex flex-col overflow-hidden rounded-lg border-2 border-amber-400/50 bg-[#1a1a1a] text-white">
                     {regionalMenuContent.image_url && (
                       <div className="flex-shrink-0 w-full overflow-hidden border-b border-amber-400/50" style={{ maxHeight: '40%', minHeight: '40%' }}>
-                        <img src={regionalMenuContent.image_url as string} alt="" className="w-full h-full object-cover" />
+                        <img src={resolveMediaUrl(regionalMenuContent.image_url as string)} alt="" className="w-full h-full object-cover" />
                       </div>
                     )}
                     <div className="flex-1 min-h-0 flex flex-col p-3 overflow-auto">
@@ -494,7 +495,7 @@ export function TemplateDisplay({
                         <div className="absolute inset-0 w-full h-full overflow-hidden">
                           <div className="absolute inset-0" style={{ transformOrigin: pos }}>
                             <video
-                              src={videoContent.image_url as string}
+                              src={resolveMediaUrl(videoContent.image_url as string)}
                               className="w-full h-full"
                               autoPlay
                               loop
@@ -519,7 +520,7 @@ export function TemplateDisplay({
                               overflow: 'hidden',
                             }}
                           >
-                            <img src={o.image_url} alt="" className="w-full h-full object-cover" />
+                            <img src={resolveMediaUrl(o.image_url)} alt="" className="w-full h-full object-cover" />
                           </div>
                         ))}
                         {videoTextLayers.map((layer) => {
@@ -655,7 +656,7 @@ export function TemplateDisplay({
                           />
                         ) : (
                           <img
-                            src={imageContent.image_url as string}
+                            src={resolveMediaUrl(imageContent.image_url as string)}
                             alt=""
                             className="w-full h-full"
                             style={{
@@ -685,7 +686,7 @@ export function TemplateDisplay({
                           overflow: 'hidden',
                         }}
                       >
-                        <img src={o.image_url} alt="" className="w-full h-full object-cover" />
+                        <img src={resolveMediaUrl(o.image_url)} alt="" className="w-full h-full object-cover" />
                       </div>
                     ))}
                     {/* Çoklu yazı katmanları (ikon + hareketli indirim bloğu destekli) - resim döngüsünde fase göre */}
@@ -775,7 +776,7 @@ export function TemplateDisplay({
                             <div className="text-white text-base font-bold drop-shadow-lg flex items-center gap-2">
                               <span>{activeTitle}</span>
                               {drinkContent?.image_url && (
-                                <img src={drinkContent.image_url as string} alt="" className="w-8 h-8 object-contain rounded shadow-md bg-white/20" />
+                                <img src={resolveMediaUrl(drinkContent.image_url as string)} alt="" className="w-8 h-8 object-contain rounded shadow-md bg-white/20" />
                               )}
                             </div>
                           )}
@@ -816,7 +817,7 @@ export function TemplateDisplay({
               {!regionalMenuContent && drinkContent?.image_url && !imageContent?.image_url && !singleProduct?.menu_item && !productList?.menu_items && (
                 <div className="w-full h-full flex flex-col items-center justify-center p-4 text-white">
                   <img
-                    src={drinkContent.image_url as string}
+                    src={resolveMediaUrl(drinkContent.image_url as string)}
                     alt={sanitizeDisplayText(drinkContent.title as string) || 'İçecek'}
                     className="max-h-[60%] w-auto object-contain rounded"
                     style={{ imageRendering: 'auto', backfaceVisibility: 'hidden' }}
@@ -835,7 +836,7 @@ export function TemplateDisplay({
                 <div className="w-full h-full flex flex-col items-center justify-center p-4 text-white">
                   {(singleProduct.menu_item as { image_url?: string }).image_url && (
                     <img
-                      src={(singleProduct.menu_item as { image_url: string }).image_url}
+                      src={resolveMediaUrl((singleProduct.menu_item as { image_url: string }).image_url)}
                       alt=""
                       className="max-h-[60%] w-auto object-contain rounded"
                       style={{ imageRendering: 'auto', backfaceVisibility: 'hidden' }}
@@ -858,7 +859,7 @@ export function TemplateDisplay({
                       <div key={i} className="flex items-center gap-2 py-1 border-b border-white/20">
                         {item.image_url && (
                           <img
-                            src={item.image_url}
+                            src={resolveMediaUrl(item.image_url)}
                             alt=""
                             className="w-12 h-12 object-cover rounded flex-shrink-0"
                             style={{ imageRendering: 'auto', backfaceVisibility: 'hidden' }}

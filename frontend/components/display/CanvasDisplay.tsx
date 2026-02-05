@@ -7,14 +7,10 @@ import Konva from 'konva';
 const CANVAS_W = 1920;
 const CANVAS_H = 1080;
 
-const API_BASE = typeof window !== 'undefined' ? (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001') : '';
+import { resolveMediaUrl } from '@/lib/resolveMediaUrl';
 
 function mediaUrl(url: string): string {
-  if (!url) return '';
-  if (url.startsWith('http')) return url;
-  if (url.startsWith('data:')) return url;
-  if (url.startsWith('/uploads')) return url;
-  return `${API_BASE}${url.startsWith('/') ? '' : '/'}${url}`;
+  return resolveMediaUrl(url) || '';
 }
 
 function useImage(src: string | undefined): HTMLImageElement | undefined {

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useRef, useState, useEffect, useCallback } from 'react';
+import { resolveMediaUrl } from '@/lib/resolveMediaUrl';
 
 export interface VideoRotationItem {
   url: string;
@@ -147,7 +148,7 @@ export function VideoRotationPlayer({
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !currentUrl) return;
-    video.src = currentUrl;
+    video.src = resolveMediaUrl(currentUrl);
     video.load();
     video.play().catch(() => {});
   }, [currentUrl]);
@@ -184,7 +185,7 @@ export function VideoRotationPlayer({
     >
       <video
         ref={videoRef}
-        src={currentUrl}
+        src={resolveMediaUrl(currentUrl)}
         className="w-full h-full"
         autoPlay={!stopped}
         muted

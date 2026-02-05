@@ -9,13 +9,13 @@ export class ContactInfoController {
   constructor(private readonly contactInfoService: ContactInfoService) {}
 
   @Get()
-  findAll() {
+  async findAll() {
     return this.contactInfoService.findAll();
   }
 
   @Put()
   @UseGuards(AuthGuard)
-  save(
+  async save(
     @Body() dto: UpdateContactInfoDto,
     @CurrentUser() user: { role?: string },
   ) {

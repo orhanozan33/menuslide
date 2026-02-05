@@ -8,14 +8,12 @@ export const revalidate = 0;
 export async function GET() {
   try {
     const res = await fetch(`${BACKEND_URL}/contact-info`, { cache: 'no-store' });
+    if (!res.ok) return NextResponse.json({ email: '', phone: '', address: '', whatsapp: '' });
     const data = await res.json().catch(() => ({}));
     return NextResponse.json(data);
   } catch (e) {
     console.error('[api/contact-info] GET error:', e);
-    return NextResponse.json(
-      { email: 'info@example.com', phone: '+90 212 123 45 67', address: 'Istanbul, Turkey' },
-      { status: 200 }
-    );
+    return NextResponse.json({ email: '', phone: '', address: '', whatsapp: '' });
   }
 }
 

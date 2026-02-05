@@ -10,14 +10,14 @@ export class HomeChannelsController {
 
   /** Public: Ana sayfa kanallarını döner */
   @Get()
-  findAll() {
+  async findAll() {
     return this.homeChannelsService.findAll();
   }
 
   /** Admin: Kanalları kaydet (super_admin) */
   @Put()
   @UseGuards(AuthGuard)
-  save(
+  async save(
     @Body() dto: UpdateHomeChannelsDto,
     @CurrentUser() user: { role?: string },
   ) {

@@ -139,8 +139,8 @@ export function HomePage({ localePath }: HomePageProps) {
       .then((res) => res.json())
       .then((data: { email?: string; phone?: string; address?: string; whatsapp?: string }) =>
         setContactInfo({
-          email: data.email || 'info@example.com',
-          phone: data.phone || '+90 212 123 45 67',
+          email: data.email || '',
+          phone: data.phone || '',
           address: data.address || '',
           whatsapp: data.whatsapp || '',
         })
@@ -492,21 +492,30 @@ export function HomePage({ localePath }: HomePageProps) {
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-            <div className="flex flex-col items-center text-center p-4 min-h-0 min-w-0 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-white/20 transition-colors">
-              <span className="text-xl sm:text-2xl mb-1.5 sm:mb-2 flex-shrink-0">✉</span>
-              <h3 className="font-medium text-white text-xs sm:text-sm flex-shrink-0">{t('home_contact_email')}</h3>
-              <a href={`mailto:${contactInfo.email}`} className="text-emerald-400 hover:text-emerald-300 text-xs sm:text-sm break-all py-1 touch-manipulation overflow-hidden max-w-full">{contactInfo.email}</a>
-            </div>
-            <div className="flex flex-col items-center text-center p-4 min-h-0 min-w-0 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-white/20 transition-colors">
-              <span className="text-xl sm:text-2xl mb-1.5 sm:mb-2 flex-shrink-0">📞</span>
-              <h3 className="font-medium text-white text-xs sm:text-sm flex-shrink-0">{t('home_contact_phone')}</h3>
-              <a href={`tel:${contactInfo.phone.replace(/\s/g, '')}`} className="text-emerald-400 hover:text-emerald-300 text-xs sm:text-sm py-1 touch-manipulation truncate max-w-full">{contactInfo.phone}</a>
-            </div>
-            <div className="flex flex-col items-center text-center p-4 min-h-0 min-w-0 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-white/20 transition-colors">
-              <span className="text-xl sm:text-2xl mb-1.5 sm:mb-2 flex-shrink-0">📍</span>
-              <h3 className="font-medium text-white text-xs sm:text-sm flex-shrink-0">{t('home_contact_address')}</h3>
-              <p className="text-white/70 text-xs sm:text-sm break-words max-w-full">{contactInfo.address}</p>
-            </div>
+            {contactInfo.email && (
+              <div className="flex flex-col items-center text-center p-4 min-h-0 min-w-0 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-white/20 transition-colors">
+                <span className="text-xl sm:text-2xl mb-1.5 sm:mb-2 flex-shrink-0">✉</span>
+                <h3 className="font-medium text-white text-xs sm:text-sm flex-shrink-0">{t('home_contact_email')}</h3>
+                <a href={`mailto:${contactInfo.email}`} className="text-emerald-400 hover:text-emerald-300 text-xs sm:text-sm break-all py-1 touch-manipulation overflow-hidden max-w-full">{contactInfo.email}</a>
+              </div>
+            )}
+            {contactInfo.phone && (
+              <div className="flex flex-col items-center text-center p-4 min-h-0 min-w-0 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-white/20 transition-colors">
+                <span className="text-xl sm:text-2xl mb-1.5 sm:mb-2 flex-shrink-0">📞</span>
+                <h3 className="font-medium text-white text-xs sm:text-sm flex-shrink-0">{t('home_contact_phone')}</h3>
+                <a href={`tel:${contactInfo.phone.replace(/\s/g, '')}`} className="text-emerald-400 hover:text-emerald-300 text-xs sm:text-sm py-1 touch-manipulation truncate max-w-full">{contactInfo.phone}</a>
+              </div>
+            )}
+            {contactInfo.address && (
+              <div className="flex flex-col items-center text-center p-4 min-h-0 min-w-0 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-white/20 transition-colors">
+                <span className="text-xl sm:text-2xl mb-1.5 sm:mb-2 flex-shrink-0">📍</span>
+                <h3 className="font-medium text-white text-xs sm:text-sm flex-shrink-0">{t('home_contact_address')}</h3>
+                <p className="text-white/70 text-xs sm:text-sm break-words max-w-full">{contactInfo.address}</p>
+              </div>
+            )}
+            {!contactInfo.email && !contactInfo.phone && !contactInfo.address && (
+              <p className="col-span-full text-white/40 text-sm text-center py-4">{t('home_contact_empty')}</p>
+            )}
           </div>
 
           <div className="flex flex-wrap justify-center gap-4 sm:gap-6 mt-10 sm:mt-12">

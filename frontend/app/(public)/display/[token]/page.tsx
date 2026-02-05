@@ -16,6 +16,7 @@ import { DisplayFrame } from '@/components/display/DisplayFrame';
 import { TickerTape } from '@/components/display/TickerTape';
 import { formatPrice } from '@/lib/formatPrice';
 import { useTranslation } from '@/lib/i18n/useTranslation';
+import { resolveMediaUrl } from '@/lib/resolveMediaUrl';
 
 const EMBED_WIDTH = 1920;
 const EMBED_HEIGHT = 1080;
@@ -711,7 +712,7 @@ export default function DisplayPage() {
         style={{
           fontFamily: (screenData.screen as any).font_family || 'system-ui',
           background: (screenData.screen as any).background_style === 'image' && (screenData.screen as any).background_image_url
-            ? `url(${(screenData.screen as any).background_image_url}) center/cover`
+            ? `url(${resolveMediaUrl((screenData.screen as any).background_image_url)}) center/cover`
             : (screenData.screen as any).background_style === 'solid'
             ? (screenData.screen as any).background_color || '#0f172a'
             : `linear-gradient(to bottom right, ${(screenData.screen as any).background_color || '#0f172a'}, ${(screenData.screen as any).background_color || '#1e293b'})`,
@@ -747,7 +748,7 @@ export default function DisplayPage() {
                     <div className="relative">
                       <div className="absolute inset-0 bg-gradient-to-br from-amber-400/20 to-orange-500/20 rounded-3xl blur-2xl"></div>
                       <img
-                        src={currentItem.image_url}
+                        src={resolveMediaUrl(currentItem.image_url)}
                         alt={currentItem.name}
                         className="relative w-full max-w-lg h-auto object-cover rounded-3xl shadow-2xl border-4 border-white/10"
                         style={{ maxHeight: '600px' }}
