@@ -34,7 +34,7 @@ export function LoginModal({ isOpen, onClose, localePath }: LoginModalProps) {
     setLoading(true);
     setError('');
     try {
-      const apiUrl = (typeof process.env.NEXT_PUBLIC_API_URL === 'string' && process.env.NEXT_PUBLIC_API_URL.trim()) ? process.env.NEXT_PUBLIC_API_URL.trim() : '/api/proxy';
+      const apiUrl = '/api/proxy';
       const response = await fetch(`${apiUrl}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

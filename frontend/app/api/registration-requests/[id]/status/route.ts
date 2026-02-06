@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL?.trim();
-const USE_SELF = !API_BASE;
-const TARGET_BASE = API_BASE || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : (process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') || 'http://localhost:3000'));
-const REG_BASE_PATH = USE_SELF ? '/api/proxy/registration-requests' : '/registration-requests';
+const TARGET_BASE = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : (process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') || 'http://localhost:3000');
+const REG_BASE_PATH = '/api/proxy/registration-requests';
 
 export const dynamic = 'force-dynamic';
 

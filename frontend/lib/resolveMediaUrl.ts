@@ -41,9 +41,5 @@ export function resolveMediaUrl(url: string | null | undefined): string {
     const base = process.env.NEXT_PUBLIC_APP_URL || '';
     return base ? `${base.replace(/\/$/, '')}${u}` : u;
   }
-  const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
-  if (apiBase) {
-    return `${apiBase.replace(/\/$/, '')}${u.startsWith('/') ? '' : '/'}${u}`;
-  }
   return u;
 }

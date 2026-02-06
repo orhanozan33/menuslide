@@ -1,6 +1,6 @@
 # "Backend bağlantı hatası" Çözümü
 
-Bu mesaj, frontend’in backend’e (Render) istek atamadığı anlamına gelir.
+> **Not:** Bu projede artık harici backend (Render) kullanılmıyor. Tüm API `/api/proxy` üzerinden Supabase'e gider. "Backend bağlantı hatası" alıyorsanız Vercel env (Supabase URL, service role key, JWT_SECRET) ve Redeploy kontrol edin; bkz. [CANLI_VERI_YOK_FIX.md](./CANLI_VERI_YOK_FIX.md). Aşağıdaki içerik eski Render kurulumu içindir.
 
 ---
 

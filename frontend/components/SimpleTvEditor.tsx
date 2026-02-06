@@ -6,7 +6,7 @@ import { useTranslation } from '@/lib/i18n/useTranslation';
 import { resolveMediaUrl } from '@/lib/resolveMediaUrl';
 
 const STORAGE_KEY = 'simple-tv-editor';
-const API_BASE = typeof window !== 'undefined' ? ((typeof process.env.NEXT_PUBLIC_API_URL === 'string' && process.env.NEXT_PUBLIC_API_URL.trim()) ? process.env.NEXT_PUBLIC_API_URL.trim() : '/api/proxy') : '';
+const API_BASE = '/api/proxy';
 
 interface LibraryItem {
   id: string;

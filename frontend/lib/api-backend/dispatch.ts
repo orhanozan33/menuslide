@@ -16,49 +16,7 @@ import * as templateBlocksHandlers from './handlers/template-blocks';
 import * as screenBlocksHandlers from './handlers/screen-blocks';
 import * as templatesHandlers from './handlers/templates';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL?.trim() || '';
-
-/** Returns true if we should handle the request locally (no external backend). */
-export function useLocalBackend(): boolean {
-  return !BACKEND_URL;
-}
-
-/** Forward request to external backend (Render). */
-export async function forwardToBackend(
-  request: NextRequest,
-  pathSegments: string[],
-  method: string
-): Promise<Response> {
-  const path = pathSegments.join('/');
-  const url = new URL(request.url);
-  const query = url.searchParams.toString();
-  const targetUrl = `${BACKEND_URL}/${path}${query ? `?${query}` : ''}`;
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
-  const auth = request.headers.get('authorization');
-  if (auth) headers['Authorization'] = auth;
-  const options: RequestInit = { method, headers };
-  if (method !== 'GET' && method !== 'HEAD') {
-    try {
-      const body = await request.text();
-      if (body) options.body = body;
-    } catch {
-      // no body
-    }
-  }
-  const res = await fetch(targetUrl, options);
-  const text = await res.text();
-  let data: unknown = null;
-  try {
-    data = text ? JSON.parse(text) : null;
-  } catch {
-    data = { message: text || 'Request failed' };
-  }
-  return Response.json(data, { status: res.status });
-}
-
-/** Handle request locally (Supabase + JWT). */
+/** Handle request locally (Supabase + JWT). Harici backend kullanılmıyor. */
 export async function handleLocal(
   request: NextRequest,
   pathSegments: string[],
@@ -229,7 +187,7 @@ export async function handleLocal(
   }
 
   return Response.json(
-    { message: 'Endpoint not yet migrated to Vercel API. Set NEXT_PUBLIC_API_URL to use Render backend.' },
+    { message: 'Endpoint bulunamadı.' },
     { status: 501 }
   );
 }

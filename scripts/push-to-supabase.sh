@@ -90,12 +90,36 @@ psql -h "$SUPABASE_DB_HOST" -p 5432 -U postgres -d postgres -f "${PROJECT_ROOT}/
 echo "  Tamamlandı."
 echo ""
 
+# --- 4b) Live Channels boşsa ekranlardan doldur (home_channels yerelde yoksa export'ta 0 satır gelir) ---
+echo "[4b/5] Live Channels (home_channels) boşsa ekranlardan dolduruluyor..."
+psql -h "$SUPABASE_DB_HOST" -p 5432 -U postgres -d postgres -f "${PROJECT_ROOT}/database/seed-home-channels-from-screens.sql" -v ON_ERROR_STOP=0
+echo "  Tamamlandı."
+echo ""
+
 # --- 5) /uploads/ path'lerini Storage URL'ine güncelle ---
 echo "[5/5] Resim/video path'leri Storage URL'lerine güncelleniyor..."
 (cd "${PROJECT_ROOT}/frontend" && node -r ./scripts/load-env.js scripts/migrate-uploads-to-supabase.js)
 echo ""
 
+# --- 6) Doğrulama: Supabase'de satır sayıları ---
+echo "[6/6] Supabase'de veri doğrulaması..."
+export PGPASSWORD="$SUPABASE_DB_PASSWORD"
+for tbl in businesses users screens templates content_library menus; do
+  cnt=$(psql -h "$SUPABASE_DB_HOST" -p 5432 -U postgres -d postgres -t -A -c "SELECT COUNT(*) FROM $tbl" 2>/dev/null || echo "0")
+  echo "  $tbl: $cnt satır"
+done
+echo "  Tamamlandı."
+echo ""
+
 echo "=============================================="
 echo "  Bitti. Veriler Supabase'de."
-echo "  Vercel canlı sitede verileri görmek için Redeploy yapın (veya zaten otomatik)."
+echo "=============================================="
+echo ""
+echo "  CANLIDA VERİ GÖRÜNMÜYORSA (Vercel):"
+echo "  1) Vercel → Settings → Environment Variables"
+echo "  2) NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY,"
+echo "     SUPABASE_SERVICE_ROLE_KEY, JWT_SECRET tanımlı olsun."
+echo "  3) Deployments → Son deploy → ... → Redeploy"
+echo ""
+echo "  Detay: docs/CANLI_VERI_YOK_FIX.md"
 echo "=============================================="

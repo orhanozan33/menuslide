@@ -14,34 +14,13 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [backendOk, setBackendOk] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    const apiBase =
-      typeof process.env.NEXT_PUBLIC_API_URL === 'string' && process.env.NEXT_PUBLIC_API_URL.trim()
-        ? process.env.NEXT_PUBLIC_API_URL.trim()
-        : '/api/proxy';
-    if (apiBase === '/api/proxy') {
-      setBackendOk(true);
-      return;
-    }
-    fetch(apiBase, { method: 'GET', cache: 'no-store' })
-      .then((r) => r.ok)
-      .then(setBackendOk)
-      .catch(() => setBackendOk(false));
-  }, []);
-
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
 
     try {
-      const apiBase =
-        typeof process.env.NEXT_PUBLIC_API_URL === 'string' && process.env.NEXT_PUBLIC_API_URL.trim()
-          ? process.env.NEXT_PUBLIC_API_URL.trim()
-          : '/api/proxy';
-      const response = await fetch(`${apiBase}/auth/login`, {
+      const response = await fetch('/api/proxy/auth/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -104,11 +83,6 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4 sm:p-6 overflow-x-hidden">
       <LanguageSwitcher fixed className="!top-4 !left-auto !right-4 z-50" />
-      {backendOk === false && (
-        <div className="fixed top-4 left-4 right-4 z-40 max-w-2xl mx-auto p-3 bg-amber-100 border border-amber-500 text-amber-900 rounded text-sm">
-          Harici backend (Render) yanıt vermiyor. Vercel + Supabase modunda iseniz bu uyarıyı görmezsiniz; yoksa <strong>NEXT_PUBLIC_API_URL</strong> doğru mu kontrol edin.
-        </div>
-      )}
       <div className="bg-white p-5 sm:p-8 rounded-lg shadow-md w-full max-w-md">
         <h1 className="text-xl sm:text-2xl font-bold mb-5 sm:mb-6 text-center">{t('login_title')}</h1>
         <form onSubmit={handleLogin}>

@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { useLocalBackend, forwardToBackend, handleLocal } from '@/lib/api-backend/dispatch';
+import { handleLocal } from '@/lib/api-backend/dispatch';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -9,18 +9,15 @@ async function handle(
   pathSegments: string[],
   method: string
 ): Promise<Response> {
-  if (useLocalBackend()) {
-    try {
-      return await handleLocal(request, pathSegments, method);
-    } catch (e) {
-      console.error('[api/proxy] Local handler error:', e);
-      return Response.json(
-        { message: e instanceof Error ? e.message : 'Internal server error' },
-        { status: 500 }
-      );
-    }
+  try {
+    return await handleLocal(request, pathSegments, method);
+  } catch (e) {
+    console.error('[api/proxy] handler error:', e);
+    return Response.json(
+      { message: e instanceof Error ? e.message : 'Internal server error' },
+      { status: 500 }
+    );
   }
-  return forwardToBackend(request, pathSegments, method);
 }
 
 export async function GET(

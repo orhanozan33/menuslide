@@ -66,7 +66,7 @@ export default function StripeSettingsPage() {
     return null;
   }
 
-  const backendUrl = (typeof process.env.NEXT_PUBLIC_API_URL === 'string' && process.env.NEXT_PUBLIC_API_URL.trim()) ? process.env.NEXT_PUBLIC_API_URL.trim() : '/api/proxy';
+  const backendUrl = '/api/proxy';
   const webhookUrl = `${backendUrl.replace(/\/$/, '')}/subscriptions/webhook`;
   const isLive = stripeStatus?.stripeMode === 'live';
   const dashboardBase = isLive ? 'https://dashboard.stripe.com' : 'https://dashboard.stripe.com/test';

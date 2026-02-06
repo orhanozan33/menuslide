@@ -404,7 +404,7 @@ function TemplatesLibraryContent() {
     setDeleteConfirmTemplate(null);
 
     const templateId = String(template.id);
-    const apiUrl = (typeof process.env.NEXT_PUBLIC_API_URL === 'string' && process.env.NEXT_PUBLIC_API_URL.trim()) ? process.env.NEXT_PUBLIC_API_URL.trim() : '/api/proxy';
+    const apiUrl = '/api/proxy';
     const token = typeof window !== 'undefined' ? (sessionStorage.getItem('impersonation_token') || localStorage.getItem('auth_token')) : null;
 
     try {

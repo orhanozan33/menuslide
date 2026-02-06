@@ -3,7 +3,7 @@ import { getServerSupabase } from '@/lib/supabase-server';
 
 const VIEWER_STALE_MS = 2 * 60 * 1000;
 
-/** GET public/screen/:token – TV yayını verisi (BACKEND_URL boşken) */
+/** GET public/screen/:token – TV yayını verisi (Supabase) */
 export async function getScreenByToken(token: string, request: NextRequest): Promise<Response> {
   const supabase = getServerSupabase();
   const { searchParams } = new URL(request.url);
@@ -268,7 +268,7 @@ async function attachMenuItemsToContents(
   }
 }
 
-/** POST public/screen/:token/heartbeat – display viewer heartbeat (BACKEND_URL boşken) */
+/** POST public/screen/:token/heartbeat – display viewer heartbeat (Supabase) */
 export async function recordViewerHeartbeat(token: string, request: NextRequest): Promise<Response> {
   const supabase = getServerSupabase();
   let sessionId = '';
