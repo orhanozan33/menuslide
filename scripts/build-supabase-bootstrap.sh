@@ -24,9 +24,9 @@ SCHEMA_FILES=(
 MIGRATION_FILES=(
   "$DB/migration-add-7-8-templates.sql"
   "$DB/migration-add-admin-activity-log.sql"
+  "$DB/migration-add-admin-role-and-permissions.sql"
   "$DB/migration-add-admin-permission-actions.sql"
   "$DB/migration-add-admin-reference-number.sql"
-  "$DB/migration-add-admin-role-and-permissions.sql"
   "$DB/migration-add-alcoholic-drinks-glasses.sql"
   "$DB/migration-add-canvas-design-to-templates.sql"
   "$DB/migration-add-desserts-category.sql"
