@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { apiClient } from '@/lib/api';
 import { useTranslation } from '@/lib/i18n/useTranslation';
+import { resolveMediaUrl } from '@/lib/resolveMediaUrl';
 
 const STORAGE_KEY = 'simple-tv-editor';
 const API_BASE = typeof window !== 'undefined' ? ((typeof process.env.NEXT_PUBLIC_API_URL === 'string' && process.env.NEXT_PUBLIC_API_URL.trim()) ? process.env.NEXT_PUBLIC_API_URL.trim() : '/api/proxy') : '';
@@ -182,7 +183,7 @@ export default function SimpleTvEditor() {
   }, []);
 
   const fullUrl = useCallback((url: string) => {
-    return url.startsWith('http') ? url : `${API_BASE}${url.startsWith('/') ? '' : '/'}${url}`;
+    return resolveMediaUrl(url);
   }, []);
 
   const pickFromLibrary = useCallback(

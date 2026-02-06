@@ -6,6 +6,7 @@ import { apiClient } from '@/lib/api';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 import { useAdminPagePermissions } from '@/lib/useAdminPagePermissions';
 import { ConfirmModal } from '@/components/ConfirmModal';
+import { resolveMediaUrl } from '@/lib/resolveMediaUrl';
 
 interface UploadItem {
   id: string;
@@ -18,12 +19,10 @@ interface UploadItem {
   uploader_email?: string;
 }
 
-/** Resim/video için görüntülenecek URL (relative path ise düzgün çalışsın) */
+/** Resim/video için görüntülenecek URL — Storage ve mutlak URL'ler desteklenir */
 function getMediaUrl(url: string | undefined): string | undefined {
   if (!url) return undefined;
-  if (url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://')) return url;
-  const path = url.startsWith('/') ? url : `/${url}`;
-  return typeof window !== 'undefined' ? `${window.location.origin}${path}` : path;
+  return resolveMediaUrl(url);
 }
 
 const PLACEHOLDER_SVG = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23e5e7eb" width="200" height="200"/%3E%3Ctext fill="%239ca3af" font-size="14" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3EResim%3C/text%3E%3C/svg%3E';

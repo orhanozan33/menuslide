@@ -1,13 +1,9 @@
 /** Ortak görsel saydamlık yardımcıları — tasarım ve şablon editörü */
 
-const API_BASE = typeof window !== 'undefined' ? ((typeof process.env.NEXT_PUBLIC_API_URL === 'string' && process.env.NEXT_PUBLIC_API_URL.trim()) ? process.env.NEXT_PUBLIC_API_URL.trim() : '/api/proxy') : '';
+import { resolveMediaUrl } from './resolveMediaUrl';
 
 function resolveUrl(url: string): string {
-  if (!url) return '';
-  if (url.startsWith('http')) return url;
-  if (url.startsWith('data:')) return url;
-  if (url.startsWith('/uploads')) return url;
-  return `${API_BASE}${url.startsWith('/') ? '' : '/'}${url}`;
+  return resolveMediaUrl(url);
 }
 
 /** Seçilen rengi saydam yapar; PNG data URL döner */
@@ -63,9 +59,6 @@ export function makeColorTransparent(
       }
     };
     img.onerror = () => reject(new Error('Görsel yüklenemedi'));
-    const finalUrl = url.startsWith('/') && !url.startsWith('//') && typeof window !== 'undefined'
-      ? `${window.location.origin}${url}`
-      : url;
-    img.src = finalUrl;
+    img.src = url;
   });
 }

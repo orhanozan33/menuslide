@@ -41,4 +41,6 @@ Bunlar yoksa veya yanlışsa API route'lar Supabase'e bağlanamaz, veri yine gel
 | "Backend bağlantı hatası" + veri 0 | NEXT_PUBLIC_API_URL’i silin veya boş bırakın; Supabase env’leri doldurun; Redeploy. |
 | Giriş yapılıyor ama sayılar 0 | Supabase’de gerçekten menü/ekran kaydı var mı kontrol edin; env’ler doğruysa veri ekleyince sayılar dolacaktır. |
 
+**Resim / video (Storage) gelmiyorsa:** Vercel’de `NEXT_PUBLIC_SUPABASE_URL` mutlaka tanımlı olmalı; yoksa medya linkleri 404 olur. Ayrıca Supabase Storage’da dosyalar olmalı (migration veya yeni yükleme). Detay: [VERCEL_CANLI_VERI_VE_STORAGE.md](VERCEL_CANLI_VERI_VE_STORAGE.md).
+
 Detaylı kurulum: [docs/ADIM_ADIM_KURULUM.md](ADIM_ADIM_KURULUM.md) veya [docs/VERCEL_SUPABASE_KURULUM.md](VERCEL_SUPABASE_KURULUM.md).

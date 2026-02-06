@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { apiClient } from '@/lib/api';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 import { logAdminActivity } from '@/lib/admin-activity';
+import { resolveMediaUrl } from '@/lib/resolveMediaUrl';
 
 interface ContentLibraryProps {
   onSelectContent: (content: any) => void;
@@ -955,7 +956,7 @@ export default function ContentLibrary({ onSelectContent, initialCategory, compa
               {item.type === 'image' && (
                 <div className="w-full h-full relative overflow-hidden bg-gray-100">
                   <img
-                    src={item.url}
+                    src={resolveMediaUrl(item.url)}
                     alt={item.name}
                     className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
                     loading="lazy"
@@ -979,7 +980,7 @@ export default function ContentLibrary({ onSelectContent, initialCategory, compa
                   {item.url ? (
                     <div className="w-full h-full relative">
                       <img
-                        src={item.url}
+                        src={resolveMediaUrl(item.url)}
                         alt={item.name}
                         className="w-full h-full object-contain p-4 group-hover:scale-110 transition-transform duration-300"
                         loading="lazy"
@@ -1024,7 +1025,7 @@ export default function ContentLibrary({ onSelectContent, initialCategory, compa
               {item.type === 'drink' && (
                 <div className="w-full h-full relative overflow-hidden bg-gray-100">
                   <img
-                    src={item.url}
+                    src={resolveMediaUrl(item.url)}
                     alt={item.name}
                     className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-300 p-4"
                     loading="lazy"
@@ -1056,7 +1057,7 @@ export default function ContentLibrary({ onSelectContent, initialCategory, compa
                 >
                   <video
                     ref={(el) => { videoRefs.current[item.id] = el; }}
-                    src={item.url}
+                    src={resolveMediaUrl(item.url)}
                     className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
                     muted
                     playsInline
@@ -1086,7 +1087,7 @@ export default function ContentLibrary({ onSelectContent, initialCategory, compa
                   {item.url ? (
                     <div className="w-full h-full relative">
                       <img
-                        src={item.url}
+                        src={resolveMediaUrl(item.url)}
                         alt={item.name}
                         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
                         loading="lazy"

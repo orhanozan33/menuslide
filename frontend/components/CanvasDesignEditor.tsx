@@ -7,6 +7,7 @@ import Konva from 'konva';
 import { apiClient } from '@/lib/api';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 import { FONT_GROUPS, FONT_OPTIONS, TEXT_ICON_OPTIONS, GOOGLE_FONT_FAMILIES } from '@/lib/editor-fonts';
+import { resolveMediaUrl } from '@/lib/resolveMediaUrl';
 
 function useImage(src: string | undefined, crossOrigin?: string): [HTMLImageElement | undefined] {
   const [img, setImg] = useState<HTMLImageElement | undefined>();
@@ -33,13 +34,7 @@ const STORAGE_KEY = 'canvas-design-editor';
 const API_BASE = typeof window !== 'undefined' ? ((typeof process.env.NEXT_PUBLIC_API_URL === 'string' && process.env.NEXT_PUBLIC_API_URL.trim()) ? process.env.NEXT_PUBLIC_API_URL.trim() : '/api/proxy') : '';
 
 function mediaUrl(url: string): string {
-  if (!url) return '';
-  if (url.startsWith('http')) return url;
-  // data: URL'leri (base64 görsel/video) olduğu gibi kullan
-  if (url.startsWith('data:')) return url;
-  // Frontend'e yüklenen dosyalar (api/upload) aynı origin'de: /uploads/...
-  if (url.startsWith('/uploads')) return url;
-  return `${API_BASE}${url.startsWith('/') ? '' : '/'}${url}`;
+  return resolveMediaUrl(url) || '';
 }
 
 type ShapeType = 'text' | 'image' | 'video' | 'imageRotation';

@@ -7,6 +7,7 @@ import { apiClient } from '@/lib/api';
 import { TemplateDisplay } from '@/components/display/TemplateDisplay';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 import { useToast } from '@/lib/ToastContext';
+import { resolveMediaUrl } from '@/lib/resolveMediaUrl';
 
 interface User {
   id: string;
@@ -495,7 +496,7 @@ function TemplatesLibraryContent() {
     if (template.preview_image_url) {
       return (
         <img
-          src={template.preview_image_url}
+          src={resolveMediaUrl(template.preview_image_url)}
           alt=""
           className="w-full h-full object-contain"
           style={{ objectFit: 'contain', objectPosition: 'center' }}
@@ -589,14 +590,14 @@ function TemplatesLibraryContent() {
                 gridRow: shouldSpanRows ? 'span 2' : 'auto',
                 gridColumn: shouldSpanCols ? 'span 2' : 'auto',
                 backgroundColor: blockBgColor,
-                backgroundImage: bgImage ? `url(${bgImage})` : undefined,
+                backgroundImage: bgImage ? `url(${resolveMediaUrl(bgImage)})` : undefined,
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
               }}
             >
               {videoContent?.image_url && (
                 <video
-                  src={videoContent.image_url}
+                  src={resolveMediaUrl(videoContent.image_url)}
                   className="w-full h-full object-cover"
                   muted
                   playsInline
@@ -615,7 +616,7 @@ function TemplatesLibraryContent() {
               )}
               {!videoContent && previewImageUrl && (
                 <img
-                  src={previewImageUrl}
+                  src={resolveMediaUrl(previewImageUrl)}
                   alt=""
                   className="w-full h-full object-cover"
                   style={{
@@ -1272,7 +1273,7 @@ function TemplatesLibraryContent() {
                 <div className="text-white text-lg">{t('common_loading')}</div>
               ) : previewTemplate.preview_image_url ? (
                 <img
-                  src={previewTemplate.preview_image_url}
+                  src={resolveMediaUrl(previewTemplate.preview_image_url)}
                   alt=""
                   className="max-w-full max-h-full object-contain"
                   style={{ aspectRatio: '16/9' }}
@@ -1329,7 +1330,7 @@ function TemplatesLibraryContent() {
                   <div className="absolute inset-0 flex items-center justify-center text-white">{t('common_loading')}</div>
                 ) : previewTemplate.preview_image_url ? (
                   <img
-                    src={previewTemplate.preview_image_url}
+                    src={resolveMediaUrl(previewTemplate.preview_image_url)}
                     alt=""
                     className="w-full h-full object-contain"
                     style={{ objectFit: 'contain' }}

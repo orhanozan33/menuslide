@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 import { logAdminActivity } from '@/lib/admin-activity';
+import { resolveMediaUrl } from '@/lib/resolveMediaUrl';
 
 interface ContentLibraryItem {
   id: string;
@@ -629,7 +630,7 @@ export default function LibraryPage() {
                     {item.url && item.type === 'video' ? (
                       <div className="w-full h-full relative bg-slate-700 flex items-center justify-center overflow-hidden">
                         <video
-                          src={item.url}
+                          src={resolveMediaUrl(item.url)}
                           className="w-full h-full object-cover pointer-events-none"
                           muted
                           playsInline
@@ -646,7 +647,7 @@ export default function LibraryPage() {
                       </div>
                     ) : item.url && (item.type === 'image' || item.type === 'drink') ? (
                       <img
-                        src={item.url}
+                        src={resolveMediaUrl(item.url)}
                         alt={item.name}
                         className="w-full h-full object-cover pointer-events-none select-none"
                         onError={(e) => ((e.target as HTMLImageElement).src = PLACEHOLDER_IMG)}
@@ -715,7 +716,7 @@ export default function LibraryPage() {
             <div className="p-6 flex-1 overflow-auto flex items-center justify-center min-h-[300px] bg-slate-900">
               {previewItem.url && previewItem.type === 'video' ? (
                 <video
-                  src={previewItem.url}
+                  src={resolveMediaUrl(previewItem.url)}
                   controls
                   autoPlay
                   loop
@@ -726,7 +727,7 @@ export default function LibraryPage() {
                 />
               ) : previewItem.url && (previewItem.type === 'image' || previewItem.type === 'drink') ? (
                 <img
-                  src={previewItem.url}
+                  src={resolveMediaUrl(previewItem.url)}
                   alt={previewItem.name}
                   className="max-w-full max-h-[70vh] object-contain rounded-lg"
                   onClick={(e) => e.stopPropagation()}

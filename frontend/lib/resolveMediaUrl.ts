@@ -1,9 +1,27 @@
+const STORAGE_BUCKET = 'menuslide';
+
 /**
- * Resolves media URLs (images, videos) so they work in both local and production.
+ * Resolves a path in the menuslide bucket to the Supabase Storage public URL.
+ * - Paths like /uploads/filename (single segment) are stored at uploads/migrated/filename by migrate script.
+ * - Paths like /uploads/YYYY-MM-DD/filename from new uploads stay as uploads/YYYY-MM-DD/filename.
+ */
+export function getStoragePublicUrl(path: string): string {
+  const base = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!base) return path;
+  let clean = path.replace(/^\/+/, '');
+  // Single-segment /uploads/file.jpg → uploads/migrated/file.jpg (migration script convention)
+  if (/^uploads\/[^/]+$/.test(clean)) {
+    clean = `uploads/migrated/${clean.replace(/^uploads\//, '')}`;
+  }
+  return `${base.replace(/\/$/, '')}/storage/v1/object/public/${STORAGE_BUCKET}/${clean}`;
+}
+
+/**
+ * Resolves media URLs so they work everywhere and are served from Storage when possible.
  * - Absolute URLs (http/https): returned as-is
  * - Data URLs (data:...): returned as-is
- * - Relative paths (/uploads/..., /...): prefixed with app origin so they work
- *   when the display is on Vercel (public/uploads files are in deployment)
+ * - Paths under uploads/ or /uploads/: resolved to Supabase Storage public URL (fast, CDN-friendly)
+ * - Other relative paths: prefixed with app origin for backward compatibility
  */
 export function resolveMediaUrl(url: string | null | undefined): string {
   if (!url || typeof url !== 'string') return '';
@@ -11,16 +29,18 @@ export function resolveMediaUrl(url: string | null | undefined): string {
   if (!u) return '';
   if (u.startsWith('http://') || u.startsWith('https://')) return u;
   if (u.startsWith('data:')) return u;
-  // Relative path: use app origin so /uploads/xxx works on Vercel
+  // All uploads go through Storage: /uploads/... or uploads/... → Supabase Storage public URL
+  if (u.startsWith('/uploads/') || u.startsWith('uploads/')) {
+    return getStoragePublicUrl(u);
+  }
+  // Other relative path: app origin (e.g. same-origin static)
   if (u.startsWith('/')) {
     if (typeof window !== 'undefined') {
       return `${window.location.origin}${u}`;
     }
-    // SSR: use NEXT_PUBLIC_APP_URL if set (e.g. https://menuslide.vercel.app)
     const base = process.env.NEXT_PUBLIC_APP_URL || '';
     return base ? `${base.replace(/\/$/, '')}${u}` : u;
   }
-  // Path without leading slash: might be backend path
   const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
   if (apiBase) {
     return `${apiBase.replace(/\/$/, '')}${u.startsWith('/') ? '' : '/'}${u}`;
