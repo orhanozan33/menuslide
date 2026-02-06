@@ -46,8 +46,6 @@ function TemplatesLibraryContent() {
     }
     return desc;
   };
-  const [activeTab, setActiveTab] = useState<'system' | 'user'>('system'); // Sistem: admin şablonları, User: kendi şablonlarım
-  const [systemTemplates, setSystemTemplates] = useState<any[]>([]);
   const [userTemplates, setUserTemplates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -164,15 +162,6 @@ function TemplatesLibraryContent() {
         ? `?user_id=${effectiveUserId}`
         : '';
 
-      // Sistem şablonları: admin'in oluşturduğu, herkesin erişip kopyalayabildiği
-      let systemData: any[] = [];
-      try {
-        systemData = await apiClient('/templates/scope/system') || [];
-        if (!Array.isArray(systemData)) systemData = [];
-      } catch (err: any) {
-        console.warn('System templates load failed:', err);
-      }
-
       // Kullanıcı (benim) template'leri
       let userData: any[] = [];
       try {
@@ -186,10 +175,9 @@ function TemplatesLibraryContent() {
           : [];
       }
 
-      setSystemTemplates(systemData);
       setUserTemplates(userData);
 
-      const allTemplates = [...systemData, ...userData];
+      const allTemplates = userData;
 
       // Sayfa hemen açılsın; blok/içerik arka planda yüklensin (N+1 istekleri gecikmeyi önler)
       setLoading(false);
@@ -429,12 +417,7 @@ function TemplatesLibraryContent() {
         return;
       }
 
-      const scope = (template.scope || '').toString().toLowerCase();
-      if (scope === 'system') {
-        setSystemTemplates((prev) => prev.filter((t) => String(t.id).toLowerCase() !== templateId.toLowerCase()));
-      } else {
-        setUserTemplates((prev) => prev.filter((t) => String(t.id).toLowerCase() !== templateId.toLowerCase()));
-      }
+      setUserTemplates((prev) => prev.filter((t) => String(t.id).toLowerCase() !== templateId.toLowerCase()));
       toast.showSuccess(t('templates_deleted'));
     } catch (err: any) {
       toast.showError(t('templates_delete_failed') + ': ' + (err?.message || t('common_error')));
@@ -665,16 +648,6 @@ function TemplatesLibraryContent() {
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4 min-w-0">
             <h1 className="text-xl md:text-2xl font-bold text-gray-900 truncate">{t('templates_title')}</h1>
             <div className="flex flex-row gap-2 w-full md:w-auto min-w-0">
-              {(userRole === 'admin' || userRole === 'super_admin') && (
-                <button
-                  type="button"
-                  onClick={() => setShowCreateSystemModal(true)}
-                  className="flex-1 md:flex-initial min-w-0 px-2 md:px-4 py-2 md:py-2.5 min-h-[44px] md:min-h-0 bg-amber-600 hover:bg-amber-700 active:bg-amber-700 text-white rounded-lg font-semibold flex items-center justify-center gap-1 md:gap-2 touch-manipulation"
-                >
-                  <span>📐</span>
-                  <span className="truncate text-xs md:text-sm">{t('templates_new_block')}</span>
-                </button>
-              )}
               <Link
                 href={localePath('/templates/new')}
                 className="flex-1 md:flex-initial min-w-0 text-center px-2 md:px-4 py-2 md:py-2.5 min-h-[44px] md:min-h-0 flex items-center justify-center bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 active:from-blue-700 active:to-purple-700 font-semibold gap-1 md:gap-2 touch-manipulation"
@@ -685,34 +658,13 @@ function TemplatesLibraryContent() {
             </div>
           </div>
 
-          {/* Sekmeler - mobile: 2 col grid, desktop: flex */}
-          <div className="grid grid-cols-2 md:flex md:flex-row gap-2 mb-4 border-b border-gray-200 pb-2 min-w-0">
-            <button
-              type="button"
-              onClick={() => setActiveTab('system')}
-              className={`min-w-0 md:min-w-[160px] px-2 md:px-4 py-2 md:py-2.5 min-h-[44px] md:min-h-0 rounded-t-lg font-semibold text-xs md:text-sm transition-colors touch-manipulation overflow-hidden ${
-                activeTab === 'system'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200 md:active:bg-gray-200'
-              }`}
-            >
-              <span className="truncate block text-left">🎨 {t('templates_system')} ({systemTemplates.length})</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('user')}
-              className={`min-w-0 md:min-w-[160px] px-2 md:px-4 py-2 md:py-2.5 min-h-[44px] md:min-h-0 rounded-t-lg font-semibold text-xs md:text-sm transition-colors touch-manipulation ${
-                activeTab === 'user'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200 md:active:bg-gray-200'
-              }`}
-            >
-              <span className="truncate block text-left">📁 {t('templates_mine')} ({userTemplates.length})</span>
-            </button>
+          {/* Benim şablonlarım başlığı */}
+          <div className="mb-4 pb-2 border-b border-gray-200 min-w-0">
+            <span className="text-base font-semibold text-gray-800">📁 {t('templates_mine')} ({userTemplates.length})</span>
           </div>
 
           {/* Admin için kullanıcı seçimi */}
-          {activeTab === 'user' && (userRole === 'super_admin' || userRole === 'admin') && (
+          {(userRole === 'super_admin' || userRole === 'admin') && (
             <div className="mb-4 p-3 md:p-4 bg-blue-50 rounded-lg border border-blue-200 min-w-0 overflow-hidden">
               <label className="block text-sm font-semibold text-gray-800 mb-2">
                 👤 {t('templates_select_user')}
@@ -739,12 +691,6 @@ function TemplatesLibraryContent() {
             </div>
           )}
 
-          {activeTab === 'system' && (
-            <p className="text-xs md:text-sm text-gray-600 mb-4">
-              {t('templates_system_desc')}
-            </p>
-          )}
-
           {error && (
             <div className="mb-4 p-3 md:p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg text-sm">
               {error}
@@ -752,16 +698,7 @@ function TemplatesLibraryContent() {
           )}
 
           {/* Template Grid */}
-          {activeTab === 'system' && systemTemplates.length === 0 ? (
-            <div className="text-center py-8 md:py-12">
-              <p className="text-gray-600 text-lg">
-                {t('templates_no_system')}
-              </p>
-              <p className="text-gray-500 text-sm mt-2">
-                {t('templates_system_hint')}
-              </p>
-            </div>
-          ) : activeTab === 'user' && userTemplates.length === 0 ? (
+          {userTemplates.length === 0 ? (
             <div className="text-center py-8 md:py-12">
               <p className="text-gray-600 text-lg">
                 {t('templates_no_mine')}
@@ -772,9 +709,9 @@ function TemplatesLibraryContent() {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 md:gap-10 min-w-0">
-              {(activeTab === 'system' ? systemTemplates : userTemplates).map((template) => {
+              {userTemplates.map((template) => {
                 const isAdmin = userRole === 'super_admin' || userRole === 'admin';
-                const isSystemForUser = template.scope === 'system' && !isAdmin;
+                const isSystemForUser = false;
                 return (
                   <div
                     key={template.id}
@@ -824,11 +761,6 @@ function TemplatesLibraryContent() {
                             {renderTemplatePreview(template)}
                           </div>
                           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/15 transition-colors pointer-events-none" />
-                          {template.scope === 'system' && (
-                            <div className="absolute top-1 right-1 bg-blue-600 text-white text-[10px] px-1.5 py-0.5 rounded z-20 pointer-events-none">
-                              {t('templates_system_badge')}
-                            </div>
-                          )}
                         </div>
                       </div>
                     </div>
@@ -869,28 +801,7 @@ function TemplatesLibraryContent() {
                           </button>
                         ) : (
                           <>
-                            {template.scope === 'system' && isAdmin && (
-                              <>
-                                <Link
-                                  href={localePath(`/templates/${template.id}/edit`)}
-                                  className="flex-1 min-w-0 px-3 py-2.5 min-h-[44px] md:min-h-0 bg-amber-100 text-amber-700 rounded-lg hover:bg-amber-200 active:bg-amber-200 transition-colors text-sm font-semibold flex items-center justify-center touch-manipulation"
-                                  title={t('btn_edit')}
-                                >
-                                  ✏️ {t('btn_edit')}
-                                </Link>
-                                <button
-                                  type="button"
-                                  onClick={(e) => openDeleteConfirm(e, template)}
-                                  className="flex-1 min-w-0 px-3 py-2.5 min-h-[44px] md:min-h-0 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 active:bg-red-200 transition-colors text-sm font-semibold touch-manipulation"
-                                  title={t('btn_delete')}
-                                >
-                                  🗑️ {t('btn_delete')}
-                                </button>
-                              </>
-                            )}
-                            {(template.scope === 'user' || activeTab === 'user') && (
-                              <>
-                                <Link
+                            <Link
                                   href={localePath(`/templates/${template.id}/edit`)}
                                   className="flex-1 min-w-[70px] px-3 py-2.5 min-h-[44px] md:min-h-0 bg-amber-100 text-amber-700 rounded-lg hover:bg-amber-200 active:bg-amber-200 transition-colors text-sm font-semibold flex items-center justify-center touch-manipulation"
                                   title={t('btn_edit')}
@@ -913,8 +824,6 @@ function TemplatesLibraryContent() {
                                 >
                                   🗑️ {t('btn_delete')}
                                 </button>
-                              </>
-                            )}
                           </>
                         )}
                       </div>
@@ -1170,7 +1079,6 @@ function TemplatesLibraryContent() {
                       body: { block_counts: uniqueCounts, count_per_type: createSystemCountPerType, merge_options: Object.keys(mergeOpts).length ? mergeOpts : undefined },
                     }) as { count?: number; created?: any[] };
                     await loadTemplates();
-                    setActiveTab('system');
                     setShowCreateSystemModal(false);
                     setCreateSystemBlockCounts([1, 2, 4, 6]);
                     setCreateSystemCountPerType(1);
