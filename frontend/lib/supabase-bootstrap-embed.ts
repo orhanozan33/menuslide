@@ -1,6 +1,6 @@
 // Auto-generated. Do not edit. Run ./scripts/build-supabase-bootstrap.sh to regenerate.
 export const bootstrapSql = `-- Supabase bootstrap: tüm şema + migration'lar (tek seferde çalıştırılabilir)
--- Üretim: 2026-02-06 03:28:42 UTC
+-- Üretim: 2026-02-06 03:30:49 UTC
 
 -- === schema-local.sql ===
 -- Digital Signage / Online Menu Management System
@@ -1079,6 +1079,29 @@ ALTER TABLE screens ADD COLUMN IF NOT EXISTS ticker_text TEXT DEFAULT '';
 COMMENT ON COLUMN screens.frame_type IS 'TV display frame: none, frame_1..frame_10';
 COMMENT ON COLUMN screens.ticker_text IS 'Scrolling ticker text at bottom of TV display';
 
+-- === migration-add-template-rotation.sql ===
+-- Migration: Add Template Rotation System
+-- Allows multiple templates to be scheduled for a screen with display durations
+
+CREATE TABLE IF NOT EXISTS screen_template_rotations (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    screen_id UUID NOT NULL REFERENCES screens(id) ON DELETE CASCADE,
+    template_id UUID NOT NULL REFERENCES templates(id) ON DELETE CASCADE,
+    display_duration INTEGER NOT NULL DEFAULT 5, -- seconds
+    display_order INTEGER NOT NULL DEFAULT 0,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(screen_id, template_id, display_order)
+);
+
+CREATE INDEX IF NOT EXISTS idx_screen_template_rotations_screen_id ON screen_template_rotations(screen_id);
+CREATE INDEX IF NOT EXISTS idx_screen_template_rotations_template_id ON screen_template_rotations(template_id);
+CREATE INDEX IF NOT EXISTS idx_screen_template_rotations_active ON screen_template_rotations(screen_id, is_active, display_order);
+
+CREATE TRIGGER update_screen_template_rotations_updated_at BEFORE UPDATE ON screen_template_rotations
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
 -- === migration-add-display-scale-indexes.sql ===
 -- Migration: Display scale indexes (1000+ TVs)
 -- Run after base schema. Optimizes /public/screen/:token queries.
@@ -1293,29 +1316,6 @@ CHECK (transition_effect IN (
 ));
 
 COMMENT ON COLUMN screen_template_rotations.transition_effect IS 'Bu templatee geçerken kullanılacak efekt';
-
--- === migration-add-template-rotation.sql ===
--- Migration: Add Template Rotation System
--- Allows multiple templates to be scheduled for a screen with display durations
-
-CREATE TABLE IF NOT EXISTS screen_template_rotations (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    screen_id UUID NOT NULL REFERENCES screens(id) ON DELETE CASCADE,
-    template_id UUID NOT NULL REFERENCES templates(id) ON DELETE CASCADE,
-    display_duration INTEGER NOT NULL DEFAULT 5, -- seconds
-    display_order INTEGER NOT NULL DEFAULT 0,
-    is_active BOOLEAN DEFAULT true,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    UNIQUE(screen_id, template_id, display_order)
-);
-
-CREATE INDEX IF NOT EXISTS idx_screen_template_rotations_screen_id ON screen_template_rotations(screen_id);
-CREATE INDEX IF NOT EXISTS idx_screen_template_rotations_template_id ON screen_template_rotations(template_id);
-CREATE INDEX IF NOT EXISTS idx_screen_template_rotations_active ON screen_template_rotations(screen_id, is_active, display_order);
-
-CREATE TRIGGER update_screen_template_rotations_updated_at BEFORE UPDATE ON screen_template_rotations
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- === migration-add-template-transition-effect.sql ===
 -- Template geçiş efekti: şablon değişiminde kullanılacak efekt (fade, slide-left, car-pull, curtain, flip, zoom, wipe)
