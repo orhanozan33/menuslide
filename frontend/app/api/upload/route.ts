@@ -13,12 +13,18 @@ function safeFileName(original: string): string {
 
 /**
  * POST /api/upload
- * Uploads files to Supabase Storage (bucket: menuslide).
- * Returns public URLs so the app stays fast and works on Vercel (no local disk).
- * Bucket "menuslide" must exist and be public in Supabase Dashboard.
+ * Yerel veya canlıda çalışırken tüm yüklemeler doğrudan Supabase Storage'a gider (bucket: menuslide).
+ * Yerel disk kullanılmaz; canlı ile aynı storage kullanılır.
+ * Bucket "menuslide" Supabase Dashboard'da oluşturulmuş ve public olmalı.
  */
 export async function POST(request: NextRequest) {
   try {
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return NextResponse.json(
+        { error: 'Supabase yapılandırması eksik. frontend/.env.local içinde NEXT_PUBLIC_SUPABASE_URL ve SUPABASE_SERVICE_ROLE_KEY tanımlayın.', data: [], assets: [] },
+        { status: 503 }
+      );
+    }
     const supabase = getServerSupabase();
     const formData = await request.formData();
     const files = formData.getAll('files') as File[];
@@ -52,7 +58,10 @@ export async function POST(request: NextRequest) {
 
       if (error) {
         console.error('[upload] Supabase storage error:', error);
-        continue;
+        return NextResponse.json(
+          { error: error.message || 'Storage yükleme hatası. Supabase Storage bucket "menuslide" mevcut ve public mi kontrol edin.', data: [], assets: [] },
+          { status: 500 }
+        );
       }
 
       const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(path);

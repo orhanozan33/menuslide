@@ -1,13 +1,13 @@
-const path = require('path');
+import type { NextConfig } from 'next';
+import path from 'path';
 
-/** @type {import('next').NextConfig} */
-const nextConfig = {
+const nextConfig: NextConfig = {
   reactStrictMode: false,
   transpilePackages: ['react-konva', 'konva'],
   serverExternalPackages: ['pg'],
   webpack: (config, { isServer }) => {
-    // Single React instance (avoids useContext null during SSG and react-konva issues)
-    const dir = path.join(__dirname, 'node_modules');
+    const dir = path.join(process.cwd(), 'node_modules');
+    config.resolve = config.resolve || {};
     config.resolve.alias = {
       ...config.resolve.alias,
       react: path.join(dir, 'react'),
@@ -16,8 +16,13 @@ const nextConfig = {
     return config;
   },
   images: {
-    domains: ['localhost'],
-    // Add your Supabase project hostname for storage images, e.g. 'abcdefgh.supabase.co'
+    remotePatterns: [
+      { protocol: 'https', hostname: '**.supabase.co', pathname: '/storage/**' },
+      { protocol: 'http', hostname: 'localhost', pathname: '/**' },
+    ],
+  },
+  experimental: {
+    optimizePackageImports: ['konva', 'react-konva', 'grapesjs', '@grapesjs/react'],
   },
   async headers() {
     return [
@@ -44,6 +49,6 @@ const nextConfig = {
       },
     ];
   },
-}
+};
 
-module.exports = nextConfig
+export default nextConfig;

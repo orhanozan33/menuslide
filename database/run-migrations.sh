@@ -11,7 +11,17 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-# Database configuration (from backend/.env)
+# Load backend/.env if exists (DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BACKEND_ENV="$SCRIPT_DIR/../backend/.env"
+if [ -f "$BACKEND_ENV" ]; then
+  set -a
+  # shellcheck disable=SC1090
+  source "$BACKEND_ENV" 2>/dev/null || true
+  set +a
+fi
+
+# Database configuration
 DB_HOST="${DB_HOST:-localhost}"
 DB_PORT="${DB_PORT:-5432}"
 DB_NAME="${DB_NAME:-tvproje}"
@@ -21,8 +31,6 @@ DB_PASSWORD="${DB_PASSWORD:-333333}"
 # Export password for psql
 export PGPASSWORD="$DB_PASSWORD"
 
-# Get script directory
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo -e "${GREEN}🚀 Starting Migration Runner${NC}"
 echo -e "Database: ${DB_NAME}@${DB_HOST}:${DB_PORT}"

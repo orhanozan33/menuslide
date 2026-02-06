@@ -955,10 +955,10 @@ export default function ReportsPage() {
                         <p className="text-xs text-slate-600 mt-0.5">{t('reports_paid_dates_hint')}</p>
                       </div>
                       <div className="max-h-44 overflow-y-auto">
-                        {userDetailModal.data.payments.length === 0 ? (
+                        {(userDetailModal.data.payments ?? []).length === 0 ? (
                           <div className="p-5 text-sm text-slate-500 text-center">{t('reports_no_payments_history')}</div>
                         ) : (
-                          userDetailModal.data.payments.map((p) => (
+                          (userDetailModal.data.payments ?? []).map((p) => (
                             <div key={p.id} className="px-4 py-3 flex justify-between items-center text-sm border-b border-slate-50 last:border-0">
                               <span className="text-slate-600">{formatDateShort(p.payment_date)}</span>
                               <span className="font-semibold text-slate-900">{formatCurrency(p.amount)}</span>
@@ -976,10 +976,10 @@ export default function ReportsPage() {
                         <p className="text-xs text-red-600 mt-0.5">{t('reports_failed_payments_hint')}</p>
                       </div>
                       <div className="max-h-44 overflow-y-auto">
-                        {userDetailModal.data.payment_failures.length === 0 ? (
+                        {(userDetailModal.data.payment_failures ?? []).length === 0 ? (
                           <div className="p-5 text-sm text-slate-500 text-center">{t('reports_no_failures')}</div>
                         ) : (
-                          userDetailModal.data.payment_failures.map((f) => (
+                          (userDetailModal.data.payment_failures ?? []).map((f) => (
                             <div key={f.id} className="px-4 py-3 text-sm border-b border-slate-50 last:border-0">
                               <div className="flex justify-between">
                                 <span className="text-slate-600">{formatDateShort(f.attempted_at)}</span>

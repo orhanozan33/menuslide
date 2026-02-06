@@ -666,20 +666,26 @@ export default function CanvasDesignEditor({ templateId }: CanvasDesignEditorPro
 
   const selectedShape = shapes.find((s) => s.id === selectedId);
 
-  /** AI ile arka plan kaldır: backend API üzerinden (önemli: build hatasını önler). */
+  /** AI ile arka plan kaldır: önce API dene, 501 ise tarayıcıda @imgly/background-removal kullan. */
   const removeBackgroundAi = useCallback(async (imageSrc: string): Promise<string> => {
     let src = imageSrc.startsWith('data:') ? imageSrc : mediaUrl(imageSrc);
     if (typeof window !== 'undefined' && src.startsWith('/') && !src.startsWith('//')) {
       src = `${window.location.origin}${src}`;
     }
-    const data = await apiClient('/ai/remove-background', {
-      method: 'POST',
-      body: { image: src },
-    });
-    const dataUrl = (data as { dataUrl?: string })?.dataUrl;
-    if (!dataUrl) throw new Error(t('editor_server_no_data'));
-    return dataUrl;
-  }, [t]);
+    try {
+      const data = await apiClient('/ai/remove-background', {
+        method: 'POST',
+        body: { image: src },
+      });
+      const dataUrl = (data as { dataUrl?: string })?.dataUrl;
+      if (dataUrl) return dataUrl;
+    } catch (e: any) {
+      const useBrowser = e?.status === 501 || (e?.message && /not available on Vercel|external service/i.test(String(e.message)));
+      if (!useBrowser) throw e;
+    }
+    const { removeBackgroundInBrowser } = await import('@/lib/remove-background-browser');
+    return removeBackgroundInBrowser(src);
+  }, []);
 
   useEffect(() => {
     if (layoutType === 'full') setSelectedBlockIndex(null);
@@ -1353,36 +1359,44 @@ export default function CanvasDesignEditor({ templateId }: CanvasDesignEditorPro
   );
 
   const handleFileSelect = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       e.target.value = '';
       if (!file?.type.startsWith('image/')) return;
-      const reader = new FileReader();
-      reader.onload = () => {
-        const dataUrl = reader.result as string;
-        if (dataUrl) addImage(dataUrl);
-      };
-      reader.onerror = () => alert(t('editor_image_read_error'));
-      reader.readAsDataURL(file);
+      try {
+        const fd = new FormData();
+        fd.append('file', file);
+        const up = await fetch('/api/upload', { method: 'POST', body: fd });
+        const upJson = await up.json();
+        const url = upJson?.assets?.[0]?.src || upJson?.data?.[0]?.src;
+        if (url) addImage(url);
+        else alert(t('editor_upload_failed'));
+      } catch {
+        alert(t('editor_upload_failed'));
+      }
     },
-    [addImage]
+    [addImage, t]
   );
 
   const handleRotationFileSelect = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       e.target.value = '';
       if (!file?.type.startsWith('image/') || !selectedShape || selectedShape.type !== 'imageRotation') return;
       const shapeId = selectedShape.id;
-      const reader = new FileReader();
-      reader.onload = () => {
-        const dataUrl = reader.result as string;
-        if (dataUrl) addImageToRotation(shapeId, dataUrl);
-      };
-      reader.onerror = () => alert(t('editor_image_read_error'));
-      reader.readAsDataURL(file);
+      try {
+        const fd = new FormData();
+        fd.append('file', file);
+        const up = await fetch('/api/upload', { method: 'POST', body: fd });
+        const upJson = await up.json();
+        const url = upJson?.assets?.[0]?.src || upJson?.data?.[0]?.src;
+        if (url) addImageToRotation(shapeId, url);
+        else alert(t('editor_upload_failed'));
+      } catch {
+        alert(t('editor_upload_failed'));
+      }
     },
-    [addImageToRotation, selectedShape]
+    [addImageToRotation, selectedShape, t]
   );
 
   return (

@@ -712,20 +712,23 @@ export default function ContentLibrary({ onSelectContent, initialCategory, compa
       try {
         // Resmi optimize et (Full HD: 1920x1080, kalite: %98)
         const optimizedBase64 = await optimizeImage(file, 1920, 1080, 0.98);
-        let imageUrl = optimizedBase64;
-
-        // Supabase Storage'a yükle (sistem hızlı çalışsın, DB'de base64 olmasın)
-        try {
-          const res = await fetch(optimizedBase64);
-          const blob = await res.blob();
-          const f = new File([blob], file.name || 'image.jpg', { type: blob.type || 'image/jpeg' });
-          const fd = new FormData();
-          fd.append('file', f);
-          const up = await fetch('/api/upload', { method: 'POST', body: fd });
-          const upJson = await up.json();
-          if (upJson?.assets?.[0]?.src) imageUrl = upJson.assets[0].src;
-        } catch (_) {
-          // Yükleme başarısızsa base64 ile devam et
+        const res = await fetch(optimizedBase64);
+        const blob = await res.blob();
+        const f = new File([blob], file.name || 'image.jpg', { type: blob.type || 'image/jpeg' });
+        const fd = new FormData();
+        fd.append('file', f);
+        const up = await fetch('/api/upload', { method: 'POST', body: fd });
+        const upJson = await up.json();
+        const imageUrl = upJson?.assets?.[0]?.src || upJson?.data?.[0]?.src;
+        if (!imageUrl) {
+          const errMsg = upJson?.error || 'Upload failed';
+          alert(`${file.name}: ${errMsg}. Supabase Storage gerekli.`);
+          loadedCount++;
+          if (loadedCount === totalFiles) {
+            setIsUploading(false);
+            event.target.value = '';
+          }
+          continue;
         }
 
         const newItem = {

@@ -146,17 +146,14 @@ export default function LibraryPage() {
     try {
       setLoading(true);
       setError('');
-      let catsData: any[] = [];
-      let itemsData: any = [];
-      try {
-        catsData = await apiClient('/content-library/categories');
-      } catch {
-        catsData = [];
-      }
-      try {
-        itemsData = await apiClient('/content-library');
-      } catch (itemsErr: any) {
-        setError(itemsErr?.message || t('library_items_load_failed'));
+      const [catsRes, itemsRes] = await Promise.allSettled([
+        apiClient('/content-library/categories'),
+        apiClient('/content-library'),
+      ]);
+      const catsData = catsRes.status === 'fulfilled' ? (catsRes.value ?? []) : [];
+      const itemsData = itemsRes.status === 'fulfilled' ? (itemsRes.value ?? {}) : {};
+      if (itemsRes.status === 'rejected') {
+        setError((itemsRes.reason as Error)?.message || t('library_items_load_failed'));
       }
       setCategories(Array.isArray(catsData) ? catsData.filter((c: any) => c.slug !== 'regional' && c.slug !== 'tek-menu') : []);
       // Flatten grouped or array
@@ -349,14 +346,11 @@ export default function LibraryPage() {
         setFormData((f) => ({ ...f, url: src }));
         return;
       }
-    } catch (_) {
-      // Fallback: base64 (ağır olur ama çalışır)
+      const errMsg = upJson?.error || 'Upload failed';
+      setError(t('library_upload_supabase_required', { msg: errMsg }));
+    } catch (err: any) {
+      setError(t('library_upload_supabase_required', { msg: err?.message || 'Upload failed' }));
     }
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      setFormData((f) => ({ ...f, url: (ev.target?.result as string) || '' }));
-    };
-    reader.readAsDataURL(file);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

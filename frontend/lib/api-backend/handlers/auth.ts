@@ -34,8 +34,17 @@ export async function postLogin(req: NextRequest): Promise<Response> {
   try {
     const { user, token } = await loginWithPassword(email, password);
     return Response.json({ user, token });
-  } catch (e: any) {
-    const msg = e?.message || 'Invalid credentials';
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : 'Invalid credentials';
+    if (/LOCAL_DB_CONNECTION_FAILED|ECONNREFUSED|connect ENOENT/i.test(msg)) {
+      return Response.json(
+        { message: 'Veritabanı bağlantısı yok. .env.local içinde USE_LOCAL_DB kapatın veya PostgreSQL\'i başlatın.' },
+        { status: 503 }
+      );
+    }
+    if (msg.startsWith('Supabase:')) {
+      return Response.json({ message: msg }, { status: 500 });
+    }
     return Response.json({ message: msg }, { status: 401 });
   }
 }
@@ -44,7 +53,7 @@ export async function postLogin(req: NextRequest): Promise<Response> {
 export async function getAuthMe(req: NextRequest, user: JwtPayload): Promise<Response> {
   const me = await getMe(user.userId);
   if (!me) {
-    return Response.json({ message: 'User not found' }, { status: 404 });
+    return Response.json({ message: 'User not found or session expired' }, { status: 401 });
   }
   return Response.json(me);
 }

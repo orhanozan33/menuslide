@@ -75,6 +75,7 @@ TABLES=(
   admin_permissions
   admin_activity_log
   screen_edit_history
+  registration_requests
 )
 
 # Tabloları sırayla export et (FK sırasına uygun; yoksa atla)

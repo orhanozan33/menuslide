@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { getServerSupabase } from '@/lib/supabase-server';
 import type { JwtPayload } from '@/lib/auth-server';
+import { useLocalDb, queryOne, queryLocal, insertLocal, updateLocal, deleteLocal, mirrorToSupabase } from '@/lib/api-backend/db-local';
 
 async function getBusinessId(supabase: ReturnType<typeof getServerSupabase>, userId: string, role: string, targetUserId?: string): Promise<string | null> {
   const effective = (role === 'super_admin' || role === 'admin') && targetUserId ? targetUserId : userId;
@@ -8,8 +9,31 @@ async function getBusinessId(supabase: ReturnType<typeof getServerSupabase>, use
   return u?.business_id ?? null;
 }
 
+async function getBusinessIdLocal(userId: string, role: string, targetUserId?: string): Promise<string | null> {
+  const effective = (role === 'super_admin' || role === 'admin') && targetUserId ? targetUserId : userId;
+  const u = await queryOne<{ business_id: string }>('SELECT business_id FROM users WHERE id = $1', [effective]);
+  return u?.business_id ?? null;
+}
+
 /** GET /menus/stats/summary */
 export async function getStats(user: JwtPayload): Promise<Response> {
+  if (useLocalDb()) {
+    if (user.role === 'super_admin') {
+      const menusCount = await queryLocal('SELECT id FROM menus', []);
+      const items = await queryLocal('SELECT id FROM menu_items WHERE is_active = true', []);
+      return Response.json({ menus: menusCount.length, menuItems: items.length });
+    }
+    const businessId = await getBusinessIdLocal(user.userId, user.role);
+    if (!businessId) return Response.json({ menus: 0, menuItems: 0 });
+    const menus = await queryLocal<{ id: string }>('SELECT id FROM menus WHERE business_id = $1', [businessId]);
+    let menuItems = 0;
+    if (menus.length > 0) {
+      const menuIds = menus.map((m) => m.id);
+      const itemRows = await queryLocal('SELECT id FROM menu_items WHERE menu_id = ANY($1::uuid[]) AND is_active = true', [menuIds]);
+      menuItems = itemRows.length;
+    }
+    return Response.json({ menus: menus.length, menuItems });
+  }
   const supabase = getServerSupabase();
   if (user.role === 'super_admin') {
     const { count: menusCount } = await supabase.from('menus').select('*', { count: 'exact', head: true });
@@ -30,7 +54,6 @@ export async function getStats(user: JwtPayload): Promise<Response> {
 
 /** POST /menus */
 export async function create(request: NextRequest, user: JwtPayload): Promise<Response> {
-  const supabase = getServerSupabase();
   let body: { business_id?: string; name?: string; description?: string; slide_duration?: number; is_active?: boolean; pages_config?: unknown } = {};
   try {
     body = await request.json();
@@ -39,38 +62,29 @@ export async function create(request: NextRequest, user: JwtPayload): Promise<Re
   }
   const businessId = body.business_id;
   if (!businessId) return Response.json({ message: 'business_id required' }, { status: 400 });
+  const pagesConfig = body.pages_config && Array.isArray(body.pages_config) ? body.pages_config : [{ name: 'Sayfa 1', order: 0 }];
+  const row = { business_id: businessId, name: body.name || 'Menu', description: body.description ?? null, slide_duration: body.slide_duration ?? 5, is_active: body.is_active ?? true, pages_config: pagesConfig };
+  if (useLocalDb()) {
+    if (user.role !== 'super_admin' && user.role !== 'admin') {
+      const u = await queryOne<{ business_id: string }>('SELECT business_id FROM users WHERE id = $1', [user.userId]);
+      if (u?.business_id !== businessId) return Response.json({ message: 'Access denied' }, { status: 403 });
+    }
+    const data = await insertLocal('menus', row);
+    await mirrorToSupabase('menus', 'insert', { row: data });
+    return Response.json(data);
+  }
+  const supabase = getServerSupabase();
   if (user.role !== 'super_admin' && user.role !== 'admin') {
     const { data: u } = await supabase.from('users').select('business_id').eq('id', user.userId).single();
     if (u?.business_id !== businessId) return Response.json({ message: 'Access denied' }, { status: 403 });
   }
-  const pagesConfig = body.pages_config && Array.isArray(body.pages_config)
-    ? body.pages_config
-    : [{ name: 'Sayfa 1', order: 0 }];
-  const { data, error } = await supabase
-    .from('menus')
-    .insert({
-      business_id: businessId,
-      name: body.name || 'Menu',
-      description: body.description ?? null,
-      slide_duration: body.slide_duration ?? 5,
-      is_active: body.is_active ?? true,
-      pages_config: pagesConfig,
-    })
-    .select()
-    .single();
+  const { data, error } = await supabase.from('menus').insert(row).select().single();
   if (error) return Response.json({ message: error.message }, { status: 500 });
   return Response.json(data);
 }
 
 /** PATCH /menus/:id */
 export async function update(id: string, request: NextRequest, user: JwtPayload): Promise<Response> {
-  const supabase = getServerSupabase();
-  const { data: menu } = await supabase.from('menus').select('business_id').eq('id', id).single();
-  if (!menu) return Response.json({ message: 'Not found' }, { status: 404 });
-  if (user.role !== 'super_admin' && user.role !== 'admin') {
-    const { data: u } = await supabase.from('users').select('business_id').eq('id', user.userId).single();
-    if (u?.business_id !== menu.business_id) return Response.json({ message: 'Access denied' }, { status: 403 });
-  }
   let body: Record<string, unknown> = {};
   try {
     body = await request.json();
@@ -80,6 +94,29 @@ export async function update(id: string, request: NextRequest, user: JwtPayload)
   const allowed = ['name', 'description', 'slide_duration', 'is_active', 'pages_config'];
   const updates: Record<string, unknown> = {};
   for (const k of allowed) if (body[k] !== undefined) updates[k] = body[k];
+  if (useLocalDb()) {
+    const menu = await queryOne<{ business_id: string }>('SELECT business_id FROM menus WHERE id = $1', [id]);
+    if (!menu) return Response.json({ message: 'Not found' }, { status: 404 });
+    if (user.role !== 'super_admin' && user.role !== 'admin') {
+      const u = await queryOne<{ business_id: string }>('SELECT business_id FROM users WHERE id = $1', [user.userId]);
+      if (u?.business_id !== menu.business_id) return Response.json({ message: 'Access denied' }, { status: 403 });
+    }
+    if (Object.keys(updates).length === 0) {
+      const data = await queryOne('SELECT * FROM menus WHERE id = $1', [id]);
+      return Response.json(data ?? { message: 'Not found' }, { status: data ? 200 : 404 });
+    }
+    const data = await updateLocal('menus', id, updates);
+    if (!data) return Response.json({ message: 'Not found' }, { status: 404 });
+    await mirrorToSupabase('menus', 'update', { id, row: { ...updates, id } });
+    return Response.json(data);
+  }
+  const supabase = getServerSupabase();
+  const { data: menu } = await supabase.from('menus').select('business_id').eq('id', id).single();
+  if (!menu) return Response.json({ message: 'Not found' }, { status: 404 });
+  if (user.role !== 'super_admin' && user.role !== 'admin') {
+    const { data: u } = await supabase.from('users').select('business_id').eq('id', user.userId).single();
+    if (u?.business_id !== menu.business_id) return Response.json({ message: 'Access denied' }, { status: 403 });
+  }
   if (Object.keys(updates).length === 0) {
     const { data } = await supabase.from('menus').select('*').eq('id', id).single();
     return Response.json(data);
@@ -91,6 +128,17 @@ export async function update(id: string, request: NextRequest, user: JwtPayload)
 
 /** DELETE /menus/:id */
 export async function remove(id: string, user: JwtPayload): Promise<Response> {
+  if (useLocalDb()) {
+    const menu = await queryOne<{ business_id: string }>('SELECT business_id FROM menus WHERE id = $1', [id]);
+    if (!menu) return Response.json({ message: 'Not found' }, { status: 404 });
+    if (user.role !== 'super_admin' && user.role !== 'admin') {
+      const u = await queryOne<{ business_id: string }>('SELECT business_id FROM users WHERE id = $1', [user.userId]);
+      if (u?.business_id !== menu.business_id) return Response.json({ message: 'Access denied' }, { status: 403 });
+    }
+    await deleteLocal('menus', id);
+    await mirrorToSupabase('menus', 'delete', { id });
+    return Response.json({ message: 'Menu deleted successfully' });
+  }
   const supabase = getServerSupabase();
   const { data: menu } = await supabase.from('menus').select('business_id').eq('id', id).single();
   if (!menu) return Response.json({ message: 'Not found' }, { status: 404 });

@@ -6,11 +6,15 @@ export default function EditorFrameError({
   error,
   reset,
 }: {
-  error: Error & { digest?: string };
-  reset: () => void;
+  error?: Error & { digest?: string };
+  reset?: () => void;
 }) {
   useEffect(() => {
-    console.error('[editor-frame]', error);
+    try {
+      if (error) console.error('[editor-frame]', error?.message ?? String(error));
+    } catch {
+      /* ignore */
+    }
   }, [error]);
 
   const isNotGranted = error?.message?.toLowerCase().includes('not granted');
@@ -25,7 +29,7 @@ export default function EditorFrameError({
       </p>
       <button
         type="button"
-        onClick={reset}
+        onClick={() => reset?.()}
         className="px-4 py-2 bg-slate-700 hover:bg-slate-800 text-white rounded-lg text-sm font-medium"
       >
         Tekrar dene

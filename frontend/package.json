@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3000",
-    "dev:clean": "lsof -ti:3000 | xargs kill -9 2>/dev/null; rm -rf .next node_modules/.cache && next dev -p 3000",
+    "dev": "next dev -p 3000 --turbopack",
+    "dev:clean": "lsof -ti:3000 | xargs kill -9 2>/dev/null; rm -rf .next node_modules/.cache && next dev -p 3000 --turbopack",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",

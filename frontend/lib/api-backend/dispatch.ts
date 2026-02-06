@@ -15,6 +15,7 @@ import * as templateBlockContentsHandlers from './handlers/template-block-conten
 import * as templateBlocksHandlers from './handlers/template-blocks';
 import * as screenBlocksHandlers from './handlers/screen-blocks';
 import * as templatesHandlers from './handlers/templates';
+import * as registrationRequestsHandlers from './handlers/registration-requests';
 
 /** Handle request locally (Supabase + JWT). Harici backend kullanılmıyor. */
 export async function handleLocal(
@@ -23,6 +24,17 @@ export async function handleLocal(
   method: string
 ): Promise<Response> {
   const [resource, sub, id, sub2, sub3] = pathSegments;
+
+  if (!resource || pathSegments.length === 0) {
+    return Response.json({ message: 'API path gerekli (örn. /api/proxy/auth/login)' }, { status: 400 });
+  }
+
+  // Auth login/register — token gerekmez, en başta ele al (giriş her zaman çalışsın)
+  // Path bazen tek segment olarak gelir: "auth/login" -> resource="auth/login", sub undefined
+  if (resource === 'auth' && sub === 'login' && method === 'POST') return authHandlers.postLogin(request);
+  if (resource === 'auth' && sub === 'register' && method === 'POST') return authHandlers.postRegister(request);
+  if (resource === 'auth/login' && method === 'POST') return authHandlers.postLogin(request);
+  if (resource === 'auth/register' && method === 'POST') return authHandlers.postRegister(request);
 
   if (resource === 'subscriptions' && sub === 'webhook' && method === 'POST') {
     const rawBody = await request.text();
@@ -33,6 +45,11 @@ export async function handleLocal(
   if (resource === 'public' && sub === 'screen' && id) {
     if (method === 'GET') return publicScreenHandlers.getScreenByToken(id, request);
     if (method === 'POST' && sub2 === 'heartbeat') return publicScreenHandlers.recordViewerHeartbeat(id, request);
+  }
+
+  // Kayıt talepleri: POST herkese açık, GET/PATCH/DELETE admin
+  if (resource === 'registration-requests') {
+    if (method === 'POST' && !id) return registrationRequestsHandlers.create(request);
   }
 
   const authHeader = request.headers.get('authorization');
@@ -46,8 +63,6 @@ export async function handleLocal(
   }
 
   if (resource === 'auth') {
-    if (sub === 'login' && method === 'POST') return authHandlers.postLogin(request);
-    if (sub === 'register' && method === 'POST') return authHandlers.postRegister(request);
     if (sub === 'me' && method === 'GET' && user) return authHandlers.getAuthMe(request, user);
     if (sub === 'me' && method === 'PATCH' && user) return authHandlers.patchAuthMe(request, user);
     if (sub === 'impersonate' && method === 'POST' && user) return authHandlers.postImpersonate(request, user);
@@ -68,8 +83,10 @@ export async function handleLocal(
   if (method === 'GET' && user && resource === 'menus' && sub === 'stats' && id === 'summary') {
     return menusHandlers.getStats(user);
   }
-  if (method === 'GET' && user && resource === 'templates' && id && sub === 'blocks') {
-    return templatesHandlers.getTemplateBlocks(id);
+  if (resource === 'registration-requests' && user) {
+    if (method === 'GET' && !id) return registrationRequestsHandlers.findAll(user);
+    if (method === 'PATCH' && id && sub === 'status') return registrationRequestsHandlers.updateStatus(id, request, user);
+    if (method === 'DELETE' && id) return registrationRequestsHandlers.remove(id, user);
   }
 
   if (method === 'GET' && user && resource === 'reports') {
@@ -86,17 +103,18 @@ export async function handleLocal(
   }
 
   if (resource === 'content-library' && user) {
+    const contentLibraryId = sub && /^[0-9a-f-]{36}$/i.test(sub) && !['categories', 'my-uploads', 'user-uploads'].includes(sub) ? sub : id;
     if (method === 'GET' && sub === 'categories') return contentLibraryHandlers.getCategories();
     if (method === 'GET' && sub === 'my-uploads') return contentLibraryHandlers.getMyUploads(user);
     if (method === 'GET' && sub === 'user-uploads') return contentLibraryHandlers.getUserUploads(user);
     if (method === 'GET' && !sub && !id) return contentLibraryHandlers.findAll(request, user);
-    if (method === 'GET' && id) {
+    if (method === 'GET' && contentLibraryId) {
       const url = new URL(request.url);
       return crudHandlers.handleGet(pathSegments, user, url.searchParams);
     }
     if (method === 'POST' && !id) return contentLibraryHandlers.create(request, user);
-    if (method === 'PATCH' && id) return contentLibraryHandlers.update(id, request, user);
-    if (method === 'DELETE' && id) return contentLibraryHandlers.remove(id, user);
+    if (method === 'PATCH' && contentLibraryId) return contentLibraryHandlers.update(contentLibraryId, request, user);
+    if (method === 'DELETE' && contentLibraryId) return contentLibraryHandlers.remove(contentLibraryId, user);
   }
 
   if (resource === 'qr-menus' && user && method === 'GET' && sub === 'business' && id) {
@@ -111,21 +129,18 @@ export async function handleLocal(
     if (method === 'DELETE' && id) return menuItemsHandlers.remove(id, user);
   }
 
-  if (method === 'GET' && user && ['users', 'businesses', 'plans', 'menus', 'screens', 'templates', 'subscriptions', 'content-library'].includes(resource)) {
-    const url = new URL(request.url);
-    return crudHandlers.handleGet(pathSegments, user, url.searchParams);
-  }
-
   if (resource === 'templates' && user) {
+    const templateId = sub && /^[0-9a-f-]{36}$/i.test(sub) ? sub : undefined;
     if (method === 'GET' && sub === 'scope' && id) return templatesHandlers.findByScope(id, request, user);
+    if (method === 'GET' && templateId && id === 'blocks') return templatesHandlers.getTemplateBlocks(templateId);
     if (method === 'POST' && sub === 'apply') return templatesHandlers.applyToScreen(request, user);
     if (method === 'POST' && sub === 'bulk-system') return templatesHandlers.createBulkSystem(request, user);
-    if (method === 'POST' && id && sub === 'duplicate') return templatesHandlers.duplicate(id, request, user);
-    if (method === 'POST' && id && sub === 'save-as') return templatesHandlers.saveAs(id, request, user);
-    if (method === 'POST' && id && sub === 'create-menu-from-products') return templatesHandlers.createMenuFromProducts(id, request, user);
-    if (method === 'POST' && !id) return templatesHandlers.create(request, user);
-    if (method === 'PATCH' && id) return templatesHandlers.update(id, request, user);
-    if (method === 'DELETE' && id) return templatesHandlers.remove(id, user);
+    if (method === 'POST' && templateId && id === 'duplicate') return templatesHandlers.duplicate(templateId, request, user);
+    if (method === 'POST' && templateId && id === 'save-as') return templatesHandlers.saveAs(templateId, request, user);
+    if (method === 'POST' && templateId && id === 'create-menu-from-products') return templatesHandlers.createMenuFromProducts(templateId, request, user);
+    if (method === 'POST' && !sub) return templatesHandlers.create(request, user);
+    if (method === 'PATCH' && templateId) return templatesHandlers.update(templateId, request, user);
+    if (method === 'DELETE' && templateId) return templatesHandlers.remove(templateId, user);
   }
   if (resource === 'screen-blocks' && user) {
     if (method === 'GET' && sub === 'screen' && id) return screenBlocksHandlers.findByScreen(id, user);
@@ -139,15 +154,16 @@ export async function handleLocal(
     if (method === 'PATCH' && id) return crudMutations.updateBusiness(id, request, user);
   }
   if (resource === 'users' && user) {
+    const userId = id || (sub && /^[0-9a-f-]{36}$/i.test(sub) ? sub : undefined);
     if (method === 'POST' && !id) return crudMutations.createUser(request, user);
-    if (method === 'PATCH' && id) return crudMutations.updateUser(id, request, user);
+    if (method === 'PATCH' && userId) return crudMutations.updateUser(userId, request, user);
   }
   if (resource === 'plans' && user) {
     if (method === 'POST' && !id) return crudMutations.createPlan(request, user);
     if (method === 'PATCH' && id) return crudMutations.updatePlan(id, request, user);
   }
   if (resource === 'ai' && user && method === 'POST' && sub === 'remove-background') {
-    return Response.json({ message: 'Remove background is not available on Vercel. Use backend or external service.', url: null }, { status: 501 });
+    return Response.json({ message: 'Remove background is not available on Vercel. Use backend or run locally.', url: null, dataUrl: null }, { status: 501 });
   }
   if (resource === 'ai-templates' && user && method === 'POST' && sub === 'generate') {
     return Response.json({ message: 'AI template generation is not available on Vercel. Use backend.', template: null }, { status: 501 });
@@ -158,16 +174,19 @@ export async function handleLocal(
     if (method === 'DELETE' && id) return menusHandlers.remove(id, user);
   }
   if (resource === 'screens' && user) {
+    // /screens -> sub undefined | /screens/fix-names -> sub=fix-names | /screens/uuid -> sub=uuid | /screens/uuid/menus -> sub=uuid, id=menus
+    const screenId = sub && sub.length === 36 && /^[0-9a-f-]{36}$/i.test(sub) ? sub : undefined;
     if (method === 'GET' && sub === 'alerts' && id === 'multi-device') return screensHandlers.getMultiDeviceAlerts(user);
-    if (method === 'POST' && !id) return screensHandlers.create(request, user);
-    if (method === 'PATCH' && id) return screensHandlers.update(id, request, user);
-    if (method === 'DELETE' && id) return screensHandlers.remove(id, user);
-    if (method === 'GET' && id && sub === 'menus') return screensHandlers.getScreenMenus(id, user);
-    if (method === 'POST' && id && sub === 'assign-menu') return screensHandlers.assignMenu(id, request, user);
-    if (method === 'DELETE' && id && sub === 'menus' && sub2) return screensHandlers.removeMenu(id, sub2, user);
-    if (method === 'GET' && id && sub === 'template-rotations') return screensHandlers.getTemplateRotations(id, user);
-    if (method === 'POST' && id && sub === 'publish-templates') return screensHandlers.publishTemplates(id, request, user);
-    if (method === 'POST' && id && sub === 'stop-publishing') return screensHandlers.stopPublishing(id, user);
+    if (method === 'POST' && sub === 'fix-names') return screensHandlers.fixNames(request, user);
+    if (method === 'POST' && !sub) return screensHandlers.create(request, user);
+    if (method === 'PATCH' && screenId) return screensHandlers.update(screenId, request, user);
+    if (method === 'DELETE' && screenId && id !== 'menus') return screensHandlers.remove(screenId, user);
+    if (method === 'GET' && screenId && id === 'menus') return screensHandlers.getScreenMenus(screenId, user);
+    if (method === 'POST' && screenId && id === 'assign-menu') return screensHandlers.assignMenu(screenId, request, user);
+    if (method === 'DELETE' && screenId && id === 'menus' && sub2) return screensHandlers.removeMenu(screenId, sub2, user);
+    if (method === 'GET' && screenId && id === 'template-rotations') return screensHandlers.getTemplateRotations(screenId, user);
+    if (method === 'POST' && screenId && id === 'publish-templates') return screensHandlers.publishTemplates(screenId, request, user);
+    if (method === 'POST' && screenId && id === 'stop-publishing') return screensHandlers.stopPublishing(screenId, user);
   }
 
   if (resource === 'template-blocks' && user) {
@@ -186,8 +205,18 @@ export async function handleLocal(
     if (method === 'DELETE' && id) return templateBlockContentsHandlers.remove(id);
   }
 
+  // Generic GET for CRUD tables (templates/scope/* handled above by findByScope for business_user)
+  const skipGenericTemplatesScope = resource === 'templates' && sub === 'scope';
+  if (method === 'GET' && user && !skipGenericTemplatesScope && ['users', 'businesses', 'plans', 'menus', 'screens', 'templates', 'subscriptions', 'content-library'].includes(resource)) {
+    const url = new URL(request.url);
+    return crudHandlers.handleGet(pathSegments, user, url.searchParams);
+  }
+
+  if (process.env.NODE_ENV === 'development') {
+    console.warn('[api/proxy] Eşleşmeyen istek:', { method, path: pathSegments, resource, sub, id });
+  }
   return Response.json(
-    { message: 'Endpoint bulunamadı.' },
+    { message: 'Endpoint bulunamadı.', path: pathSegments.join('/') },
     { status: 501 }
   );
 }

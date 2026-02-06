@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { getServerSupabase } from '@/lib/supabase-server';
 import type { JwtPayload } from '@/lib/auth-server';
+import { useLocalDb, queryLocal, queryOne } from '@/lib/api-backend/db-local';
 
 const TABLES_SCOPED_BY_BUSINESS = new Set(['menus', 'screens', 'templates', 'subscriptions']);
 const TABLES_SCOPED_BY_USER = new Set(['content-library']);
@@ -32,7 +33,6 @@ export async function handleGet(
   user: JwtPayload,
   searchParams: URLSearchParams
 ): Promise<Response> {
-  const supabase = getServerSupabase();
   const [table, id, sub] = pathSegments;
   if (!table) return Response.json({ message: 'Not found' }, { status: 404 });
 
@@ -49,6 +49,50 @@ export async function handleGet(
   const actualTable = tableMap[table];
   if (!actualTable) return Response.json({ message: 'Not found' }, { status: 404 });
 
+  if (useLocalDb()) {
+    if (id && id.length === 36 && id.match(/^[0-9a-f-]{36}$/i)) {
+      const data = await queryOne(`SELECT * FROM ${actualTable} WHERE id = $1`, [id]);
+      return Response.json(data ?? { message: 'Not found' }, { status: data ? 200 : 404 });
+    }
+    let sql = `SELECT * FROM ${actualTable}`;
+    const params: unknown[] = [];
+    if (user.role === 'business_user' && user.userId && TABLES_SCOPED_BY_BUSINESS.has(actualTable)) {
+      const u = await queryOne<{ business_id: string | null }>('SELECT business_id FROM users WHERE id = $1', [user.userId]);
+      if (u?.business_id) {
+        params.push(u.business_id);
+        sql += ` WHERE business_id = $1`;
+      }
+    }
+    if (user.role === 'business_user' && actualTable === 'content_library') {
+      sql += (params.length ? ' AND' : ' WHERE') + ` (uploaded_by = $${params.length + 1} OR uploaded_by IS NULL)`;
+      params.push(user.userId);
+    }
+    const userIdParam = searchParams.get('user_id');
+    if (userIdParam && (actualTable === 'templates' || actualTable === 'screens' || actualTable === 'menus')) {
+      const u = await queryOne<{ business_id: string | null }>('SELECT business_id FROM users WHERE id = $1', [userIdParam]);
+      if (u?.business_id) {
+        if (params.length) sql += ' AND';
+        else sql += ' WHERE';
+        sql += ` business_id = $${params.length + 1}`;
+        params.push(u.business_id);
+      }
+    }
+    sql += ' ORDER BY created_at DESC LIMIT 500';
+    const list = await queryLocal(sql, params);
+    if (actualTable === 'menus') {
+      const businessId = user.role === 'business_user' ? (await queryOne<{ business_id: string | null }>('SELECT business_id FROM users WHERE id = $1', [user.userId]))?.business_id : null;
+      return Response.json({ menus: list, business_id: businessId ?? null });
+    }
+    if (actualTable === 'screens') {
+      const businessId = user.role === 'business_user' ? (await queryOne<{ business_id: string | null }>('SELECT business_id FROM users WHERE id = $1', [user.userId]))?.business_id : null;
+      const screens = (list as { id: string }[]).map((s) => ({ ...s, active_viewer_count: 0 }));
+      const subActive = businessId ? (await queryOne('SELECT id FROM subscriptions WHERE business_id = $1 AND status = $2 LIMIT 1', [businessId, 'active'])) != null : true;
+      return Response.json({ screens, subscription_active: subActive });
+    }
+    return Response.json(list);
+  }
+
+  const supabase = getServerSupabase();
   let query = supabase.from(actualTable).select('*');
 
   if (user.role === 'business_user' && user.userId && TABLES_SCOPED_BY_BUSINESS.has(actualTable)) {

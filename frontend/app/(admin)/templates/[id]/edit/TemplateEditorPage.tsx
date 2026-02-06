@@ -107,6 +107,22 @@ function getDiscountBlockStyles(layer: { blockColor?: string; discountBlockStyle
 import { FONT_GROUPS, FONT_OPTIONS, TEXT_ICON_OPTIONS, GOOGLE_FONT_FAMILIES } from '@/lib/editor-fonts';
 import { makeColorTransparent } from '@/lib/image-transparency';
 
+/** Arka plan kaldır: API dene, 501 / Vercel uyumsuzluğu ise tarayıcıda çalıştır */
+async function getRemoveBackgroundDataUrl(imageUrl: string): Promise<string> {
+  const url = imageUrl.startsWith('/') && !imageUrl.startsWith('//') && typeof window !== 'undefined'
+    ? `${window.location.origin}${imageUrl}` : imageUrl;
+  try {
+    const data = await apiClient('/ai/remove-background', { method: 'POST', body: { image: url } });
+    const dataUrl = (data as { dataUrl?: string })?.dataUrl;
+    if (dataUrl) return dataUrl;
+  } catch (e: any) {
+    const useBrowser = e?.status === 501 || (e?.message && /not available on Vercel|external service/i.test(String(e.message)));
+    if (!useBrowser) throw e;
+  }
+  const { removeBackgroundInBrowser } = await import('@/lib/remove-background-browser');
+  return removeBackgroundInBrowser(url);
+}
+
 interface TemplateEditorPageProps {
   templateId: string;
   showSaveAs?: boolean;
@@ -868,6 +884,13 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
         apiClient(`/templates/${templateId}`),
         apiClient(`/templates/${templateId}/blocks`),
       ]);
+
+      // Canvas tasarım şablonu: blok editörü yerine tasarım editörüne yönlendir
+      const cd = (templateData as any)?.canvas_design;
+      if (cd && typeof cd === 'object') {
+        router.replace(`${localePath('/editor')}?templateId=${templateId}`);
+        return;
+      }
 
       setTemplate(templateData);
       
@@ -2095,19 +2118,28 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
     }
   };
 
-  // Kategori resmi değiştir (dosya seç, kategori index)
-  const handleRegionalCategoryImageChange = (categoryIdx: number, e: React.ChangeEvent<HTMLInputElement>) => {
+  // Kategori resmi değiştir (dosya seç, kategori index) — Supabase Storage'a yükle
+  const handleRegionalCategoryImageChange = async (categoryIdx: number, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !file.type.startsWith('image/')) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      setEditingRegionalCategories((prev) =>
-        prev.map((c, i) => (i === categoryIdx ? { ...c, image_url: reader.result as string } : c))
-      );
-    };
-    reader.readAsDataURL(file);
     e.target.value = '';
     setEditingCategoryImageIdx(null);
+    if (!file || !file.type.startsWith('image/')) return;
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const up = await fetch('/api/upload', { method: 'POST', body: fd });
+      const upJson = await up.json();
+      const url = upJson?.assets?.[0]?.src || upJson?.data?.[0]?.src;
+      if (url) {
+        setEditingRegionalCategories((prev) =>
+          prev.map((c, i) => (i === categoryIdx ? { ...c, image_url: url } : c))
+        );
+      } else {
+        alert(upJson?.error || 'Yükleme başarısız');
+      }
+    } catch (err: any) {
+      alert(err?.message || 'Yükleme başarısız');
+    }
   };
 
   // İkon konumlandırma fonksiyonu
@@ -2693,11 +2725,7 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
                             setRemoveBgAiLoading(true);
                             setRemoveBgAiError(null);
                             try {
-                              const src = selectedBlockContent.image_url;
-                              const url = src.startsWith('/') && !src.startsWith('//') && typeof window !== 'undefined' ? `${window.location.origin}${src}` : src;
-                              const data = await apiClient('/ai/remove-background', { method: 'POST', body: { image: url } });
-                              const dataUrl = (data as { dataUrl?: string })?.dataUrl;
-                              if (!dataUrl) throw new Error(t('editor_server_no_data'));
+                              const dataUrl = await getRemoveBackgroundDataUrl(selectedBlockContent.image_url);
                               const res = await fetch(dataUrl);
                               const blob = await res.blob();
                               const file = new File([blob], `bg-removed-${Date.now()}.png`, { type: 'image/png' });
@@ -4834,11 +4862,7 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
                             if (!pendingOverlayImage) return;
                             setPendingOverlayRemoveBgLoading(true);
                             try {
-                              const url = pendingOverlayImage.url.startsWith('/') && !pendingOverlayImage.url.startsWith('//') && typeof window !== 'undefined'
-                                ? `${window.location.origin}${pendingOverlayImage.url}` : pendingOverlayImage.url;
-                              const data = await apiClient('/ai/remove-background', { method: 'POST', body: { image: url } });
-                              const dataUrl = (data as { dataUrl?: string })?.dataUrl;
-                              if (!dataUrl) throw new Error(t('editor_server_no_data'));
+                              const dataUrl = await getRemoveBackgroundDataUrl(pendingOverlayImage.url);
                               const res = await fetch(dataUrl);
                               const blob = await res.blob();
                               const file = new File([blob], `bg-removed-${Date.now()}.png`, { type: 'image/png' });

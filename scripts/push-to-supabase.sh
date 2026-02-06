@@ -75,6 +75,7 @@ echo ""
 echo "[2/5] Supabase'de import uyumluluğu için eksik sütunlar ekleniyor..."
 export PGPASSWORD="$SUPABASE_DB_PASSWORD"
 psql -h "$SUPABASE_DB_HOST" -p 5432 -U postgres -d postgres -f "${PROJECT_ROOT}/database/migration-add-import-columns.sql" -v ON_ERROR_STOP=0
+psql -h "$SUPABASE_DB_HOST" -p 5432 -U postgres -d postgres -f "${PROJECT_ROOT}/database/migration-registration-requests.sql" -v ON_ERROR_STOP=0
 echo "  Tamamlandı."
 echo ""
 

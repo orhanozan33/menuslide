@@ -1,6 +1,7 @@
 import * as jose from 'jose';
 import * as bcrypt from 'bcryptjs';
 import { getServerSupabase } from './supabase-server';
+import { useLocalDb, queryOne, queryLocal } from './api-backend/db-local';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'local-secret-key-change-in-production';
 const ALG = 'HS256';
@@ -36,34 +37,63 @@ export async function signToken(payload: JwtPayload): Promise<string> {
 
 /** Login: validate email/password, return { user, token } or throw */
 export async function loginWithPassword(email: string, password: string): Promise<{ user: any; token: string }> {
-  const supabase = getServerSupabase();
   const emailNorm = String(email ?? '').trim().toLowerCase();
   if (!emailNorm || !password) {
     throw new Error('Invalid credentials');
   }
 
-  const { data: userRow, error: userError } = await supabase
-    .from('users')
-    .select('id, email, password_hash, role, business_id, preferred_locale, reference_number')
-    .eq('email', emailNorm)
-    .maybeSingle();
+  let userRow: { id: string; email: string; password_hash: string; role: string; business_id: string | null; preferred_locale: string | null; reference_number: string | null } | null = null;
 
-  if (userError || !userRow) {
+  if (useLocalDb()) {
+    const u = await queryOne<{ id: string; email: string; password_hash: string; role: string; business_id: string | null; preferred_locale: string | null; reference_number: string | null }>(
+      'SELECT id, email, password_hash, role, business_id, preferred_locale, reference_number FROM users WHERE LOWER(email) = $1',
+      [emailNorm]
+    );
+    userRow = u;
+  } else {
+    const supabase = getServerSupabase();
+    const { data, error: userError } = await supabase
+      .from('users')
+      .select('id, email, password_hash, role, business_id, preferred_locale, reference_number')
+      .eq('email', emailNorm)
+      .maybeSingle();
+    if (userError) {
+      throw new Error(`Supabase: ${userError.message}`);
+    }
+    userRow = data;
+  }
+
+  if (!userRow) {
     throw new Error('Invalid credentials');
   }
 
   const businessId = userRow.business_id;
   if (businessId) {
-    const { data: biz } = await supabase.from('businesses').select('is_active').eq('id', businessId).maybeSingle();
-    if (userRow.role === 'business_user' && biz?.is_active === false) {
-      throw new Error('Account is deactivated. Please contact admin.');
+    if (useLocalDb()) {
+      const biz = await queryOne<{ is_active: boolean }>('SELECT is_active FROM businesses WHERE id = $1', [businessId]);
+      if (userRow.role === 'business_user' && biz?.is_active === false) {
+        throw new Error('Account is deactivated. Please contact admin.');
+      }
+    } else {
+      const supabase = getServerSupabase();
+      const { data: biz } = await supabase.from('businesses').select('is_active').eq('id', businessId).maybeSingle();
+      if (userRow.role === 'business_user' && biz?.is_active === false) {
+        throw new Error('Account is deactivated. Please contact admin.');
+      }
     }
   }
 
   let passwordHash = userRow.password_hash;
   if (passwordHash === 'temp_hash_will_be_updated') {
     const hash = await bcrypt.hash(password, 10);
-    await supabase.from('users').update({ password_hash: hash }).eq('id', userRow.id);
+    if (useLocalDb()) {
+      const { getLocalPg } = await import('./api-backend/db-local');
+      const client = await getLocalPg();
+      await client.query('UPDATE users SET password_hash = $1 WHERE id = $2', [hash, userRow.id]);
+    } else {
+      const supabase = getServerSupabase();
+      await supabase.from('users').update({ password_hash: hash }).eq('id', userRow.id);
+    }
     passwordHash = hash;
   }
 
@@ -93,14 +123,22 @@ export async function loginWithPassword(email: string, password: string): Promis
 
 /** Get current user with admin_permissions if admin */
 export async function getMe(userId: string): Promise<any | null> {
-  const supabase = getServerSupabase();
-  const { data: u, error } = await supabase
-    .from('users')
-    .select('id, email, role, business_id, preferred_locale, reference_number')
-    .eq('id', userId)
-    .maybeSingle();
+  let u: { id: string; email: string; role: string; business_id: string | null; preferred_locale: string | null; reference_number: string | null } | null = null;
 
-  if (error || !u) return null;
+  if (useLocalDb()) {
+    u = await queryOne('SELECT id, email, role, business_id, preferred_locale, reference_number FROM users WHERE id = $1', [userId]);
+  } else {
+    const supabase = getServerSupabase();
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, email, role, business_id, preferred_locale, reference_number')
+      .eq('id', userId)
+      .maybeSingle();
+    if (error) return null;
+    u = data;
+  }
+
+  if (!u) return null;
 
   const me: any = {
     id: u.id,
@@ -112,12 +150,16 @@ export async function getMe(userId: string): Promise<any | null> {
   };
 
   if (u.role === 'admin') {
-    const { data: perms } = await supabase
-      .from('admin_permissions')
-      .select('page_key, permission, actions')
-      .eq('user_id', userId);
+    let perms: { page_key: string; permission: string; actions?: Record<string, boolean> | null }[] = [];
+    if (useLocalDb()) {
+      perms = await queryLocal('SELECT page_key, permission, actions FROM admin_permissions WHERE user_id = $1', [userId]);
+    } else {
+      const supabase = getServerSupabase();
+      const { data } = await supabase.from('admin_permissions').select('page_key, permission, actions').eq('user_id', userId);
+      perms = data || [];
+    }
     me.admin_permissions = {};
-    (perms || []).forEach((r: { page_key: string; permission: string; actions?: Record<string, boolean> | null }) => {
+    perms.forEach((r: { page_key: string; permission: string; actions?: Record<string, boolean> | null }) => {
       const actions = r.actions && typeof r.actions === 'object' ? r.actions : {};
       me.admin_permissions[r.page_key] = { view: r.permission !== 'none', ...actions };
     });

@@ -144,18 +144,22 @@ export default function ScreenDetailPage() {
   const loadScreenMenus = async () => {
     try {
       const data = await apiClient(`/screens/${screenId}/menus`);
-      setMenus(data);
+      const list = Array.isArray(data) ? data : (data?.menus && Array.isArray(data.menus) ? data.menus : []);
+      setMenus(list);
     } catch (error) {
       console.error('Error loading screen menus:', error);
+      setMenus([]);
     }
   };
 
   const loadAllMenus = async () => {
     try {
       const data = await apiClient('/menus');
-      setAllMenus(data.filter((m: any) => m.is_active));
+      const list = Array.isArray(data?.menus) ? data.menus : (Array.isArray(data) ? data : []);
+      setAllMenus(list.filter((m: any) => m.is_active !== false));
     } catch (error) {
       console.error('Error loading menus:', error);
+      setAllMenus([]);
     }
   };
 
@@ -166,7 +170,7 @@ export default function ScreenDetailPage() {
         method: 'POST',
         body: JSON.stringify({
           menu_id: menuId,
-          display_order: menus.length,
+          display_order: (Array.isArray(menus) ? menus : []).length,
         }),
       });
       loadScreenMenus();
@@ -217,8 +221,9 @@ export default function ScreenDetailPage() {
     );
   }
 
-  const assignedMenuIds = menus.map((m: any) => m.menus?.id || m.menu_id);
-  const availableMenus = allMenus.filter((m) => !assignedMenuIds.includes(m.id));
+  const menusList = Array.isArray(menus) ? menus : [];
+  const assignedMenuIds = menusList.map((m: any) => m.menus?.id || m.menu_id);
+  const availableMenus = Array.isArray(allMenus) ? allMenus.filter((m) => !assignedMenuIds.includes(m.id)) : [];
 
   return (
     <div className="min-h-screen bg-slate-900">
@@ -350,9 +355,9 @@ export default function ScreenDetailPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="bg-white p-6 rounded-lg shadow">
             <h3 className="text-xl font-bold mb-4">Assigned Menus</h3>
-            {menus.length > 0 ? (
+            {menusList.length > 0 ? (
               <div className="space-y-3">
-                {menus.map((screenMenu: any) => {
+                {menusList.map((screenMenu: any) => {
                   const menu = screenMenu.menus || screenMenu;
                   return (
                     <div key={menu.id} className="flex items-center justify-between p-3 border rounded">

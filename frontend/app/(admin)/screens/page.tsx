@@ -575,10 +575,10 @@ export default function ScreensPage() {
             >
               <option value="">{t('screens_select_user')}</option>
               {users
-                .filter((user) => user.business_name) // Sadece firma ismi olan kullanıcıları göster
+                .filter((user) => user.business_id) // İşletmesi olan (ekranı olabilecek) kullanıcılar
                 .map((user) => (
                   <option key={user.id} value={user.id}>
-                    {user.business_name} - {user.email}
+                    {user.business_name ? `${user.business_name} - ${user.email}` : user.email}
                   </option>
                 ))}
             </select>

@@ -125,6 +125,56 @@ Log dosyaları `logs/` klasöründe saklanır:
 - `logs/backend.pid` - Backend process ID
 - `logs/frontend.pid` - Frontend process ID
 
+## Veritabanı: Yerel ↔ Canlı (Supabase)
+
+### Yerel DB = kaynak; her şey Supabase’e aynı anda gitsin
+
+Tasarımı yerel DB’de yapıp, yerelde oluşan her veriyi Supabase’e yansıtmak için:
+
+1. **Yerel DB’yi kaynak alın** – Şablon/blok/tasarım değişikliklerini yerel DB’de yapın (uygulama, SQL veya seed script’leri ile).
+2. **Senkronu açın** – Arka planda periyodik sync script’ini çalıştırın; yereldeki değişiklikler belirli aralıklarla Supabase’e gider.
+
+```bash
+export SUPABASE_DB_PASSWORD='canli_db_sifreniz'
+./scripts/sync-local-to-supabase-watch.sh
+```
+
+- Varsayılan: her **15 saniyede** bir sadece **şablon/blok/tasarım** tabloları Supabase’e push edilir (canlı kullanıcı/ekran verisi değişmez).
+- Aralığı değiştirmek: `SYNC_INTERVAL=10 ./scripts/sync-local-to-supabase-watch.sh` (10 saniye).
+- Tüm tabloları (businesses, users, screens, …) da göndermek: `FULL_SYNC=1 ./scripts/sync-local-to-supabase-watch.sh`
+
+Geliştirme sırasında bir terminalde `npm run dev`, diğerinde bu watch script’i çalışırsa yerel DB’de ne varsa periyodik olarak Supabase’de de olur.
+
+### Yerelde kontrol, canlıdaki veriyi kullanma (Pull)
+
+Canlı sitede sürekli push etmeden yerelde test etmek için, canlı veritabanından yerel DB’ye veri çekebilirsiniz:
+
+```bash
+export SUPABASE_DB_PASSWORD='canli_db_sifreniz'
+./scripts/pull-from-supabase.sh
+```
+
+- **Gereksinim:** `backend/.env` (yerel DB), `frontend/.env.local` (NEXT_PUBLIC_SUPABASE_URL), Supabase Dashboard → Settings → Database şifresi.
+- Yerel tablolar önce temizlenir, sonra canlıdaki (Supabase) veri aynı sırayla kopyalanır.
+- Eksik tablolar (yerelde veya canlıda yoksa) atlanır.
+
+### Yerel veriyi canlıya gönderme (Push)
+
+**Tüm veri (yerel → Supabase):**
+```bash
+export SUPABASE_DB_PASSWORD='canli_db_sifreniz'
+./scripts/push-to-supabase.sh
+```
+
+**Sadece şablon, blok ve tasarım sistemi (canlıdaki kullanıcı/ekran verisine dokunmaz):**
+```bash
+export SUPABASE_DB_PASSWORD='canli_db_sifreniz'
+./scripts/push-templates-design-to-supabase.sh
+```
+Yerelden export edilen tablolar: `plans`, `languages`, `content_library_categories`, `content_library`, `templates`, `template_blocks`, `template_block_contents`. Supabase’de upsert (INSERT ... ON CONFLICT DO UPDATE) ile güncellenir.
+
+Detay: proje kökündeki `DEPLOYMENT_VERCEL_SUPABASE.md` ve `scripts/push-to-supabase.sh` içindeki yorumlar.
+
 ## Sorun Giderme
 
 ### Port zaten kullanımda

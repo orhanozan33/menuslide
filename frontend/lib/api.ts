@@ -9,14 +9,13 @@ async function getAuthToken(): Promise<string | null> {
     if (token) return token;
   }
 
-  // Fallback to Supabase if available
+  // Fallback to Supabase if available (yerel DB kullanırken Supabase kapalı olabilir)
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!supabaseUrl || !supabaseKey) return null;
   try {
     const { createClient } = await import('@supabase/supabase-js');
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    );
-
+    const supabase = createClient(supabaseUrl, supabaseKey);
     const { data: { session } } = await supabase.auth.getSession();
     return session?.access_token || null;
   } catch {

@@ -27,6 +27,7 @@ TRUNCATE
   templates,
   plans,
   languages,
+  registration_requests,
   users,
   businesses
 RESTART IDENTITY CASCADE;

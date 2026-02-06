@@ -15,8 +15,22 @@ export async function getUsersWithSubscription(user: JwtPayload): Promise<Respon
     const businessIds = Array.from(new Set(users.map((u: { business_id?: string }) => u.business_id).filter(Boolean))) as string[];
     let activeSet = new Set<string>();
     if (businessIds.length > 0) {
-      const { data: subs } = await supabase.from('subscriptions').select('business_id').eq('status', 'active').in('business_id', businessIds);
-      activeSet = new Set((subs ?? []).map((s: { business_id: string }) => s.business_id));
+      const [
+        { data: subs },
+        { data: paidList },
+      ] = await Promise.all([
+        supabase.from('subscriptions').select('id, business_id, current_period_end, plans(max_screens)').eq('status', 'active').in('business_id', businessIds),
+        supabase.from('payments').select('subscription_id').eq('status', 'succeeded'),
+      ]);
+      const now = new Date().toISOString();
+      const paidIds = new Set(((paidList ?? []) as { subscription_id: string }[]).map((p) => p.subscription_id));
+      const trulyActive = (subs ?? []).filter(
+        (s: { id: string; business_id: string; current_period_end?: string; plans?: { max_screens: number } | null }) =>
+          paidIds.has(s.id) &&
+          (!s.current_period_end || s.current_period_end >= now) &&
+          ((s.plans as { max_screens?: number } | null)?.max_screens ?? 0) > 0
+      );
+      activeSet = new Set(trulyActive.map((s: { business_id: string }) => s.business_id));
     }
     const list = users.map((u: { business_id?: string } & Record<string, unknown>) => ({
       ...u,
@@ -39,6 +53,7 @@ export async function getStats(request: NextRequest, user: JwtPayload): Promise<
   const revenueTo = searchParams.get('revenueTo');
   const hasDateRange = revenueFrom && revenueTo && !isNaN(new Date(revenueFrom).getTime()) && !isNaN(new Date(revenueTo).getTime());
 
+  const now = new Date().toISOString();
   const [
     totalUsersRes,
     totalBusinessesRes,
@@ -50,6 +65,7 @@ export async function getStats(request: NextRequest, user: JwtPayload): Promise<
     paymentsRange,
     activeSubsRes,
     totalSubsRes,
+    paidSubIdsRes,
   ] = await Promise.all([
     supabase.from('users').select('*', { count: 'exact', head: true }).eq('role', 'business_user'),
     supabase.from('businesses').select('*', { count: 'exact', head: true }),
@@ -59,16 +75,30 @@ export async function getStats(request: NextRequest, user: JwtPayload): Promise<
     supabase.from('payments').select('amount').eq('status', 'succeeded'),
     supabase.from('payments').select('amount').eq('status', 'succeeded').gte('payment_date', new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10)),
     hasDateRange ? supabase.from('payments').select('amount').eq('status', 'succeeded').gte('payment_date', revenueFrom!).lte('payment_date', revenueTo!) : Promise.resolve({ data: [] as { amount: number }[] }),
-    supabase.from('subscriptions').select('*', { count: 'exact', head: true }).eq('status', 'active'),
+    supabase.from('subscriptions').select('id, business_id, current_period_end, plans(max_screens)').eq('status', 'active'),
     supabase.from('subscriptions').select('*', { count: 'exact', head: true }),
+    supabase.from('payments').select('subscription_id').eq('status', 'succeeded'),
   ]);
   const totalUsers = totalUsersRes.count ?? 0;
   const totalBusinesses = totalBusinessesRes.count ?? 0;
   const totalScreens = totalScreensRes.count ?? 0;
   const newUsers7d = newUsers7dRes.count ?? 0;
   const newUsers30d = newUsers30dRes.count ?? 0;
-  const activeSubsCount = activeSubsRes.count ?? 0;
   const totalSubsCount = totalSubsRes.count ?? 0;
+
+  // En az 1 başarılı ödemesi olan, süresi geçmemiş, max_screens > 0 planlı abonelikler (ödemesi olmayan test kayıtları hariç)
+  const paidSubIds = new Set(
+    ((paidSubIdsRes.data ?? []) as { subscription_id: string }[]).map((p) => p.subscription_id)
+  );
+  const activeSubsRaw = (activeSubsRes.data ?? []) as { id: string; business_id: string; current_period_end?: string; plans?: { max_screens: number } | null }[];
+  const trulyActiveSubs = activeSubsRaw.filter(
+    (s) =>
+      paidSubIds.has(s.id) &&
+      (!s.current_period_end || s.current_period_end >= now) &&
+      (s.plans?.max_screens ?? 0) > 0
+  );
+  const activeSubsCount = trulyActiveSubs.length;
+  const activeBizSet = new Set(trulyActiveSubs.map((s) => s.business_id));
 
   const sum = (arr: { amount?: number }[] | null) => (arr ?? []).reduce((a, p) => a + (Number(p.amount) || 0), 0);
   const revenueTotal = sum(paymentsTotal.data as { amount: number }[] ?? null);
@@ -76,9 +106,6 @@ export async function getStats(request: NextRequest, user: JwtPayload): Promise<
   const revenueInRange = hasDateRange ? sum(paymentsRange.data as { amount: number }[] ?? null) : null;
 
   const { data: usersWithBiz } = await supabase.from('users').select('id, business_id').eq('role', 'business_user');
-  const bizIds = Array.from(new Set((usersWithBiz ?? []).map((u: { business_id?: string }) => u.business_id).filter(Boolean))) as string[];
-  const { data: activeSubList } = await supabase.from('subscriptions').select('business_id').eq('status', 'active').in('business_id', bizIds.length ? bizIds : ['']);
-  const activeBizSet = new Set((activeSubList ?? []).map((s: { business_id: string }) => s.business_id));
   const usersWithSubscription = (usersWithBiz ?? []).filter((u: { business_id?: string }) => u.business_id && activeBizSet.has(u.business_id)).length;
   const usersWithoutSubscription = (usersWithBiz ?? []).length - usersWithSubscription;
   const businessesWithSubscription = activeBizSet.size;
@@ -132,14 +159,33 @@ export async function getUserDetailReport(userId: string, currentUserId: string,
   const { data: sub } = (u as { business_id?: string }).business_id
     ? await supabase.from('subscriptions').select('*').eq('business_id', (u as { business_id: string }).business_id).order('created_at', { ascending: false }).limit(1).maybeSingle()
     : { data: null };
-  const { count: screensCount } = await supabase.from('screens').select('*', { count: 'exact', head: true }).eq('business_id', (u as { business_id: string }).business_id || '');
+  const businessId = (u as { business_id?: string }).business_id;
+  let subIds: string[] = [];
+  if (businessId) {
+    const { data: subs } = await supabase.from('subscriptions').select('id').eq('business_id', businessId);
+    subIds = (subs ?? []).map((s: { id: string }) => s.id);
+  }
+  const [screensRes, paymentsRes, failuresRes] = await Promise.all([
+    supabase.from('screens').select('*', { count: 'exact', head: true }).eq('business_id', businessId || ''),
+    subIds.length > 0
+      ? supabase.from('payments').select('*').in('subscription_id', subIds).eq('status', 'succeeded').order('payment_date', { ascending: false }).limit(50)
+      : Promise.resolve({ data: [] }),
+    businessId
+      ? supabase.from('payment_failures').select('*').eq('business_id', businessId).order('attempted_at', { ascending: false }).limit(20)
+      : Promise.resolve({ data: [] }),
+  ]);
+  const screensCount = screensRes.count ?? 0;
+  const screensActive = 0;
+  const screensInactive = 0;
   return Response.json({
     user: u,
     business: business ?? null,
     subscription: sub ?? null,
-    screens_count: screensCount ?? 0,
-    screens_active: 0,
-    screens_inactive: 0,
+    screens_count: screensCount,
+    screens_active: screensActive,
+    screens_inactive: screensInactive,
+    payments: paymentsRes.data ?? [],
+    payment_failures: failuresRes.data ?? [],
   });
 }
 

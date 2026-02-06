@@ -29,13 +29,6 @@ const gridOptions: GridOption[] = [
   { id: '4x4', labelKey: 'templates_grid_4x4', rows: 4, cols: 4, blocks: 16, icon: '◼️' },
 ];
 
-interface User {
-  id: string;
-  email: string;
-  role: string;
-  business_name?: string;
-}
-
 export default function NewTemplatePage() {
   const router = useRouter();
   const { t, localePath } = useTranslation();
@@ -45,8 +38,6 @@ export default function NewTemplatePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [userRole, setUserRole] = useState<string>('');
-  const [users, setUsers] = useState<User[]>([]);
-  const [selectedUserId, setSelectedUserId] = useState<string>('');
 
   useEffect(() => {
     // Kullanıcı rolünü kontrol et
@@ -55,25 +46,11 @@ export default function NewTemplatePage() {
       try {
         const user = JSON.parse(userStr);
         setUserRole(user.role || '');
-        
-        // Admin ise kullanıcı listesini yükle
-        if (user.role === 'super_admin' || user.role === 'admin') {
-          loadUsers();
-        }
       } catch (e) {
         console.error('Error parsing user:', e);
       }
     }
   }, []);
-
-  const loadUsers = async () => {
-    try {
-      const data = await apiClient('/users');
-      setUsers(data || []);
-    } catch (err) {
-      console.error('Error loading users:', err);
-    }
-  };
 
   const handleCreate = async () => {
     if (!templateName.trim()) {
@@ -90,18 +67,13 @@ export default function NewTemplatePage() {
       setLoading(true);
       setError('');
 
-      // Template oluştur
+      // Template oluştur - admin/super_admin her zaman sistem şablonu oluşturur
       const requestBody: any = {
         name: `template_${Date.now()}`,
         display_name: templateName,
         description: description || undefined,
         block_count: selectedGrid.blocks,
       };
-
-      // Admin başka bir kullanıcı adına template oluşturabilir
-      if ((userRole === 'super_admin' || userRole === 'admin') && selectedUserId) {
-        requestBody.target_user_id = selectedUserId;
-      }
 
       const template = await apiClient('/templates', {
         method: 'POST',
@@ -137,7 +109,7 @@ export default function NewTemplatePage() {
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-6">
-          <Link href={localePath('/templates')} className="text-blue-400 hover:text-blue-300 flex items-center gap-2">
+          <Link href={localePath((userRole === 'super_admin' || userRole === 'admin') ? '/templates/system' : '/templates')} className="text-blue-400 hover:text-blue-300 flex items-center gap-2">
             ← {t('templates_back')}
           </Link>
         </div>
@@ -148,7 +120,7 @@ export default function NewTemplatePage() {
               🎨 {t('templates_new')}
             </h1>
             <p className="text-gray-600">
-              {t('templates_new_subtitle')}
+              {(userRole === 'super_admin' || userRole === 'admin') ? t('templates_new_system_subtitle') : t('templates_new_subtitle')}
             </p>
           </div>
 
@@ -158,35 +130,8 @@ export default function NewTemplatePage() {
             </div>
           )}
 
-          {/* Template Bilgileri */}
+          {/* Template Bilgileri - Admin/super_admin her zaman sistem şablonu oluşturur */}
           <div className="mb-8 space-y-4">
-            {/* Admin için kullanıcı seçimi */}
-            {(userRole === 'super_admin' || userRole === 'admin') && (
-              <div>
-                <label className="block text-sm font-bold text-gray-800 mb-2">
-                  {t('templates_select_user_optional')}
-                </label>
-                <select
-                  value={selectedUserId}
-                  onChange={(e) => setSelectedUserId(e.target.value)}
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
-                  disabled={loading}
-                >
-                  <option value="">{t('templates_for_my_account')}</option>
-                  {users
-                    .filter((user) => user.business_name) // Sadece firma ismi olan kullanıcıları göster
-                    .map((user) => (
-                      <option key={user.id} value={user.id}>
-                        {user.business_name} - {user.email}
-                      </option>
-                    ))}
-                </select>
-                <p className="text-xs text-gray-500 mt-1">
-                  {t('templates_empty_hint')}
-                </p>
-              </div>
-            )}
-
             <div>
               <label className="block text-sm font-bold text-gray-800 mb-2">
                 {t('templates_name_label')} *
@@ -305,7 +250,7 @@ export default function NewTemplatePage() {
           {/* Aksiyonlar */}
           <div className="flex gap-4">
             <Link
-              href={localePath('/templates')}
+              href={localePath((userRole === 'super_admin' || userRole === 'admin') ? '/templates/system' : '/templates')}
               className="flex-1 px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-semibold text-center"
             >
               {t('btn_cancel')}
