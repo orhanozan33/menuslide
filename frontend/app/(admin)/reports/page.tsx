@@ -210,12 +210,21 @@ export default function ReportsPage() {
       }
       const query = params.toString();
       const [statsData, usersData, paymentStatusData] = await Promise.all([
-        apiClient(`/reports/stats${query ? `?${query}` : ''}`),
-        apiClient('/reports/users'),
+        apiClient(`/reports/stats${query ? `?${query}` : ''}`).catch(() => null),
+        apiClient('/reports/users').catch(() => null),
         apiClient('/reports/payment-status').catch(() => ({ recentPayments: [], failedPayments: [], overdueSubscriptions: [] })),
       ]);
-      setStats(statsData);
-      setUsers(Array.isArray(usersData) ? usersData : []);
+      setStats(statsData ?? null);
+      let membersList = Array.isArray(usersData) ? usersData : [];
+      if (membersList.length === 0) {
+        try {
+          const allUsers = await apiClient('/users');
+          const list = Array.isArray(allUsers) ? allUsers : [];
+          const filtered = list.filter((u: { role?: string }) => u.role !== 'super_admin' && u.role !== 'admin');
+          membersList = filtered.map((u: Record<string, unknown>) => ({ ...u, has_active_subscription: false }));
+        } catch (_) {}
+      }
+      setUsers(membersList);
       setPaymentStatus(paymentStatusData);
     } catch (e: any) {
       console.error('Reports load error:', e);

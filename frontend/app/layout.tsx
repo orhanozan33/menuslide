@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
-import { ClientProviders } from '@/components/ClientProviders';
+import { ClientProvidersWrapper } from '@/components/ClientProvidersWrapper';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,7 +28,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body suppressHydrationWarning>
-        <ClientProviders>{children}</ClientProviders>
+        <ClientProvidersWrapper>{children}</ClientProvidersWrapper>
       </body>
     </html>
   );

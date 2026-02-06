@@ -48,7 +48,18 @@ Bu modda **harici backend (Render) kullanılmaz**. Tüm istekler kendi sitenize 
 
 ---
 
-## 4. Environment ve Redeploy
+## 4. 401 / 500 hataları (Raporlar, kullanıcılar gelmiyor)
+
+| Hata | Muhtemel sebep | Yapılacak |
+|------|-----------------|-----------|
+| **401 Unauthorized** | Token yok veya JWT doğrulanamıyor. | Vercel’de **JWT_SECRET** tanımlı olsun (en az 32 karakter). Sonra **çıkış yapıp tekrar giriş yapın** (token aynı secret ile yeniden imzalanır). |
+| **500 Internal Server Error** | API route hata veriyor; çoğunlukla Supabase env eksik. | Vercel’de **NEXT_PUBLIC_SUPABASE_URL** ve **SUPABASE_SERVICE_ROLE_KEY** tanımlı mı kontrol edin. İkisi de olmazsa `getServerSupabase()` hata fırlatır, 500 döner. |
+
+**Raporlar sayfasında "Tüm üyeler" boş + konsolda 401/500:** Önce yukarıdaki 4 değişkeni (Supabase 3’ü + JWT_SECRET) ekleyin/düzeltin → **Redeploy** → Tarayıcıda **çıkış yapıp canlı siteden tekrar giriş yapın** → Raporlar sayfasını yenileyin.
+
+---
+
+## 5. Environment ve Redeploy
 
 - **Environment:** En az **Production** seçili olsun (Preview kullanıyorsanız onu da ekleyin).
 - Değişkenleri ekledikten/değiştirdikten sonra: **Deployments** → son deployment’ın **⋯** → **Redeploy**.  
@@ -56,7 +67,7 @@ Bu modda **harici backend (Render) kullanılmaz**. Tüm istekler kendi sitenize 
 
 ---
 
-## 5. Supabase Storage’da dosya olmalı
+## 6. Supabase Storage’da dosya olmalı
 
 - Resim/video **Storage’da yoksa** yine 404 alırsınız.
 - Yerelde `public/uploads` (ve alt klasörler) doluysa migration ile Supabase’e yükleyin:
