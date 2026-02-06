@@ -48,7 +48,7 @@ echo "=============================================="
 echo ""
 
 # --- 1) Yerelden export ---
-echo "[1/4] Yerel PostgreSQL'den export alınıyor..."
+echo "[1/5] Yerel PostgreSQL'den export alınıyor..."
 if [ -f "${PROJECT_ROOT}/backend/.env" ]; then
   set -a
   source "${PROJECT_ROOT}/backend/.env" 2>/dev/null || true
@@ -71,21 +71,27 @@ else
 fi
 echo ""
 
-# --- 2) Supabase'de tüm uygulama tablolarını temizle ---
-echo "[2/4] Supabase'de tüm uygulama tabloları temizleniyor (kullanıcılar, resimler, vb.)..."
+# --- 2) Supabase'de eksik sütunları ekle (content_library.source, screen_template_rotations.template_type vb.) ---
+echo "[2/5] Supabase'de import uyumluluğu için eksik sütunlar ekleniyor..."
 export PGPASSWORD="$SUPABASE_DB_PASSWORD"
+psql -h "$SUPABASE_DB_HOST" -p 5432 -U postgres -d postgres -f "${PROJECT_ROOT}/database/migration-add-import-columns.sql" -v ON_ERROR_STOP=0
+echo "  Tamamlandı."
+echo ""
+
+# --- 3) Supabase'de tüm uygulama tablolarını temizle ---
+echo "[3/5] Supabase'de tüm uygulama tabloları temizleniyor (kullanıcılar, resimler, vb.)..."
 psql -h "$SUPABASE_DB_HOST" -p 5432 -U postgres -d postgres -f "${PROJECT_ROOT}/database/truncate-all-for-import.sql" -v ON_ERROR_STOP=1
 echo "  Tamamlandı."
 echo ""
 
-# --- 3) Export'u Supabase'e import et ---
-echo "[3/4] Export Supabase'e import ediliyor (birkaç dakika sürebilir)..."
+# --- 4) Export'u Supabase'e import et ---
+echo "[4/5] Export Supabase'e import ediliyor (birkaç dakika sürebilir)..."
 psql -h "$SUPABASE_DB_HOST" -p 5432 -U postgres -d postgres -f "${PROJECT_ROOT}/database/export-from-local-data.sql" -v ON_ERROR_STOP=0
 echo "  Tamamlandı."
 echo ""
 
-# --- 4) /uploads/ path'lerini Storage URL'ine güncelle ---
-echo "[4/4] Resim/video path'leri Storage URL'lerine güncelleniyor..."
+# --- 5) /uploads/ path'lerini Storage URL'ine güncelle ---
+echo "[5/5] Resim/video path'leri Storage URL'lerine güncelleniyor..."
 (cd "${PROJECT_ROOT}/frontend" && node -r ./scripts/load-env.js scripts/migrate-uploads-to-supabase.js)
 echo ""
 

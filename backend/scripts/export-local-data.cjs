@@ -73,9 +73,21 @@ async function main() {
     await client.connect();
     console.log('Connected to local DB');
 
+    let screenIds = null;
     for (const table of TABLES) {
       try {
-        const res = await client.query(`SELECT * FROM ${table}`);
+        let res = await client.query(`SELECT * FROM ${table}`);
+        if (table === 'display_viewers' && res.rows.length > 0) {
+          if (!screenIds) {
+            const screenRes = await client.query('SELECT id FROM screens');
+            screenIds = new Set(screenRes.rows.map((r) => r.id));
+          }
+          res = { ...res, rows: res.rows.filter((r) => r.screen_id && screenIds.has(r.screen_id)) };
+          if (res.rows.length === 0) {
+            console.log(`  ${table}: 0 rows (skip, screen_id referansları screens'te yok)`);
+            continue;
+          }
+        }
         if (res.rows.length === 0) {
           console.log(`  ${table}: 0 rows (skip)`);
           continue;

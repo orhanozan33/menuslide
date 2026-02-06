@@ -91,6 +91,7 @@ MIGRATIONS_SUB=(
 FINAL_FILES=(
   "$DB/migration-contact-info-home-channels.sql"
   "$DB/migration-ensure-password-hash.sql"
+  "$DB/migration-add-import-columns.sql"
   "$DB/supabase-run-migrations.sql"
 )
 
