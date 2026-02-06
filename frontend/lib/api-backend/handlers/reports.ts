@@ -2,6 +2,13 @@ import { NextRequest } from 'next/server';
 import { getServerSupabase } from '@/lib/supabase-server';
 import type { JwtPayload } from '@/lib/auth-server';
 
+/** Supabase plans join returns object or array; extract max_screens safely. */
+function getMaxScreens(plans: unknown): number {
+  if (!plans) return 0;
+  const p = Array.isArray(plans) ? plans[0] : plans;
+  return (p as { max_screens?: number })?.max_screens ?? 0;
+}
+
 /** GET /reports/users - users with subscription status (admin). "Tüm üyeler" = işletme kullanıcıları (admin/super_admin hariç). */
 export async function getUsersWithSubscription(user: JwtPayload): Promise<Response> {
   if (user.role !== 'super_admin' && user.role !== 'admin') {
@@ -24,11 +31,10 @@ export async function getUsersWithSubscription(user: JwtPayload): Promise<Respon
       ]);
       const now = new Date().toISOString();
       const paidIds = new Set(((paidList ?? []) as { subscription_id: string }[]).map((p) => p.subscription_id));
-      const trulyActive = (subs ?? []).filter(
-        (s: { id: string; business_id: string; current_period_end?: string; plans?: { max_screens: number } | null }) =>
-          paidIds.has(s.id) &&
-          (!s.current_period_end || s.current_period_end >= now) &&
-          ((s.plans as { max_screens?: number } | null)?.max_screens ?? 0) > 0
+      const trulyActive = (subs ?? []).filter((s: { id: string; business_id: string; current_period_end?: string; plans?: unknown }) =>
+        paidIds.has(s.id) &&
+        (!s.current_period_end || s.current_period_end >= now) &&
+        getMaxScreens(s.plans) > 0
       );
       activeSet = new Set(trulyActive.map((s: { business_id: string }) => s.business_id));
     }
@@ -90,12 +96,12 @@ export async function getStats(request: NextRequest, user: JwtPayload): Promise<
   const paidSubIds = new Set(
     ((paidSubIdsRes.data ?? []) as { subscription_id: string }[]).map((p) => p.subscription_id)
   );
-  const activeSubsRaw = (activeSubsRes.data ?? []) as { id: string; business_id: string; current_period_end?: string; plans?: { max_screens: number } | null }[];
+  const activeSubsRaw = (activeSubsRes.data ?? []) as { id: string; business_id: string; current_period_end?: string; plans?: unknown }[];
   const trulyActiveSubs = activeSubsRaw.filter(
     (s) =>
       paidSubIds.has(s.id) &&
       (!s.current_period_end || s.current_period_end >= now) &&
-      (s.plans?.max_screens ?? 0) > 0
+      getMaxScreens(s.plans) > 0
   );
   const activeSubsCount = trulyActiveSubs.length;
   const activeBizSet = new Set(trulyActiveSubs.map((s) => s.business_id));
