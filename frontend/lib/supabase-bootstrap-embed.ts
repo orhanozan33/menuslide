@@ -1,6 +1,6 @@
 // Auto-generated. Do not edit. Run ./scripts/build-supabase-bootstrap.sh to regenerate.
 export const bootstrapSql = `-- Supabase bootstrap: tüm şema + migration'lar (tek seferde çalıştırılabilir)
--- Üretim: 2026-02-06 03:32:48 UTC
+-- Üretim: 2026-02-06 03:35:19 UTC
 
 -- === schema-local.sql ===
 -- Digital Signage / Online Menu Management System
@@ -2584,6 +2584,7 @@ CREATE INDEX IF NOT EXISTS idx_menu_schedules_screen_id ON menu_schedules(screen
 CREATE INDEX IF NOT EXISTS idx_menu_schedules_menu_id ON menu_schedules(menu_id);
 CREATE INDEX IF NOT EXISTS idx_menu_schedules_time ON menu_schedules(start_time, end_time);
 
+DROP TRIGGER IF EXISTS update_menu_schedules_updated_at ON menu_schedules;
 CREATE TRIGGER update_menu_schedules_updated_at BEFORE UPDATE ON menu_schedules
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
@@ -2622,9 +2623,11 @@ CREATE INDEX IF NOT EXISTS idx_menu_item_translations_item_id ON menu_item_trans
 CREATE INDEX IF NOT EXISTS idx_menu_item_translations_lang ON menu_item_translations(language_code);
 CREATE INDEX IF NOT EXISTS idx_screens_language ON screens(language_code);
 
+DROP TRIGGER IF EXISTS update_languages_updated_at ON languages;
 CREATE TRIGGER update_languages_updated_at BEFORE UPDATE ON languages
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_menu_item_translations_updated_at ON menu_item_translations;
 CREATE TRIGGER update_menu_item_translations_updated_at BEFORE UPDATE ON menu_item_translations
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
@@ -2694,9 +2697,11 @@ CREATE INDEX IF NOT EXISTS idx_subscriptions_status ON subscriptions(status);
 CREATE INDEX IF NOT EXISTS idx_payments_subscription_id ON payments(subscription_id);
 CREATE INDEX IF NOT EXISTS idx_payments_stripe_id ON payments(stripe_payment_intent_id);
 
+DROP TRIGGER IF EXISTS update_plans_updated_at ON plans;
 CREATE TRIGGER update_plans_updated_at BEFORE UPDATE ON plans
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_subscriptions_updated_at ON subscriptions;
 CREATE TRIGGER update_subscriptions_updated_at BEFORE UPDATE ON subscriptions
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
