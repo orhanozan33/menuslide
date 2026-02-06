@@ -1,6 +1,6 @@
 // Auto-generated. Do not edit. Run ./scripts/build-supabase-bootstrap.sh to regenerate.
 export const bootstrapSql = `-- Supabase bootstrap: tüm şema + migration'lar (tek seferde çalıştırılabilir)
--- Üretim: 2026-02-06 03:26:38 UTC
+-- Üretim: 2026-02-06 03:28:42 UTC
 
 -- === schema-local.sql ===
 -- Digital Signage / Online Menu Management System
@@ -820,6 +820,35 @@ COMMENT ON COLUMN content_library.type IS 'Content type (image, icon, background
 COMMENT ON COLUMN content_library.url IS 'Image URL (can be external URL or base64)';
 COMMENT ON COLUMN content_library.content IS 'Emoji or text content for icons';
 
+-- === migration-content-library-categories.sql ===
+-- Migration: content_library_categories - Admin tarafından düzenlenebilir kategoriler
+
+CREATE TABLE IF NOT EXISTS content_library_categories (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  slug VARCHAR(100) UNIQUE NOT NULL,
+  label VARCHAR(100) NOT NULL,
+  icon VARCHAR(20) DEFAULT '📦',
+  display_order INTEGER DEFAULT 0,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_content_library_categories_order ON content_library_categories(display_order);
+
+-- Mevcut kategorileri ekle
+INSERT INTO content_library_categories (slug, label, icon, display_order) VALUES
+  ('food', 'Yiyecekler', '🍕', 0),
+  ('pasta', 'Makarnalar', '🍝', 1),
+  ('drinks', 'İçecekler', '🍹', 2),
+  ('icons', 'İkonlar', '🎨', 3),
+  ('badges', 'Rozetler', '🏷️', 4),
+  ('backgrounds', 'Arka Planlar', '🖼️', 5),
+  ('text', 'Metin Şablonları', '📝', 6)
+ON CONFLICT (slug) DO NOTHING;
+
+COMMENT ON TABLE content_library_categories IS 'Admin tarafından düzenlenebilir içerik kütüphanesi kategori tanımları';
+
 -- === migration-add-7-8-templates.sql ===
 -- ============================================
 -- MIGRATION: Add 7 and 8 block templates
@@ -1411,35 +1440,6 @@ WHERE id IN (
   ) t
   WHERE t.rn > 1
 );
-
--- === migration-content-library-categories.sql ===
--- Migration: content_library_categories - Admin tarafından düzenlenebilir kategoriler
-
-CREATE TABLE IF NOT EXISTS content_library_categories (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  slug VARCHAR(100) UNIQUE NOT NULL,
-  label VARCHAR(100) NOT NULL,
-  icon VARCHAR(20) DEFAULT '📦',
-  display_order INTEGER DEFAULT 0,
-  is_active BOOLEAN DEFAULT true,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX IF NOT EXISTS idx_content_library_categories_order ON content_library_categories(display_order);
-
--- Mevcut kategorileri ekle
-INSERT INTO content_library_categories (slug, label, icon, display_order) VALUES
-  ('food', 'Yiyecekler', '🍕', 0),
-  ('pasta', 'Makarnalar', '🍝', 1),
-  ('drinks', 'İçecekler', '🍹', 2),
-  ('icons', 'İkonlar', '🎨', 3),
-  ('badges', 'Rozetler', '🏷️', 4),
-  ('backgrounds', 'Arka Planlar', '🖼️', 5),
-  ('text', 'Metin Şablonları', '📝', 6)
-ON CONFLICT (slug) DO NOTHING;
-
-COMMENT ON TABLE content_library_categories IS 'Admin tarafından düzenlenebilir içerik kütüphanesi kategori tanımları';
 
 -- === migration-content-library-english-canadian-drinks.sql ===
 -- Migration: English product names, Canadian cuisine category with rich images, and full drinks (cold, hot, alcoholic)

@@ -22,6 +22,7 @@ SCHEMA_FILES=(
 )
 
 MIGRATION_FILES=(
+  "$DB/migration-content-library-categories.sql"
   "$DB/migration-add-7-8-templates.sql"
   "$DB/migration-add-admin-activity-log.sql"
   "$DB/migration-add-admin-role-and-permissions.sql"
@@ -50,7 +51,6 @@ MIGRATION_FILES=(
   "$DB/migration-add-video-type-to-content-library.sql"
   "$DB/migration-clean-content-library-duplicates.sql"
   "$DB/migration-clean-content-library-duplicates-v2.sql"
-  "$DB/migration-content-library-categories.sql"
   "$DB/migration-content-library-english-canadian-drinks.sql"
   "$DB/migration-display-viewers.sql"
   "$DB/migration-display-viewers-first-seen.sql"
