@@ -1,4 +1,5 @@
--- Supabase bootstrap: tüm şema + migration'lar (tek seferde çalıştırılabilir)
+// Auto-generated. Do not edit. Run ./scripts/build-supabase-bootstrap.sh to regenerate.
+export const bootstrapSql = `-- Supabase bootstrap: tüm şema + migration'lar (tek seferde çalıştırılabilir)
 -- Üretim: 2026-02-06 03:17:03 UTC
 
 -- === schema-local.sql ===
@@ -910,14 +911,14 @@ CREATE SEQUENCE IF NOT EXISTS admin_reference_seq;
 WITH max_adm AS (
   SELECT COALESCE(MAX(CAST(SUBSTRING(reference_number FROM 5) AS INTEGER)), 0)::int AS m
   FROM users
-  WHERE reference_number ~ '^ADM-\d+$'
+  WHERE reference_number ~ '^ADM-\\d+$'
 ),
 -- Numarası olmayan admin/super_admin'leri created_at sırasına göre listele
 ordered AS (
   SELECT id, ROW_NUMBER() OVER (ORDER BY created_at) AS rn
   FROM users
   WHERE role IN ('admin', 'super_admin')
-    AND (reference_number IS NULL OR reference_number = '' OR reference_number !~ '^ADM-\d+$')
+    AND (reference_number IS NULL OR reference_number = '' OR reference_number !~ '^ADM-\\d+$')
 )
 UPDATE users u
 SET reference_number = 'ADM-' || LPAD((m.m + o.rn)::text, 5, '0')
@@ -930,7 +931,7 @@ SELECT setval(
   COALESCE((
     SELECT MAX(CAST(SUBSTRING(reference_number FROM 5) AS INTEGER))
     FROM users
-    WHERE reference_number ~ '^ADM-\d+$'
+    WHERE reference_number ~ '^ADM-\\d+$'
   ), 0) + 1
 );
 
@@ -1133,8 +1134,8 @@ BEGIN
     
     -- Convert to lowercase, remove special chars, replace spaces with hyphens
     slug := lower(result);
-    slug := regexp_replace(slug, '[^a-z0-9\s-]', '', 'g');
-    slug := regexp_replace(slug, '\s+', ' ', 'g');
+    slug := regexp_replace(slug, '[^a-z0-9\\s-]', '', 'g');
+    slug := regexp_replace(slug, '\\s+', ' ', 'g');
     slug := replace(slug, ' ', '-');
     slug := regexp_replace(slug, '-+', '-', 'g');
     slug := trim(both '-' from slug);
@@ -1213,7 +1214,7 @@ WITH ordered AS (
   WHERE role = 'business_user' AND (reference_number IS NULL OR reference_number = '')
 ),
 max_ref AS (
-  SELECT COALESCE(MAX(CAST(reference_number AS INTEGER)), 0)::int AS m FROM users WHERE reference_number ~ '^\d+$'
+  SELECT COALESCE(MAX(CAST(reference_number AS INTEGER)), 0)::int AS m FROM users WHERE reference_number ~ '^\\d+$'
 )
 UPDATE users u
 SET reference_number = LPAD((m.m + o.rn)::text, 5, '0')
@@ -1223,7 +1224,7 @@ WHERE u.id = o.id;
 -- Sequence'i mevcut max + 1 yap (yeni kayıtlar doğru numarayı alsın)
 SELECT setval(
   'user_reference_seq',
-  COALESCE((SELECT MAX(CAST(reference_number AS INTEGER)) FROM users WHERE reference_number ~ '^\d+$'), 0) + 1
+  COALESCE((SELECT MAX(CAST(reference_number AS INTEGER)) FROM users WHERE reference_number ~ '^\\d+$'), 0) + 1
 );
 
 -- === migration-add-regional-category.sql ===
@@ -2937,7 +2938,7 @@ WITH ordered AS (
   WHERE role = 'business_user' AND (reference_number IS NULL OR reference_number = '')
 ),
 max_ref AS (
-  SELECT COALESCE(MAX(CAST(reference_number AS INTEGER)), 0)::int AS m FROM users WHERE reference_number ~ '^\d+$'
+  SELECT COALESCE(MAX(CAST(reference_number AS INTEGER)), 0)::int AS m FROM users WHERE reference_number ~ '^\\d+$'
 )
 UPDATE users u
 SET reference_number = LPAD((m.m + o.rn)::text, 5, '0')
@@ -2948,13 +2949,13 @@ WHERE u.id = o.id;
 WITH max_adm AS (
   SELECT COALESCE(MAX(CAST(SUBSTRING(reference_number FROM 5) AS INTEGER)), 0)::int AS m
   FROM users
-  WHERE reference_number ~ '^ADM-\d+$'
+  WHERE reference_number ~ '^ADM-\\d+$'
 ),
 ordered AS (
   SELECT id, ROW_NUMBER() OVER (ORDER BY created_at) AS rn
   FROM users
   WHERE role IN ('admin', 'super_admin')
-    AND (reference_number IS NULL OR reference_number = '' OR reference_number !~ '^ADM-\d+$')
+    AND (reference_number IS NULL OR reference_number = '' OR reference_number !~ '^ADM-\\d+$')
 )
 UPDATE users u
 SET reference_number = 'ADM-' || LPAD((m.m + o.rn)::text, 5, '0')
@@ -2962,6 +2963,7 @@ FROM ordered o, max_adm m
 WHERE u.id = o.id;
 
 -- Sequence'leri güncelle
-SELECT setval('user_reference_seq', COALESCE((SELECT MAX(CAST(reference_number AS INTEGER)) FROM users WHERE reference_number ~ '^\d+$'), 0) + 1);
-SELECT setval('admin_reference_seq', COALESCE((SELECT MAX(CAST(SUBSTRING(reference_number FROM 5) AS INTEGER)) FROM users WHERE reference_number ~ '^ADM-\d+$'), 0) + 1);
+SELECT setval('user_reference_seq', COALESCE((SELECT MAX(CAST(reference_number AS INTEGER)) FROM users WHERE reference_number ~ '^\\d+$'), 0) + 1);
+SELECT setval('admin_reference_seq', COALESCE((SELECT MAX(CAST(SUBSTRING(reference_number FROM 5) AS INTEGER)) FROM users WHERE reference_number ~ '^ADM-\\d+$'), 0) + 1);
 
+`;

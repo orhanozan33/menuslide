@@ -1152,8 +1152,9 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
       
       setBlocks(blocksWithContents);
     } catch (err: any) {
-      console.error('Error loading template:', err);
-      setError(err.message || t('editor_template_load_failed'));
+      const msg = err?.message ?? err?.data?.message ?? t('editor_template_load_failed');
+      const safeMsg = typeof msg === 'string' ? msg : t('editor_template_load_failed');
+      setError(safeMsg === 'Not found' ? t('editor_template_not_found') : safeMsg);
     } finally {
       setLoading(false);
     }
@@ -2851,8 +2852,8 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
       <div className="min-h-screen flex items-center justify-center bg-slate-900">
         <div className="text-center">
           <div className="text-xl font-medium text-red-400 mb-4">❌ {error}</div>
-          <Link href="/templates" className="text-blue-400 hover:text-blue-300">
-            ← Template'lere Dön
+          <Link href={localePath('/templates')} className="text-blue-400 hover:text-blue-300">
+            ← {t('editor_back_to_templates')}
           </Link>
         </div>
       </div>

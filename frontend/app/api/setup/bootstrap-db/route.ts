@@ -1,15 +1,14 @@
 /**
  * Supabase veritabanı bootstrap: Tüm tabloları ve migration'ları tek seferde oluşturur.
  * Sadece BOOTSTRAP_SECRET ile çağrılabilir (güvenlik).
+ * Vercel serverless uyumlu: SQL bundle'da, pg dinamik import.
  *
  * Vercel env: BOOTSTRAP_SECRET, SUPABASE_DB_PASSWORD, NEXT_PUBLIC_SUPABASE_URL
  * Çağrı: GET veya POST /api/setup/bootstrap-db?secret=BOOTSTRAP_SECRET
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { readFileSync } from 'fs';
-import { join } from 'path';
-import { Client } from 'pg';
+import { bootstrapSql } from '@/lib/supabase-bootstrap-embed';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -63,17 +62,9 @@ async function runBootstrap(req: NextRequest) {
     );
   }
 
-  let sql: string;
-  try {
-    const path = join(process.cwd(), 'lib', 'supabase-bootstrap.sql');
-    sql = readFileSync(path, 'utf-8');
-  } catch (e) {
-    return NextResponse.json(
-      { error: 'File', message: 'Bootstrap SQL dosyası okunamadı.' },
-      { status: 500 }
-    );
-  }
+  const sql = bootstrapSql;
 
+  const { Client } = await import('pg');
   const client = new Client(config);
   try {
     await client.connect();

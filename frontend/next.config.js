@@ -4,6 +4,7 @@ const path = require('path');
 const nextConfig = {
   reactStrictMode: false,
   transpilePackages: ['react-konva', 'konva'],
+  serverExternalPackages: ['pg'],
   webpack: (config, { isServer }) => {
     // Single React instance (avoids useContext null during SSG and react-konva issues)
     const dir = path.join(__dirname, 'node_modules');
