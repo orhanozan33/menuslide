@@ -1,6 +1,16 @@
 # Quick Start Guide
 
-## 🚀 Setup in 5 Minutes
+## ⚡ Vercel + Supabase (Önerilen — backend yok)
+
+Tüm sistem **sadece Vercel + Supabase** ile çalışır; ayrı backend (Render) gerekmez.
+
+- **Tam kurulum:** [docs/VERCEL_SUPABASE_KURULUM.md](docs/VERCEL_SUPABASE_KURULUM.md)
+- **Yerel çalıştırma:** `./scripts/start-vercel-frontend.sh` → http://localhost:3000
+- **Vercel deploy:** Repo bağlayıp ortam değişkenlerini ekleyin; `NEXT_PUBLIC_API_URL` **boş** bırakın.
+
+---
+
+## 🚀 Setup in 5 Minutes (Backend + Frontend modu)
 
 ### Step 1: Supabase Setup (2 min)
 1. Go to [supabase.com](https://supabase.com) and create a project

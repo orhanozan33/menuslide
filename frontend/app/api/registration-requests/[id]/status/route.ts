@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL?.trim();
+const USE_SELF = !API_BASE;
+const TARGET_BASE = API_BASE || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : (process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') || 'http://localhost:3000'));
+const REG_BASE_PATH = USE_SELF ? '/api/proxy/registration-requests' : '/registration-requests';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,7 +17,7 @@ export async function PATCH(
     if (!id) return NextResponse.json({ message: 'ID required' }, { status: 400 });
     const auth = request.headers.get('authorization') || '';
     const body = await request.json();
-    const res = await fetch(`${BACKEND_URL}/registration-requests/${id}/status`, {
+    const res = await fetch(`${TARGET_BASE}${REG_BASE_PATH}/${id}/status`, {
       method: 'PATCH',
       cache: 'no-store',
       headers: {

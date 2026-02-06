@@ -1,4 +1,8 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const API_BASE =
+  typeof process.env.NEXT_PUBLIC_API_URL === 'string' && process.env.NEXT_PUBLIC_API_URL.trim()
+    ? process.env.NEXT_PUBLIC_API_URL.trim()
+    : '/api/proxy';
+const API_URL = API_BASE;
 
 /**
  * Get auth token - sessionStorage (impersonation) önce, sonra localStorage
@@ -94,9 +98,13 @@ export async function apiClient(endpoint: string, options: ApiRequestInit = {}) 
       throw new Error('Invalid JSON response from server');
     }
   } catch (error: any) {
-    // Handle network errors
+    // Handle network errors (CORS, backend down, Render cold start)
     if (error.message?.includes('fetch') || error.message?.includes('Failed to fetch')) {
-      throw new Error('Backend bağlantı hatası. Backend\'in çalıştığından emin olun.');
+      const base = 'Backend bağlantı hatası.';
+      const hint = typeof window !== 'undefined' && API_URL.includes('onrender.com')
+        ? ' Sunucu uyanıyor olabilir; birkaç saniye sonra tekrar deneyin.'
+        : " Vercel + Supabase kullanıyorsanız Vercel'de NEXT_PUBLIC_API_URL boş olmalı (ve SUPABASE_SERVICE_ROLE_KEY tanımlı). Değişkeni düzelttikten sonra Redeploy yapın.";
+      throw new Error(base + hint);
     }
     throw error;
   }

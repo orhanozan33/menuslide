@@ -1,5 +1,7 @@
 # Supabase Migration — Sıra ile Adım Adım Rehber
 
+> **Tüm kurulum (Supabase + Vercel + yerel) adım adım:** [docs/ADIM_ADIM_KURULUM.md](../docs/ADIM_ADIM_KURULUM.md)
+
 Supabase SQL Editor'de **bu sırayla** çalıştırın. Her adım tamamlandıktan sonra bir sonrakine geçin.
 
 ---

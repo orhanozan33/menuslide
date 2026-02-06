@@ -1,16 +1,34 @@
-import { NextRequest, NextResponse } from 'next/server';
-
-const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+import { NextRequest } from 'next/server';
+import { useLocalBackend, forwardToBackend, handleLocal } from '@/lib/api-backend/dispatch';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+
+async function handle(
+  request: NextRequest,
+  pathSegments: string[],
+  method: string
+): Promise<Response> {
+  if (useLocalBackend()) {
+    try {
+      return await handleLocal(request, pathSegments, method);
+    } catch (e) {
+      console.error('[api/proxy] Local handler error:', e);
+      return Response.json(
+        { message: e instanceof Error ? e.message : 'Internal server error' },
+        { status: 500 }
+      );
+    }
+  }
+  return forwardToBackend(request, pathSegments, method);
+}
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ path: string[] }> }
 ) {
   const { path } = await params;
-  return proxyRequest(request, path, 'GET');
+  return handle(request, path, 'GET');
 }
 
 export async function POST(
@@ -18,7 +36,7 @@ export async function POST(
   { params }: { params: Promise<{ path: string[] }> }
 ) {
   const { path } = await params;
-  return proxyRequest(request, path, 'POST');
+  return handle(request, path, 'POST');
 }
 
 export async function PUT(
@@ -26,7 +44,7 @@ export async function PUT(
   { params }: { params: Promise<{ path: string[] }> }
 ) {
   const { path } = await params;
-  return proxyRequest(request, path, 'PUT');
+  return handle(request, path, 'PUT');
 }
 
 export async function PATCH(
@@ -34,7 +52,7 @@ export async function PATCH(
   { params }: { params: Promise<{ path: string[] }> }
 ) {
   const { path } = await params;
-  return proxyRequest(request, path, 'PATCH');
+  return handle(request, path, 'PATCH');
 }
 
 export async function DELETE(
@@ -42,50 +60,5 @@ export async function DELETE(
   { params }: { params: Promise<{ path: string[] }> }
 ) {
   const { path } = await params;
-  return proxyRequest(request, path, 'DELETE');
-}
-
-async function proxyRequest(
-  request: NextRequest,
-  pathSegments: string[],
-  method: string
-) {
-  try {
-    const path = pathSegments.join('/');
-    const url = new URL(request.url);
-    const query = url.searchParams.toString();
-    const targetUrl = `${BACKEND_URL}/${path}${query ? `?${query}` : ''}`;
-
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-    const auth = request.headers.get('authorization');
-    if (auth) headers['Authorization'] = auth;
-
-    const options: RequestInit = { method, headers };
-    if (method !== 'GET' && method !== 'HEAD') {
-      try {
-        const body = await request.text();
-        if (body) options.body = body;
-      } catch {
-        // No body
-      }
-    }
-
-    const res = await fetch(targetUrl, options);
-    const text = await res.text();
-    let data: unknown = null;
-    try {
-      data = text ? JSON.parse(text) : null;
-    } catch {
-      data = { message: text || 'Request failed' };
-    }
-    return NextResponse.json(data, { status: res.status });
-  } catch (e) {
-    console.error('[api/proxy] Error:', e);
-    return NextResponse.json(
-      { message: 'Proxy request failed' },
-      { status: 502 }
-    );
-  }
+  return handle(request, path, 'DELETE');
 }

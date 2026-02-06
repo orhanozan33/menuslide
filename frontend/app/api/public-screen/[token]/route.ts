@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { useLocalBackend } from '@/lib/api-backend/dispatch';
+import * as publicScreenHandlers from '@/lib/api-backend/handlers/public-screen';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const BACKEND_URL = (process.env.NEXT_PUBLIC_API_URL || '').trim();
 
 /**
- * Proxy GET /api/public-screen/:token to backend /public/screen/:token.
- * If backend returns 404, return 200 with notFound so the browser doesn't log 404.
+ * GET /api/public-screen/:token
+ * BACKEND_URL boşsa yerel handler (Supabase), doluysa backend proxy.
  */
 export async function GET(
   request: NextRequest,
@@ -15,8 +17,11 @@ export async function GET(
     return NextResponse.json({ screen: null, notFound: true, menus: [] }, { status: 200 });
   }
 
-  const { searchParams } = new URL(request.url);
-  const rotationIndex = searchParams.get('rotationIndex');
+  if (useLocalBackend()) {
+    return publicScreenHandlers.getScreenByToken(token, request);
+  }
+
+  const rotationIndex = new URL(request.url).searchParams.get('rotationIndex');
   const query = rotationIndex != null ? `?rotationIndex=${rotationIndex}` : '';
   const backendUrl = `${BACKEND_URL}/public/screen/${encodeURIComponent(token)}${query}`;
 

@@ -709,19 +709,34 @@ export default function ContentLibrary({ onSelectContent, initialCategory, compa
       }
 
       try {
-        // Resmi optimize et (Full HD: 1920x1080, kalite: %98 - HD koruma)
+        // Resmi optimize et (Full HD: 1920x1080, kalite: %98)
         const optimizedBase64 = await optimizeImage(file, 1920, 1080, 0.98);
-        
+        let imageUrl = optimizedBase64;
+
+        // Supabase Storage'a yükle (sistem hızlı çalışsın, DB'de base64 olmasın)
+        try {
+          const res = await fetch(optimizedBase64);
+          const blob = await res.blob();
+          const f = new File([blob], file.name || 'image.jpg', { type: blob.type || 'image/jpeg' });
+          const fd = new FormData();
+          fd.append('file', f);
+          const up = await fetch('/api/upload', { method: 'POST', body: fd });
+          const upJson = await up.json();
+          if (upJson?.assets?.[0]?.src) imageUrl = upJson.assets[0].src;
+        } catch (_) {
+          // Yükleme başarısızsa base64 ile devam et
+        }
+
         const newItem = {
           id: `user-${Date.now()}-${index}`,
           name: file.name.replace(/\.[^/.]+$/, ''),
-          url: optimizedBase64,
+          url: imageUrl,
           type: 'image',
           isUserUpload: true,
         };
         newItems.push(newItem);
-        
-        // Backend'e de kaydet (food kategorisinde)
+
+        // Backend'e kaydet (food kategorisinde) — artık URL Supabase Storage'dan
         try {
           await apiClient('/content-library', {
             method: 'POST',
@@ -729,18 +744,13 @@ export default function ContentLibrary({ onSelectContent, initialCategory, compa
               name: newItem.name,
               category: 'food',
               type: 'image',
-              url: optimizedBase64,
+              url: imageUrl,
               display_order: 0,
             },
           });
           window.dispatchEvent(new CustomEvent('content-library-updated'));
         } catch (backendError: any) {
           console.error(`Backend'e kaydedilirken hata (${file.name}):`, backendError);
-          console.error('Hata detayları:', {
-            message: backendError?.message,
-            data: backendError?.data,
-            status: backendError?.status,
-          });
           // Backend hatası olsa bile localStorage'a kaydetmeye devam et
         }
         

@@ -403,7 +403,7 @@ function TemplatesLibraryContent() {
     setDeleteConfirmTemplate(null);
 
     const templateId = String(template.id);
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+    const apiUrl = (typeof process.env.NEXT_PUBLIC_API_URL === 'string' && process.env.NEXT_PUBLIC_API_URL.trim()) ? process.env.NEXT_PUBLIC_API_URL.trim() : '/api/proxy';
     const token = typeof window !== 'undefined' ? (sessionStorage.getItem('impersonation_token') || localStorage.getItem('auth_token')) : null;
 
     try {

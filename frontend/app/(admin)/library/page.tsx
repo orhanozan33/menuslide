@@ -331,16 +331,29 @@ export default function LibraryPage() {
     setShowAddModal(true);
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const isImage = file.type.startsWith('image/');
     const isVideo = file.type.startsWith('video/');
     if (!isImage && !isVideo) return;
+    setError('');
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const up = await fetch('/api/upload', { method: 'POST', body: fd });
+      const upJson = await up.json();
+      const src = upJson?.assets?.[0]?.src || upJson?.data?.[0]?.src;
+      if (src) {
+        setFormData((f) => ({ ...f, url: src }));
+        return;
+      }
+    } catch (_) {
+      // Fallback: base64 (ağır olur ama çalışır)
+    }
     const reader = new FileReader();
     reader.onload = (ev) => {
       setFormData((f) => ({ ...f, url: (ev.target?.result as string) || '' }));
-      setError('');
     };
     reader.readAsDataURL(file);
   };

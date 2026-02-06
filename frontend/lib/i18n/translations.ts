@@ -1671,8 +1671,8 @@ export const translations: Record<Locale, Record<string, string>> = {
     login_account_deactivated: 'Hesap pasif. Lütfen yönetici ile iletişime geçin.',
     login_check_credentials: 'Giriş yapılamadı. Lütfen bilgilerinizi kontrol edin.',
     login_invalid_response: 'Geçersiz yanıt: Kullanıcı bilgileri alınamadı',
-    login_backend_unreachable: 'Backend sunucusuna bağlanılamıyor. Lütfen backend\'in çalıştığından emin olun.',
-    login_backend_unreachable_hint: 'Backend sunucusuna bağlanılamıyor. Lütfen backend\'in çalıştığından emin olun. (http://localhost:3001)',
+    login_backend_unreachable: 'Backend sunucusuna bağlanılamıyor. Backend çalışıyor olmalı; Vercel ortamında NEXT_PUBLIC_API_URL tanımlı olmalı.',
+    login_backend_unreachable_hint: 'Backend sunucusuna bağlanılamıyor. Backend çalışıyor olmalı. (Örnek: http://localhost:3001 veya canlıda Render URL)',
 
     // Register
     register_title: 'Hesap oluştur',

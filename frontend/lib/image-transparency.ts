@@ -1,6 +1,6 @@
 /** Ortak görsel saydamlık yardımcıları — tasarım ve şablon editörü */
 
-const API_BASE = typeof window !== 'undefined' ? (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001') : '';
+const API_BASE = typeof window !== 'undefined' ? ((typeof process.env.NEXT_PUBLIC_API_URL === 'string' && process.env.NEXT_PUBLIC_API_URL.trim()) ? process.env.NEXT_PUBLIC_API_URL.trim() : '/api/proxy') : '';
 
 function resolveUrl(url: string): string {
   if (!url) return '';

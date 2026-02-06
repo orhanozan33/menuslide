@@ -1,11 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSupabase } from '@/lib/supabase-server';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const BACKEND_URL = (typeof process.env.NEXT_PUBLIC_API_URL === 'string' && process.env.NEXT_PUBLIC_API_URL.trim()) || '';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 export async function GET() {
+  if (!BACKEND_URL) {
+    try {
+      const supabase = getServerSupabase();
+      const { data, error } = await supabase.from('home_channels').select('*').order('display_order', { ascending: true });
+      if (error) return NextResponse.json([], { status: 200 });
+      return NextResponse.json(data ?? []);
+    } catch {
+      return NextResponse.json([], { status: 200 });
+    }
+  }
   try {
     const res = await fetch(`${BACKEND_URL}/home-channels`, { cache: 'no-store' });
     const data = await res.json().catch(() => ({}));
@@ -17,6 +28,22 @@ export async function GET() {
 }
 
 export async function PUT(request: NextRequest) {
+  if (!BACKEND_URL) {
+    try {
+      const supabase = getServerSupabase();
+      const body = await request.json();
+      if (Array.isArray(body)) {
+        for (let i = 0; i < body.length; i++) {
+          const row = body[i];
+          if (row.id) await supabase.from('home_channels').update({ ...row, display_order: row.display_order ?? i }).eq('id', row.id);
+          else await supabase.from('home_channels').insert({ ...row, display_order: row.display_order ?? i });
+        }
+      }
+      return NextResponse.json(body);
+    } catch (e) {
+      return NextResponse.json({ message: 'Save failed' }, { status: 500 });
+    }
+  }
   try {
     const auth = request.headers.get('authorization') || '';
     const body = await request.json();
@@ -52,7 +79,7 @@ export async function PUT(request: NextRequest) {
   } catch (e) {
     console.error('[api/home-channels] PUT error:', e);
     return NextResponse.json(
-      { message: 'Backend bağlantı hatası. Backend\'in çalıştığından emin olun.' },
+      { message: 'Backend bağlantı hatası. Backend çalışıyor olmalı.' },
       { status: 502 }
     );
   }

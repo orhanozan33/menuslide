@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL?.trim();
+const USE_SELF = !API_BASE;
+const TARGET_BASE = API_BASE || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : (process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') || 'http://localhost:3000'));
+const REG_PATH = USE_SELF ? '/api/proxy/registration-requests' : '/registration-requests';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -9,7 +12,7 @@ export const revalidate = 0;
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const res = await fetch(`${BACKEND_URL}/registration-requests`, {
+    const res = await fetch(`${TARGET_BASE}${REG_PATH}`, {
       method: 'POST',
       cache: 'no-store',
       headers: { 'Content-Type': 'application/json' },
@@ -33,7 +36,7 @@ export async function POST(request: NextRequest) {
   } catch (e) {
     console.error('[api/registration-requests] POST error:', e);
     return NextResponse.json(
-      { message: "Backend bağlantı hatası. Backend'in çalıştığından emin olun." },
+      { message: "Backend bağlantı hatası. Backend çalışıyor olmalı." },
       { status: 502 }
     );
   }
@@ -43,7 +46,7 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     const auth = request.headers.get('authorization') || '';
-    const res = await fetch(`${BACKEND_URL}/registration-requests`, {
+    const res = await fetch(`${TARGET_BASE}${REG_PATH}`, {
       cache: 'no-store',
       headers: { ...(auth && { Authorization: auth }) },
     });

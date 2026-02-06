@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 import { useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
+import AdminLayoutClient from '@/app/(admin)/AdminLayoutClient';
 
 const CanvasDesignEditor = dynamic(() => import('@/components/CanvasDesignEditor'), {
   ssr: false,
@@ -16,7 +17,6 @@ function EditorContent() {
   return <CanvasDesignEditor templateId={templateId} />;
 }
 
-/** Editor UI: only render after mount so useSearchParams/dynamic never run on server (avoids 500). */
 function EditorBody() {
   const { t } = useTranslation();
   return (
@@ -31,18 +31,25 @@ function EditorBody() {
   );
 }
 
+/**
+ * Editor at [locale]/editor (not under (admin)) so server never runs AdminLayoutClient.
+ * We wrap with AdminLayoutClient only after mount so user gets sidebar.
+ */
 export default function EditorPage() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
   if (!mounted) {
     return (
-      <div className="space-y-4">
-        <div className="h-9 bg-slate-200 rounded w-48 animate-pulse" />
-        <div className="flex items-center justify-center min-h-[400px] text-slate-500">Yükleniyor...</div>
+      <div className="min-h-screen flex items-center justify-center bg-slate-900">
+        <p className="text-white/80 animate-pulse">Yükleniyor...</p>
       </div>
     );
   }
 
-  return <EditorBody />;
+  return (
+    <AdminLayoutClient>
+      <EditorBody />
+    </AdminLayoutClient>
+  );
 }
