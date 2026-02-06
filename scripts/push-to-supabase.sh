@@ -71,10 +71,10 @@ else
 fi
 echo ""
 
-# --- 2) Supabase'de tabloları temizle ---
-echo "[2/4] Supabase'de şablon/kütüphane tabloları temizleniyor..."
+# --- 2) Supabase'de tüm uygulama tablolarını temizle ---
+echo "[2/4] Supabase'de tüm uygulama tabloları temizleniyor (kullanıcılar, resimler, vb.)..."
 export PGPASSWORD="$SUPABASE_DB_PASSWORD"
-psql -h "$SUPABASE_DB_HOST" -p 5432 -U postgres -d postgres -f "${PROJECT_ROOT}/database/truncate-media-tables-for-import.sql" -v ON_ERROR_STOP=1
+psql -h "$SUPABASE_DB_HOST" -p 5432 -U postgres -d postgres -f "${PROJECT_ROOT}/database/truncate-all-for-import.sql" -v ON_ERROR_STOP=1
 echo "  Tamamlandı."
 echo ""
 
