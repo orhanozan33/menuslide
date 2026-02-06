@@ -1133,13 +1133,16 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
       ]);
 
       setTemplate(templateData);
+      // API bazen dizi dışında dönebilir (proxy/ Supabase); her zaman diziye normalize et
+      const blocksList = Array.isArray(blocksData) ? blocksData : [];
       
       // Her blok için içerikleri yükle
       const blocksWithContents = await Promise.all(
-        (blocksData || []).map(async (block: any) => {
+        blocksList.map(async (block: any) => {
           try {
             const contents = await apiClient(`/template-block-contents/block/${block.id}`);
-            return { ...block, contents: contents || [] };
+            const list = Array.isArray(contents) ? contents : [];
+            return { ...block, contents: list };
           } catch (err) {
             console.error(`Error loading contents for block ${block.id}:`, err);
             return { ...block, contents: [] };
@@ -3405,7 +3408,8 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
 
               {blocks.length > 0 ? (() => {
                 const gridLayout = getProfessionalGridLayout(blocks.length);
-                const sortedBlocks = [...blocks].sort((a, b) => (a.block_index ?? 0) - (b.block_index ?? 0));
+                const blocksArray = Array.isArray(blocks) ? blocks : [];
+                const sortedBlocks = [...blocksArray].sort((a, b) => (a.block_index ?? 0) - (b.block_index ?? 0));
                 const useCustomPositions = sortedBlocks.every((b: any) => {
                   const x = Number(b.position_x);
                   const y = Number(b.position_y);
@@ -4366,7 +4370,8 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
             {/* TV Preview Content */}
             {(() => {
               const gridLayout = getProfessionalGridLayout(blocks.length);
-              const sortedBlocks = [...blocks].sort((a, b) => (a.block_index ?? 0) - (b.block_index ?? 0));
+              const blocksArray = Array.isArray(blocks) ? blocks : [];
+              const sortedBlocks = [...blocksArray].sort((a, b) => (a.block_index ?? 0) - (b.block_index ?? 0));
               const useCustomPositions = sortedBlocks.every((b: any) => {
                 const x = Number(b.position_x);
                 const y = Number(b.position_y);
@@ -5774,7 +5779,7 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
                   <div className="flex-1 min-h-0 rounded-xl border-2 border-gray-300 overflow-hidden flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-black" style={{ aspectRatio: '16/9', minHeight: 280 }}>
                     {(() => {
                       const gridLayout = getProfessionalGridLayout(blocks.length);
-                      const sortedBlocksModal = [...blocks].sort((a: any, b: any) => (a.block_index ?? 0) - (b.block_index ?? 0));
+                      const sortedBlocksModal = [...(Array.isArray(blocks) ? blocks : [])].sort((a: any, b: any) => (a.block_index ?? 0) - (b.block_index ?? 0));
                       const videoSc = selectedBlockContent?.style_config ? (typeof selectedBlockContent.style_config === 'string' ? JSON.parse(selectedBlockContent.style_config || '{}') : { ...selectedBlockContent.style_config }) : {};
                       const videoBlockFit = (videoSc as { imageFit?: string }).imageFit === 'contain' ? 'contain' : 'cover';
                       const videoBlockPos = (videoSc as { imagePosition?: string }).imagePosition || 'center';

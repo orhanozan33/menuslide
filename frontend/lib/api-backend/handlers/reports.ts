@@ -2,20 +2,22 @@ import { NextRequest } from 'next/server';
 import { getServerSupabase } from '@/lib/supabase-server';
 import type { JwtPayload } from '@/lib/auth-server';
 
-/** GET /reports/users - users with subscription status (admin) */
+/** GET /reports/users - users with subscription status (admin). "Tüm üyeler" = işletme kullanıcıları (admin/super_admin hariç). */
 export async function getUsersWithSubscription(user: JwtPayload): Promise<Response> {
   if (user.role !== 'super_admin' && user.role !== 'admin') {
     return Response.json({ message: 'Admin access required' }, { status: 403 });
   }
   const supabase = getServerSupabase();
-  const { data: users } = await supabase.from('users').select('id, email, full_name, role, business_id, created_at').eq('role', 'business_user').order('created_at', { ascending: false }).limit(500);
-  const businessIds = Array.from(new Set((users ?? []).map((u: { business_id?: string }) => u.business_id).filter(Boolean))) as string[];
+  // Hem business_user hem eski/alternatif role değerleri (örn. 'user') gelsin; sadece admin/super_admin hariç
+  const { data: allUsers } = await supabase.from('users').select('id, email, full_name, role, business_id, created_at').order('created_at', { ascending: false }).limit(500);
+  const users = (allUsers ?? []).filter((u: { role?: string }) => u.role !== 'super_admin' && u.role !== 'admin');
+  const businessIds = Array.from(new Set(users.map((u: { business_id?: string }) => u.business_id).filter(Boolean))) as string[];
   let activeSet = new Set<string>();
   if (businessIds.length > 0) {
     const { data: subs } = await supabase.from('subscriptions').select('business_id').eq('status', 'active').in('business_id', businessIds);
     activeSet = new Set((subs ?? []).map((s: { business_id: string }) => s.business_id));
   }
-  const list = (users ?? []).map((u: { business_id?: string } & Record<string, unknown>) => ({
+  const list = users.map((u: { business_id?: string } & Record<string, unknown>) => ({
     ...u,
     has_active_subscription: u.business_id ? activeSet.has(u.business_id) : false,
   }));
