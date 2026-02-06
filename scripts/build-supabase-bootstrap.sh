@@ -18,6 +18,7 @@ SCHEMA_FILES=(
   "$DB/template-block-contents-schema.sql"
   "$DB/template-editor-schema.sql"
   "$DB/text-content-schema.sql"
+  "$DB/template-library-schema.sql"
   "$DB/migration-create-content-library.sql"
 )
 
