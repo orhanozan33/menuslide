@@ -1,6 +1,20 @@
 import type { Metadata, Viewport } from 'next';
+import dynamic from 'next/dynamic';
 import './globals.css';
-import { ClientProviders } from '@/components/ClientProviders';
+
+// Vercel/production'ta "Cannot read properties of null (reading 'useState')" hatasını önlemek için
+// ClientProviders yalnızca istemcide yüklenir; sunucuda minimal shell döner.
+const ClientProviders = dynamic(
+  () => import('@/components/ClientProviders').then((m) => ({ default: m.ClientProviders })),
+  {
+    ssr: false,
+    loading: () => (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0f172a' }}>
+        <span style={{ color: 'rgba(255,255,255,0.8)' }}>...</span>
+      </div>
+    ),
+  }
+);
 
 export const dynamic = 'force-dynamic';
 
