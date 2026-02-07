@@ -140,9 +140,10 @@ export async function handleGet(
               if (plan) {
                 plan_name = plan.display_name;
                 plan_max_screens = plan.max_screens;
-                subscription_status = 'active';
+                subscription_status = plan.max_screens > 0 ? 'active' : 'stopped';
               }
-            } else {
+            }
+            if (subscription_status !== 'active') {
               const subCanceled = await queryOne<{ plan_id: string }>('SELECT plan_id FROM subscriptions WHERE business_id = $1 AND status = $2 ORDER BY created_at DESC LIMIT 1', [u.business_id, 'canceled']);
               if (subCanceled?.plan_id) {
                 const plan = await queryOne<{ display_name: string; max_screens: number }>('SELECT display_name, max_screens FROM plans WHERE id = $1', [subCanceled.plan_id]);
@@ -263,10 +264,14 @@ export async function handleGet(
       for (const [bid, s] of Object.entries(subByBiz)) {
         const plan = planMap[s.plan_id];
         const planData = { plan_name: plan?.display_name ?? '', plan_max_screens: plan?.max_screens ?? 0 };
-        if (s.status === 'active') subPlanMap[bid] = planData;
-        else if (s.status === 'canceled' && !subPlanMap[bid]) {
+        const maxScreens = plan?.max_screens ?? 0;
+        if (s.status === 'active' && maxScreens > 0) {
           subPlanMap[bid] = planData;
-          canceledBiz.add(bid);
+        } else if (s.status === 'canceled' || (s.status === 'active' && maxScreens === 0)) {
+          if (!subPlanMap[bid]) {
+            subPlanMap[bid] = planData;
+            canceledBiz.add(bid);
+          }
         }
       }
     }

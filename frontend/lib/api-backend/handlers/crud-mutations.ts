@@ -310,7 +310,11 @@ export async function updateUser(id: string, request: NextRequest, user: JwtPayl
         const stopPayload = maxScreens === 0 && stopReason ? { stop_reason: stopReason, stopped_at: new Date().toISOString() } : { stop_reason: null, stopped_at: null };
         if (existing) {
           subId = existing.id;
-          await supabase.from('subscriptions').update({ plan_id: planId, status: newStatus, current_period_start: nowStr, current_period_end: endStr, ...stopPayload }).eq('id', subId);
+          const { error: updErr } = await supabase.from('subscriptions').update({ plan_id: planId, status: newStatus, current_period_start: nowStr, current_period_end: endStr, ...stopPayload }).eq('id', subId);
+          if (updErr) {
+            console.error('[updateUser] subscription update failed:', updErr);
+            throw new Error(`Paket güncellenemedi: ${updErr.message}`);
+          }
         } else {
           const insertRow: Record<string, unknown> = { business_id: businessId, plan_id: planId, status: newStatus, current_period_start: nowStr, current_period_end: endStr };
           if (maxScreens === 0 && stopReason) {
