@@ -357,6 +357,127 @@ export function TemplateDisplay({
           const bgColor = isBlack(raw) ? defaultBlockBg : raw;
           const isEmptyBlock = !hasVisibleContent;
 
+          const renderVideoBlock = (): React.ReactNode => {
+            if (regionalMenuContent || !videoContent || !(videoContent as { image_url?: unknown }).image_url) return null;
+            let videoTextLayers: Array<{id: string; text: string; color: string; size: number; x: number; y: number; fontWeight: string; fontStyle: string; textAlign?: 'left' | 'center' | 'right'; fontFamily?: string; icon?: string; iconPosition?: string}> = [];
+            let videoOverlayImages: Array<{ id: string; image_url: string; x: number; y: number; size: number; shape: string }> = [];
+            let fit: 'cover' | 'contain' = 'cover';
+            let pos = 'center';
+            let scale = 1;
+            let videoRotation: { firstVideoDurationSeconds?: number; rotationUrls?: string[]; rotationItems?: Array<{ url: string; durationSeconds?: number; textLayers?: Array<Record<string, unknown>> }> } | undefined;
+            if (videoContent.style_config) {
+              try {
+                const sc = typeof videoContent.style_config === 'string'
+                  ? JSON.parse(videoContent.style_config as string) ?? {}
+                  : (videoContent.style_config as Record<string, unknown>) ?? {};
+                videoTextLayers = (sc.textLayers as typeof videoTextLayers) || [];
+                videoOverlayImages = (sc.overlayImages as typeof videoOverlayImages) || [];
+                fit = (sc.imageFit === 'contain' ? 'contain' : 'cover');
+                pos = (sc.imagePosition as string) || 'center';
+                scale = typeof sc.imageScale === 'number' ? Math.max(0.5, Math.min(2.5, sc.imageScale)) : 1;
+                videoRotation = sc.videoRotation as typeof videoRotation;
+              } catch {
+                videoTextLayers = [];
+                videoOverlayImages = [];
+              }
+            }
+            const rotationItems = (() => {
+              if (!videoRotation) return [];
+              if (Array.isArray(videoRotation.rotationItems) && videoRotation.rotationItems.length > 0)
+                return videoRotation.rotationItems.map((it: { url: string; durationSeconds?: number; textLayers?: Array<Record<string, unknown>> }) => ({
+                  url: it.url,
+                  durationSeconds: typeof it.durationSeconds === 'number' ? Math.max(1, Math.min(120, it.durationSeconds)) : 10,
+                  textLayers: Array.isArray(it.textLayers) ? it.textLayers : [],
+                }));
+              if (Array.isArray(videoRotation.rotationUrls)) return videoRotation.rotationUrls.map((url: string) => ({ url, durationSeconds: 10, textLayers: [] }));
+              return [];
+            })();
+            const useRotation = videoRotation && (rotationItems.length > 0 || (typeof videoRotation?.firstVideoDurationSeconds === 'number' && videoRotation.firstVideoDurationSeconds > 0));
+            const firstDuration = typeof videoRotation?.firstVideoDurationSeconds === 'number' ? Math.max(1, Math.min(120, videoRotation.firstVideoDurationSeconds)) : 10;
+            return (
+              <>
+                {useRotation ? (
+                  <VideoBlockWithRotation
+                    firstVideoUrl={videoContent.image_url as string}
+                    firstVideoDurationSeconds={firstDuration}
+                    rotationItems={rotationItems}
+                    videoTextLayers={videoTextLayers}
+                    videoOverlayImages={videoOverlayImages}
+                    fit={fit}
+                    pos={pos}
+                    scale={scale}
+                  />
+                ) : (
+                  <>
+                    <div className="absolute inset-0 w-full h-full overflow-hidden">
+                      <div className="absolute inset-0" style={{ transformOrigin: pos }}>
+                        <video
+                          src={resolveMediaUrl(videoContent.image_url as string)}
+                          className="w-full h-full"
+                          autoPlay
+                          loop
+                          muted
+                          playsInline
+                          style={{ transform: `scale(${scale})`, transformOrigin: pos, objectFit: fit, objectPosition: pos, imageRendering: 'auto', backfaceVisibility: 'hidden' }}
+                        />
+                      </div>
+                    </div>
+                    {videoOverlayImages.map((o) => (
+                      <div
+                        key={o.id}
+                        className="absolute z-20 pointer-events-none"
+                        style={{
+                          left: `${o.x}%`,
+                          top: `${o.y}%`,
+                          width: `${o.size}%`,
+                          aspectRatio: '1',
+                          transform: 'translate(-50%, -50%)',
+                          borderRadius: o.shape === 'round' ? '50%' : o.shape === 'rounded' ? '12px' : 0,
+                          boxShadow: o.shape === 'shadow' ? '0 4px 12px rgba(0,0,0,0.35)' : undefined,
+                          overflow: 'hidden',
+                        }}
+                      >
+                        <img src={resolveMediaUrl(o.image_url)} alt="" className="w-full h-full object-cover" />
+                      </div>
+                    ))}
+                    {videoTextLayers.map((layer) => {
+                      const l = layer as { icon?: string; iconPosition?: 'before' | 'after'; isDiscountBlock?: boolean; discountAnimation?: string; discountBlockStyle?: string; blockColor?: string };
+                      const isDiscount = !!l.isDiscountBlock;
+                      const iconBefore = l.icon && l.iconPosition !== 'after';
+                      const iconAfter = l.icon && l.iconPosition === 'after';
+                      const discountProps = isDiscount ? getDiscountBlockProps(l) : {} as { className?: string; style?: React.CSSProperties };
+                      const px = typeof layer.x === 'number' ? layer.x : 50;
+                      const py = typeof layer.y === 'number' ? layer.y : 50;
+                      return (
+                        <div
+                          key={layer.id}
+                          className={`absolute z-30 ${isDiscount ? discountProps.className : ''}`}
+                          style={{
+                            left: `${px}%`,
+                            top: `${py}%`,
+                            transform: `translate(-50%, -50%) rotate(${(layer as { rotation?: number }).rotation ?? 0}deg)`,
+                            ...(isDiscount ? discountProps.style : { color: layer.color }),
+                            fontSize: `${layer.size}px`,
+                            fontWeight: layer.fontWeight,
+                            fontStyle: layer.fontStyle,
+                            fontFamily: (layer as { fontFamily?: string }).fontFamily || 'Arial',
+                            textShadow: isDiscount ? '0 1px 2px rgba(0,0,0,0.3)' : '2px 2px 4px rgba(0,0,0,0.8)',
+                            whiteSpace: 'pre' as const,
+                            textAlign: (layer.textAlign as 'left' | 'center' | 'right') || 'center',
+                          }}
+                        >
+                          {iconBefore && <span className="mr-1">{l.icon}</span>}
+                          {sanitizeDisplayText(layer.text)}
+                          {iconAfter && <span className="ml-1">{l.icon}</span>}
+                        </div>
+                      );
+                    })}
+                  </>
+                )}
+              </>
+            );
+          };
+
           return (
             <div
               key={block.id ?? blockId ?? index}
@@ -441,125 +562,7 @@ export function TemplateDisplay({
                   </div>
                 );
               })()}
-              {!regionalMenuContent && videoContent?.image_url && (() => {
-                let videoTextLayers: Array<{id: string; text: string; color: string; size: number; x: number; y: number; fontWeight: string; fontStyle: string; textAlign?: 'left' | 'center' | 'right'; fontFamily?: string; icon?: string; iconPosition?: string}> = [];
-                let videoOverlayImages: Array<{ id: string; image_url: string; x: number; y: number; size: number; shape: string }> = [];
-                let fit: 'cover' | 'contain' = 'cover';
-                let pos = 'center';
-                let scale = 1;
-                let videoRotation: { firstVideoDurationSeconds?: number; rotationUrls?: string[]; rotationItems?: Array<{ url: string; durationSeconds?: number; textLayers?: Array<Record<string, unknown>> }> } | undefined;
-                if (videoContent.style_config) {
-                  try {
-                    const sc = typeof videoContent.style_config === 'string'
-                      ? JSON.parse(videoContent.style_config as string) ?? {}
-                      : (videoContent.style_config as Record<string, unknown>) ?? {};
-                    videoTextLayers = (sc.textLayers as typeof videoTextLayers) || [];
-                    videoOverlayImages = (sc.overlayImages as typeof videoOverlayImages) || [];
-                    fit = (sc.imageFit === 'contain' ? 'contain' : 'cover');
-                    pos = (sc.imagePosition as string) || 'center';
-                    scale = typeof sc.imageScale === 'number' ? Math.max(0.5, Math.min(2.5, sc.imageScale)) : 1;
-                    videoRotation = sc.videoRotation as typeof videoRotation;
-                  } catch {
-                    videoTextLayers = [];
-                    videoOverlayImages = [];
-                  }
-                }
-                const rotationItems = (() => {
-                  if (!videoRotation) return [];
-                  if (Array.isArray(videoRotation.rotationItems) && videoRotation.rotationItems.length > 0)
-                    return videoRotation.rotationItems.map((it: { url: string; durationSeconds?: number; textLayers?: Array<Record<string, unknown>> }) => ({
-                      url: it.url,
-                      durationSeconds: typeof it.durationSeconds === 'number' ? Math.max(1, Math.min(120, it.durationSeconds)) : 10,
-                      textLayers: Array.isArray(it.textLayers) ? it.textLayers : [],
-                    }));
-                  if (Array.isArray(videoRotation.rotationUrls)) return videoRotation.rotationUrls.map((url: string) => ({ url, durationSeconds: 10, textLayers: [] }));
-                  return [];
-                })();
-                const useRotation = videoRotation && (rotationItems.length > 0 || (typeof videoRotation?.firstVideoDurationSeconds === 'number' && videoRotation.firstVideoDurationSeconds > 0));
-                const firstDuration = typeof videoRotation?.firstVideoDurationSeconds === 'number' ? Math.max(1, Math.min(120, videoRotation.firstVideoDurationSeconds)) : 10;
-                return (
-                  <>
-                    {useRotation ? (
-                      <VideoBlockWithRotation
-                        firstVideoUrl={videoContent.image_url as string}
-                        firstVideoDurationSeconds={firstDuration}
-                        rotationItems={rotationItems}
-                        videoTextLayers={videoTextLayers}
-                        videoOverlayImages={videoOverlayImages}
-                        fit={fit}
-                        pos={pos}
-                        scale={scale}
-                      />
-                    ) : (
-                      <>
-                        <div className="absolute inset-0 w-full h-full overflow-hidden">
-                          <div className="absolute inset-0" style={{ transformOrigin: pos }}>
-                            <video
-                              src={resolveMediaUrl(videoContent.image_url as string)}
-                              className="w-full h-full"
-                              autoPlay
-                              loop
-                              muted
-                              playsInline
-                              style={{ transform: `scale(${scale})`, transformOrigin: pos, objectFit: fit, objectPosition: pos, imageRendering: 'auto', backfaceVisibility: 'hidden' }}
-                            />
-                          </div>
-                        </div>
-                        {videoOverlayImages.map((o) => (
-                          <div
-                            key={o.id}
-                            className="absolute z-20 pointer-events-none"
-                            style={{
-                              left: `${o.x}%`,
-                              top: `${o.y}%`,
-                              width: `${o.size}%`,
-                              aspectRatio: '1',
-                              transform: 'translate(-50%, -50%)',
-                              borderRadius: o.shape === 'round' ? '50%' : o.shape === 'rounded' ? '12px' : 0,
-                              boxShadow: o.shape === 'shadow' ? '0 4px 12px rgba(0,0,0,0.35)' : undefined,
-                              overflow: 'hidden',
-                            }}
-                          >
-                            <img src={resolveMediaUrl(o.image_url)} alt="" className="w-full h-full object-cover" />
-                          </div>
-                        ))}
-                        {videoTextLayers.map((layer) => {
-                          const l = layer as { icon?: string; iconPosition?: 'before' | 'after'; isDiscountBlock?: boolean; discountAnimation?: string; discountBlockStyle?: string; blockColor?: string };
-                          const isDiscount = !!l.isDiscountBlock;
-                          const iconBefore = l.icon && l.iconPosition !== 'after';
-                          const iconAfter = l.icon && l.iconPosition === 'after';
-                          const discountProps = isDiscount ? getDiscountBlockProps(l) : {} as { className?: string; style?: React.CSSProperties };
-                          const px = typeof layer.x === 'number' ? layer.x : 50;
-                          const py = typeof layer.y === 'number' ? layer.y : 50;
-                          return (
-                            <div
-                              key={layer.id}
-                              className={`absolute z-30 ${isDiscount ? discountProps.className : ''}`}
-                              style={{
-                                left: `${px}%`,
-                                top: `${py}%`,
-                                transform: `translate(-50%, -50%) rotate(${(layer as { rotation?: number }).rotation ?? 0}deg)`,
-                                ...(isDiscount ? discountProps.style : { color: layer.color }),
-                                fontSize: `${layer.size}px`,
-                                fontWeight: layer.fontWeight,
-                                fontStyle: layer.fontStyle,
-                                fontFamily: (layer as { fontFamily?: string }).fontFamily || 'Arial',
-                                textShadow: isDiscount ? '0 1px 2px rgba(0,0,0,0.3)' : '2px 2px 4px rgba(0,0,0,0.8)',
-                                whiteSpace: 'pre' as const,
-                                textAlign: (layer.textAlign as 'left' | 'center' | 'right') || 'center',
-                              }}
-                            >
-                              {iconBefore && <span className="mr-1">{l.icon}</span>}
-                              {sanitizeDisplayText(layer.text)}
-                              {iconAfter && <span className="ml-1">{l.icon}</span>}
-                            </div>
-                          );
-                        })}
-                      </>
-                    )}
-                  </>
-                );
-              })()}
+              {renderVideoBlock() as any}
               {!regionalMenuContent && !videoContent && (imageContent?.image_url || (imageContent?.style_config && (() => {
                 try {
                   const sc = typeof imageContent.style_config === 'string' ? JSON.parse(imageContent.style_config || '{}') : imageContent.style_config;
@@ -846,8 +849,8 @@ export function TemplateDisplay({
                             </div>
                           );
                         })}
-                        {activePriceBadge?.enabled && (() => {
-                          const pb = activePriceBadge as { enabled?: boolean; position?: string; positionX?: number; positionY?: number; sizeScale?: number; color?: string; textColor?: string; textTop?: string; price?: string; textBottom?: string; model?: string };
+                        {((activePriceBadge as { enabled?: boolean; position?: string; positionX?: number; positionY?: number; sizeScale?: number; color?: string; textColor?: string; textTop?: string; price?: string; textBottom?: string; model?: string } | null)?.enabled) && (() => {
+                          const pb = (activePriceBadge as unknown) as { enabled?: boolean; position?: string; positionX?: number; positionY?: number; sizeScale?: number; color?: string; textColor?: string; textTop?: string; price?: string; textBottom?: string; model?: string };
                           const hasXY = typeof pb.positionX === 'number' && typeof pb.positionY === 'number';
                           const pos = pb.position || 'bottom-right';
                           const x = pb.positionX ?? (pos === 'top-left' ? 15 : pos === 'top-right' ? 85 : pos === 'bottom-left' ? 15 : 85);
