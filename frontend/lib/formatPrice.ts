@@ -1,3 +1,4 @@
+/** Kanada Doları (CAD) - $ sembolü */
 const CURRENCY_SYMBOL = '$';
 
 export function formatPrice(price: number | string | null | undefined): string {

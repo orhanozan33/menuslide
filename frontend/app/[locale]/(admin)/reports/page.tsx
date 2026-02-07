@@ -181,7 +181,7 @@ export default function ReportsPage() {
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat(dateLocale, {
       style: 'currency',
-      currency: 'USD',
+      currency: 'CAD',
       minimumFractionDigits: 2,
     }).format(amount);
   };

@@ -202,12 +202,12 @@ export async function handleGet(
   return Response.json(list);
 }
 
-/** GET /plans - Public: sadece aktif planları döndür (token gerekmez, fiyatlandırma sayfası için) */
+/** GET /plans - Public: sadece aktif planları döndür (1 ekran planı hariç). Token gerekmez. Fiyatlar CAD. */
 export async function getPlansPublic(): Promise<Response> {
   try {
     if (useLocalDb()) {
       const list = await queryLocal(
-        'SELECT * FROM plans WHERE is_active = true ORDER BY price_monthly ASC'
+        'SELECT * FROM plans WHERE is_active = true AND max_screens != 1 ORDER BY price_monthly ASC'
       );
       return Response.json(list);
     }
@@ -216,6 +216,7 @@ export async function getPlansPublic(): Promise<Response> {
       .from('plans')
       .select('*')
       .eq('is_active', true)
+      .neq('max_screens', 1)
       .order('price_monthly', { ascending: true });
     if (error) return Response.json({ message: error.message }, { status: 500 });
     return Response.json(data ?? []);

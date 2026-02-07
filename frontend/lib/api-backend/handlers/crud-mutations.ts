@@ -88,11 +88,15 @@ export async function updateUser(id: string, request: NextRequest, user: JwtPayl
   }
   const adminPerms = body.admin_permissions as Record<string, Record<string, boolean>> | undefined;
   const planId = body.plan_id as string | undefined;
+  const subscriptionPeriodMonths = (typeof body.subscription_period_months === 'number' && body.subscription_period_months >= 1)
+    ? Math.min(body.subscription_period_months, 120) // max 10 yıl
+    : 1;
   const isActive = body.is_active as boolean | undefined;
   const businessName = body.business_name as string | undefined;
   const bodyWithoutPerms = { ...body };
   delete bodyWithoutPerms.admin_permissions;
   delete bodyWithoutPerms.plan_id;
+  delete bodyWithoutPerms.subscription_period_months;
   delete bodyWithoutPerms.is_active;
   delete bodyWithoutPerms.business_name;
 
@@ -121,24 +125,26 @@ export async function updateUser(id: string, request: NextRequest, user: JwtPayl
       if (planId) {
         const client = await getLocalPg();
         const { rows } = await client.query('SELECT id FROM subscriptions WHERE business_id = $1 ORDER BY created_at DESC LIMIT 1', [businessId]);
-        const now = new Date().toISOString();
-        const periodEnd = new Date();
-        periodEnd.setMonth(periodEnd.getMonth() + 1);
+        const now = new Date();
+        const periodEnd = new Date(now);
+        periodEnd.setMonth(periodEnd.getMonth() + subscriptionPeriodMonths);
+        const nowStr = now.toISOString();
+        const endStr = periodEnd.toISOString();
         if (rows.length > 0) {
-          await client.query('UPDATE subscriptions SET plan_id = $1, current_period_end = $2, updated_at = NOW() WHERE id = $3', [planId, periodEnd.toISOString(), rows[0].id]);
+          await client.query('UPDATE subscriptions SET plan_id = $1, current_period_start = $2, current_period_end = $3, updated_at = NOW() WHERE id = $4', [planId, nowStr, endStr, rows[0].id]);
         } else {
           await client.query(
             'INSERT INTO subscriptions (business_id, plan_id, status, current_period_start, current_period_end) VALUES ($1, $2, $3, $4, $5)',
-            [businessId, planId, 'active', now, periodEnd.toISOString()]
+            [businessId, planId, 'active', nowStr, endStr]
           );
         }
         if (isSupabaseConfigured()) {
           const supabase = getServerSupabase();
           const { data: existing } = await supabase.from('subscriptions').select('id').eq('business_id', businessId).order('created_at', { ascending: false }).limit(1).maybeSingle();
           if (existing) {
-            await supabase.from('subscriptions').update({ plan_id: planId, current_period_end: periodEnd.toISOString() }).eq('id', existing.id);
+            await supabase.from('subscriptions').update({ plan_id: planId, current_period_start: nowStr, current_period_end: endStr }).eq('id', existing.id);
           } else {
-            await supabase.from('subscriptions').insert({ business_id: businessId, plan_id: planId, status: 'active', current_period_start: now, current_period_end: periodEnd.toISOString() });
+            await supabase.from('subscriptions').insert({ business_id: businessId, plan_id: planId, status: 'active', current_period_start: nowStr, current_period_end: endStr });
           }
         }
       }
@@ -152,13 +158,15 @@ export async function updateUser(id: string, request: NextRequest, user: JwtPayl
       }
       if (planId) {
         const { data: existing } = await supabase.from('subscriptions').select('id').eq('business_id', businessId).order('created_at', { ascending: false }).limit(1).maybeSingle();
-        const now = new Date().toISOString();
-        const periodEnd = new Date();
-        periodEnd.setMonth(periodEnd.getMonth() + 1);
+        const now = new Date();
+        const periodEnd = new Date(now);
+        periodEnd.setMonth(periodEnd.getMonth() + subscriptionPeriodMonths);
+        const nowStr = now.toISOString();
+        const endStr = periodEnd.toISOString();
         if (existing) {
-          await supabase.from('subscriptions').update({ plan_id: planId, current_period_end: periodEnd.toISOString() }).eq('id', existing.id);
+          await supabase.from('subscriptions').update({ plan_id: planId, current_period_start: nowStr, current_period_end: endStr }).eq('id', existing.id);
         } else {
-          await supabase.from('subscriptions').insert({ business_id: businessId, plan_id: planId, status: 'active', current_period_start: now, current_period_end: periodEnd.toISOString() });
+          await supabase.from('subscriptions').insert({ business_id: businessId, plan_id: planId, status: 'active', current_period_start: nowStr, current_period_end: endStr });
         }
       }
     }

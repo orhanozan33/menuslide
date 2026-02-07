@@ -402,7 +402,7 @@ export default function AccountPage() {
                     <td className="py-2 pr-4 text-slate-800">{formatDate(p.payment_date, locale)}</td>
                     <td className="py-2 pr-4 text-slate-800">{p.plan_name || '—'}</td>
                     <td className="py-2 pr-4 text-slate-800">{p.amount.toFixed(2)}</td>
-                    <td className="py-2 pr-4 text-slate-800">{(p.currency || 'usd').toUpperCase()}</td>
+                    <td className="py-2 pr-4 text-slate-800">{(p.currency || 'cad').toUpperCase()}</td>
                     <td className="py-2 pr-4 text-slate-600 capitalize">{p.status}</td>
                     <td className="py-2">
                       <button

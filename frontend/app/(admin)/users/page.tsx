@@ -52,6 +52,7 @@ export default function UsersPage() {
     userEmail: string;
   } | null>(null);
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
+  const [planChangePeriodMonths, setPlanChangePeriodMonths] = useState<number>(1);
   const [planChangeSaving, setPlanChangeSaving] = useState(false);
   const [showAdminCreateModal, setShowAdminCreateModal] = useState(false);
   const [adminForm, setAdminForm] = useState({ email: '', password: '' });
@@ -297,11 +298,13 @@ export default function UsersPage() {
       userEmail: user.email,
     });
     setSelectedPlanId(currentPlan?.id || null);
+    setPlanChangePeriodMonths(1);
   };
 
   const closePlanChangeModal = () => {
     setPlanChangeModal(null);
     setSelectedPlanId(null);
+    setPlanChangePeriodMonths(1);
   };
 
   const handleConfirmPlanChange = async () => {
@@ -317,7 +320,7 @@ export default function UsersPage() {
     try {
       await apiClient(`/users/${planChangeModal.userId}`, {
         method: 'PATCH',
-        body: JSON.stringify({ plan_id: selectedPlan.id }),
+        body: JSON.stringify({ plan_id: selectedPlan.id, subscription_period_months: planChangePeriodMonths }),
       });
       loadData();
       closePlanChangeModal();
@@ -831,6 +834,33 @@ export default function UsersPage() {
                     );
                   })}
                 </div>
+                {selectedPlanId && selectedPlanId !== planChangeModal.currentPlanId && (
+                  <div className="mt-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Süre (başlangıç = bugün, bitiş otomatik)</label>
+                    <select
+                      value={planChangePeriodMonths}
+                      onChange={(e) => setPlanChangePeriodMonths(Number(e.target.value))}
+                      className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900"
+                    >
+                      <option value={1}>1 ay</option>
+                      <option value={3}>3 ay</option>
+                      <option value={6}>6 ay</option>
+                      <option value={12}>12 ay (1 yıl)</option>
+                      <option value={24}>24 ay (2 yıl)</option>
+                      <option value={36}>36 ay (3 yıl)</option>
+                    </select>
+                    {(() => {
+                      const start = new Date();
+                      const end = new Date();
+                      end.setMonth(end.getMonth() + planChangePeriodMonths);
+                      return (
+                        <p className="text-xs text-gray-500 mt-1.5">
+                          Başlangıç: {start.toLocaleDateString('tr-TR')} — Bitiş: {end.toLocaleDateString('tr-TR')}
+                        </p>
+                      );
+                    })()}
+                  </div>
+                )}
               </div>
               <div className="p-6 border-t border-gray-100 flex gap-3">
                 <button
