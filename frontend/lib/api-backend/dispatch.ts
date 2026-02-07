@@ -156,6 +156,7 @@ export async function handleLocal(
     if (method === 'GET' && sub === 'my-uploads') return contentLibraryHandlers.getMyUploads(user);
     if (method === 'GET' && sub === 'user-uploads') return contentLibraryHandlers.getUserUploads(user);
     if (method === 'GET' && !sub && !id) return contentLibraryHandlers.findAll(request, user);
+    if (method === 'POST' && sub === 'remove-duplicates-by-name') return contentLibraryHandlers.removeDuplicatesByName(user);
     if (method === 'GET' && contentLibraryId) {
       const url = new URL(request.url);
       return crudHandlers.handleGet(pathSegments, user, url.searchParams);

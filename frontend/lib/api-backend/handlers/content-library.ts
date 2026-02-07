@@ -90,6 +90,37 @@ export async function findAll(request: NextRequest, user: JwtPayload): Promise<R
   return Response.json(grouped);
 }
 
+/** POST /content-library/remove-duplicates-by-name - body gerekmez */
+export async function removeDuplicatesByName(user: JwtPayload): Promise<Response> {
+  if (user.role !== 'super_admin' && user.role !== 'admin') return Response.json({ message: 'Admin access required' }, { status: 403 });
+  if (useLocalDb()) {
+    const dupes = await queryLocal<{ id: string }>(
+      `SELECT id FROM (
+        SELECT id, ROW_NUMBER() OVER (PARTITION BY LOWER(TRIM(name)) ORDER BY id ASC) AS rn
+        FROM content_library
+      ) sub WHERE rn > 1`
+    );
+    const ids = (dupes ?? []).map((r) => r.id);
+    for (const id of ids) await deleteLocal('content_library', id);
+    for (const id of ids) await mirrorToSupabase('content_library', 'delete', { id });
+    if (ids.length > 0) await insertAdminActivityLog(user, { action_type: 'library_remove_duplicates', page_key: 'library', resource_type: 'content_library', details: { deleted: ids.length } });
+    return Response.json({ deleted: ids.length, ids });
+  }
+  const supabase = getServerSupabase();
+  const { data: all } = await supabase.from('content_library').select('id, name').order('id', { ascending: true });
+  if (!all?.length) return Response.json({ deleted: 0, ids: [] });
+  const seen = new Map<string, string>();
+  const toDelete: string[] = [];
+  for (const row of all as { id: string; name?: string }[]) {
+    const key = String(row.name ?? '').toLowerCase().trim();
+    if (seen.has(key)) toDelete.push(row.id);
+    else seen.set(key, row.id);
+  }
+  for (const id of toDelete) await supabase.from('content_library').delete().eq('id', id);
+  if (toDelete.length > 0) await insertAdminActivityLog(user, { action_type: 'library_remove_duplicates', page_key: 'library', resource_type: 'content_library', details: { deleted: toDelete.length } });
+  return Response.json({ deleted: toDelete.length, ids: toDelete });
+}
+
 /** POST /content-library */
 export async function create(request: NextRequest, user: JwtPayload): Promise<Response> {
   let body: Record<string, unknown> = {};
