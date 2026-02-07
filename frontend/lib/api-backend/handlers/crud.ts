@@ -134,15 +134,25 @@ export async function handleGet(
               business_name = biz.name;
               business_is_active = biz.is_active;
             }
-            const sub = await queryOne<{ plan_id: string }>('SELECT plan_id FROM subscriptions WHERE business_id = $1 AND status = $2 ORDER BY created_at DESC LIMIT 1', [u.business_id, 'active']);
-            if (sub?.plan_id) {
-              const plan = await queryOne<{ display_name: string; max_screens: number }>('SELECT display_name, max_screens FROM plans WHERE id = $1', [sub.plan_id]);
+            const subActive = await queryOne<{ plan_id: string }>('SELECT plan_id FROM subscriptions WHERE business_id = $1 AND status = $2 ORDER BY created_at DESC LIMIT 1', [u.business_id, 'active']);
+            if (subActive?.plan_id) {
+              const plan = await queryOne<{ display_name: string; max_screens: number }>('SELECT display_name, max_screens FROM plans WHERE id = $1', [subActive.plan_id]);
               if (plan) {
                 plan_name = plan.display_name;
                 plan_max_screens = plan.max_screens;
                 subscription_status = 'active';
               }
-            } else if (biz && !business_is_active) subscription_status = 'inactive';
+            } else {
+              const subCanceled = await queryOne<{ plan_id: string }>('SELECT plan_id FROM subscriptions WHERE business_id = $1 AND status = $2 ORDER BY created_at DESC LIMIT 1', [u.business_id, 'canceled']);
+              if (subCanceled?.plan_id) {
+                const plan = await queryOne<{ display_name: string; max_screens: number }>('SELECT display_name, max_screens FROM plans WHERE id = $1', [subCanceled.plan_id]);
+                if (plan) {
+                  plan_name = plan.display_name;
+                  plan_max_screens = plan.max_screens;
+                }
+                subscription_status = 'stopped';
+              } else if (biz && !business_is_active) subscription_status = 'inactive';
+            }
           }
           return { ...u, business_name, business_is_active, plan_name, plan_max_screens, subscription_status };
         })
@@ -235,6 +245,7 @@ export async function handleGet(
     const businessIds = Array.from(new Set(users.map((u) => u.business_id).filter(Boolean))) as string[];
     let bizMap: Record<string, { name: string; is_active: boolean }> = {};
     let subPlanMap: Record<string, { plan_name: string; plan_max_screens: number }> = {};
+    const canceledBiz = new Set<string>();
     if (businessIds.length > 0) {
       const { data: bizList } = await supabase.from('businesses').select('id, name, is_active').in('id', businessIds);
       bizMap = Object.fromEntries((bizList ?? []).map((b: { id: string; name: string; is_active: boolean }) => [b.id, { name: b.name, is_active: b.is_active }]));
@@ -245,21 +256,29 @@ export async function handleGet(
         const { data: planList } = await supabase.from('plans').select('id, display_name, max_screens').in('id', planIds);
         planMap = Object.fromEntries((planList ?? []).map((p: { id: string; display_name: string; max_screens: number }) => [p.id, { display_name: p.display_name, max_screens: p.max_screens }]));
       }
+      const subByBiz: Record<string, { plan_id: string; status: string }> = {};
       for (const s of (subs ?? []) as { business_id: string; plan_id: string; status: string }[]) {
-        if (s.status === 'active' && !subPlanMap[s.business_id]) {
-          const plan = planMap[s.plan_id];
-          subPlanMap[s.business_id] = { plan_name: plan?.display_name ?? '', plan_max_screens: plan?.max_screens ?? 0 };
+        if (!subByBiz[s.business_id]) subByBiz[s.business_id] = s;
+      }
+      for (const [bid, s] of Object.entries(subByBiz)) {
+        const plan = planMap[s.plan_id];
+        const planData = { plan_name: plan?.display_name ?? '', plan_max_screens: plan?.max_screens ?? 0 };
+        if (s.status === 'active') subPlanMap[bid] = planData;
+        else if (s.status === 'canceled' && !subPlanMap[bid]) {
+          subPlanMap[bid] = planData;
+          canceledBiz.add(bid);
         }
       }
     }
     const enriched = users.map((u) => {
       const biz = u.business_id ? bizMap[u.business_id] : null;
       const subPlan = u.business_id ? subPlanMap[u.business_id] : null;
+      const isCanceled = u.business_id ? canceledBiz.has(u.business_id) : false;
       return {
         ...u,
         business_name: biz?.name ?? null,
         business_is_active: biz?.is_active ?? undefined,
-        subscription_status: subPlan ? 'active' : (biz && !biz.is_active ? 'inactive' : null),
+        subscription_status: subPlan ? (isCanceled ? 'stopped' : 'active') : (biz && !biz.is_active ? 'inactive' : null),
         plan_name: subPlan?.plan_name ?? null,
         plan_max_screens: subPlan?.plan_max_screens ?? null,
       };

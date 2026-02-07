@@ -701,13 +701,17 @@ export default function UsersPage() {
                     </td>
                     <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm">
                       {user.business_id ? (
-                        user.business_is_active === false ? (
+                        user.business_is_active === false || user.subscription_status === 'stopped' || user.subscription_status === 'inactive' ? (
                           <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
                             Pasif
                           </span>
-                        ) : (
+                        ) : user.subscription_status === 'active' ? (
                           <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
                             Aktif
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                            -
                           </span>
                         )
                       ) : user.subscription_status ? (
