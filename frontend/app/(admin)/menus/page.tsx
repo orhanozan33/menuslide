@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { apiClient } from '@/lib/api';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 import { useToast } from '@/lib/ToastContext';
+import { useConfirm } from '@/lib/ConfirmContext';
 
 interface Menu {
   id: string;
@@ -158,6 +159,7 @@ export default function MenusPage() {
   const searchParams = useSearchParams();
   const { t, localePath, locale } = useTranslation();
   const toast = useToast();
+  const { confirm } = useConfirm();
   const [menus, setMenus] = useState<Menu[]>([]);
   const [loading, setLoading] = useState(true);
   const [businessId, setBusinessId] = useState<string | null>(null);
@@ -241,7 +243,8 @@ export default function MenusPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm(t('menus_confirm_delete'))) return;
+    const ok = await confirm({ title: 'Menüyü Sil', message: t('menus_confirm_delete') || '', variant: 'danger' });
+    if (!ok) return;
 
     try {
       await apiClient(`/menus/${id}`, { method: 'DELETE' });

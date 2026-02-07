@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { apiClient } from '@/lib/api';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 import { useToast } from '@/lib/ToastContext';
+import { useConfirm } from '@/lib/ConfirmContext';
 import { FRAME_OPTIONS } from '@/components/display/DisplayFrame';
 import { TICKER_STYLES, TICKER_SYMBOLS } from '@/components/display/TickerTape';
 
@@ -61,6 +62,7 @@ export default function ScreensPage() {
   const router = useRouter();
   const { t, localePath } = useTranslation();
   const toast = useToast();
+  const { confirm } = useConfirm();
   const [screens, setScreens] = useState<Screen[]>([]);
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<string | null>(null);
@@ -109,11 +111,12 @@ export default function ScreensPage() {
   };
 
   const searchParams = useSearchParams();
-  
+  const userIdFromUrl = searchParams?.get('user_id') ?? '';
+
   const loadScreens = useCallback(async (skipAutoCreate = false, overrideSelectedUserId?: string) => {
     try {
       const isAdmin = userRole === 'super_admin' || userRole === 'admin';
-      const effectiveSelectedUserId = overrideSelectedUserId !== undefined ? overrideSelectedUserId : selectedUserId;
+      const effectiveSelectedUserId = overrideSelectedUserId !== undefined ? overrideSelectedUserId : (userIdFromUrl || selectedUserId);
       const businessIdFromUrl = searchParams?.get('business_id');
 
       if (isAdmin && !effectiveSelectedUserId && !businessIdFromUrl) {
@@ -179,7 +182,7 @@ export default function ScreensPage() {
     } finally {
       setLoading(false);
     }
-  }, [userRole, selectedUserId, hasCheckedAutoCreate, currentUser]);
+  }, [userRole, selectedUserId, userIdFromUrl, hasCheckedAutoCreate, currentUser]);
 
   // Ref'i güncelle ki selectedUserId değiştiğinde doğru loadScreens çağrılabilsin
   loadScreensRef.current = loadScreens;
@@ -349,10 +352,16 @@ export default function ScreensPage() {
   checkAndCreateScreensRef.current = checkAndCreateScreens;
 
   useEffect(() => {
+    if (userIdFromUrl && selectedUserId !== userIdFromUrl) {
+      setSelectedUserId(userIdFromUrl);
+    }
+  }, [userIdFromUrl]);
+
+  useEffect(() => {
     setHasCheckedAutoCreate(false);
     // Seçilen kullanıcıyı açıkça geçir; böylece her zaman doğru user_id ile istek atılır
-    loadScreensRef.current?.(false, selectedUserId);
-  }, [selectedUserId]);
+    loadScreensRef.current?.(false, selectedUserId || userIdFromUrl);
+  }, [selectedUserId, userIdFromUrl]);
 
   useEffect(() => {
     // currentUser güncellendiğinde ve ekranlar yüklendiyse otomatik ekran oluşturmayı kontrol et
@@ -367,7 +376,8 @@ export default function ScreensPage() {
   }, [currentUser?.business_id, screens.length, loading, hasCheckedAutoCreate, selectedUserId, userRole]);
 
   const handleDelete = async (id: string) => {
-    if (!confirm(t('screens_confirm_delete'))) return;
+    const ok = await confirm({ title: 'Ekranı Sil', message: t('screens_confirm_delete') || '', variant: 'danger', confirmLabel: t('users_yes_delete') || 'Sil' });
+    if (!ok) return;
 
     try {
       await apiClient(`/screens/${id}`, { method: 'DELETE' });
@@ -412,7 +422,8 @@ export default function ScreensPage() {
   };
 
   const handleStopPublishing = async (screenId: string) => {
-    if (!confirm(t('screens_stop_confirm'))) return;
+    const ok = await confirm({ title: 'Yayını Durdur', message: t('screens_stop_confirm') || '', variant: 'default', confirmLabel: t('btn_ok') || 'Tamam' });
+    if (!ok) return;
 
     try {
       await apiClient(`/screens/${screenId}/stop-publishing`, {
@@ -504,7 +515,8 @@ export default function ScreensPage() {
               <button
                 type="button"
                 onClick={async () => {
-                  if (!confirm(t('screens_fix_confirm_all'))) return;
+                  const ok = await confirm({ title: 'TV İsimlerini Düzelt', message: t('screens_fix_confirm_all') || '', variant: 'default' });
+                  if (!ok) return;
                   setFixingNames(true);
                   try {
                     const result = await apiClient('/screens/fix-names', { method: 'POST' });
@@ -530,7 +542,8 @@ export default function ScreensPage() {
                 onClick={async () => {
                   const businessId = users.find((u) => u.id === selectedUserId)?.business_id;
                   if (!businessId) return;
-                  if (!confirm(t('screens_fix_confirm_user'))) return;
+                  const ok = await confirm({ title: 'TV İsimlerini Düzelt', message: t('screens_fix_confirm_user') || '', variant: 'default' });
+                  if (!ok) return;
                   setFixingNames(true);
                   try {
                     const result = await apiClient('/screens/fix-names', {

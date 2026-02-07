@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { apiClient } from '@/lib/api';
 import { useTranslation } from '@/lib/i18n/useTranslation';
+import { useToast } from '@/lib/ToastContext';
+import { useConfirm } from '@/lib/ConfirmContext';
 import { logAdminActivity } from '@/lib/admin-activity';
 import { resolveMediaUrl } from '@/lib/resolveMediaUrl';
 
@@ -517,6 +519,8 @@ function mapApiItemToGridItem(item: any): any {
 
 export default function ContentLibrary({ onSelectContent, initialCategory, compact = false, imageModalLayout = false, showAllTab = false, refreshTrigger }: ContentLibraryProps) {
   const { t } = useTranslation();
+  const toast = useToast();
+  const { confirm } = useConfirm();
   const [activeCategory, setActiveCategory] = useState<string>(initialCategory || (showAllTab ? 'all' : 'food'));
   const [searchQuery, setSearchQuery] = useState('');
   const [userLibrary, setUserLibrary] = useState<any[]>([]);
@@ -700,7 +704,7 @@ export default function ContentLibrary({ onSelectContent, initialCategory, compa
       const file = files[index];
       
       if (!file.type.startsWith('image/')) {
-        alert(`${file.name} bir resim dosyası değil!`);
+        toast.showWarning(`${file.name} bir resim dosyası değil!`);
         loadedCount++;
         if (loadedCount === totalFiles) {
           setIsUploading(false);
@@ -722,7 +726,7 @@ export default function ContentLibrary({ onSelectContent, initialCategory, compa
         const imageUrl = upJson?.assets?.[0]?.src || upJson?.data?.[0]?.src;
         if (!imageUrl) {
           const errMsg = upJson?.error || 'Upload failed';
-          alert(`${file.name}: ${errMsg}. Supabase Storage gerekli.`);
+          toast.showError(`${file.name}: ${errMsg}. Supabase Storage gerekli.`);
           loadedCount++;
           if (loadedCount === totalFiles) {
             setIsUploading(false);
@@ -769,7 +773,7 @@ export default function ContentLibrary({ onSelectContent, initialCategory, compa
         }
       } catch (error) {
         console.error(`Error optimizing ${file.name}:`, error);
-        alert(`${file.name} optimize edilirken hata oluştu!`);
+        toast.showError(`${file.name} optimize edilirken hata oluştu!`);
         loadedCount++;
         if (loadedCount === totalFiles) {
           setIsUploading(false);
@@ -780,8 +784,9 @@ export default function ContentLibrary({ onSelectContent, initialCategory, compa
   };
 
   // Kullanıcı içeriğini sil
-  const handleDeleteUserContent = (id: string) => {
-    if (confirm('Bu resmi silmek istediğinize emin misiniz?')) {
+  const handleDeleteUserContent = async (id: string) => {
+    const ok = await confirm({ title: 'Resmi Sil', message: 'Bu resmi silmek istediğinize emin misiniz?', variant: 'danger' });
+    if (ok) {
       const updatedLibrary = userLibrary.filter(item => item.id !== id);
       saveUserLibrary(updatedLibrary);
     }

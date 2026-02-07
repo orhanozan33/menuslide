@@ -4,6 +4,8 @@ import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 import { useAdminPagePermissions } from '@/lib/useAdminPagePermissions';
+import { useToast } from '@/lib/ToastContext';
+import { useConfirm } from '@/lib/ConfirmContext';
 
 interface RegistrationRequest {
   id: string;
@@ -27,6 +29,8 @@ function isPaid(status: string) {
 export default function RegistrationRequestsPage() {
   const { t, localePath } = useTranslation();
   const router = useRouter();
+  const toast = useToast();
+  const { confirm } = useConfirm();
   const { can, isSuper, hasView } = useAdminPagePermissions('registration_requests');
   const canViewList = hasView || can('view_list');
   const canApprove = isSuper || can('approve');
@@ -86,14 +90,15 @@ export default function RegistrationRequestsPage() {
       if (!res.ok) throw new Error(t('registration_update_failed'));
       await loadRequests();
     } catch (e: any) {
-      alert(e?.message || t('settings_save_failed'));
+      toast.showError(e?.message || t('settings_save_failed'));
     } finally {
       setRequestUpdating(null);
     }
   };
 
   const deleteRequest = async (id: string) => {
-    if (!confirm(t('reg_requests_delete') + '?')) return;
+    const ok = await confirm({ title: t('reg_requests_delete') || 'Sil', message: t('reg_requests_delete') + '?', variant: 'danger' });
+    if (!ok) return;
     setRequestDeleting(id);
     try {
       const token = sessionStorage.getItem('impersonation_token') || localStorage.getItem('auth_token');
@@ -107,7 +112,7 @@ export default function RegistrationRequestsPage() {
       }
       await loadRequests();
     } catch (e: any) {
-      alert(e?.message || t('settings_save_failed'));
+      toast.showError(e?.message || t('settings_save_failed'));
     } finally {
       setRequestDeleting(null);
     }

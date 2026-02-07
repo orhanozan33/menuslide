@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { getServerSupabase } from '@/lib/supabase-server';
 import type { JwtPayload } from '@/lib/auth-server';
-import { useLocalDb, insertLocal, updateLocal, deleteLocal, mirrorToSupabase, queryOne, runLocal } from '@/lib/api-backend/db-local';
+import { useLocalDb, insertLocal, updateLocal, deleteLocal, mirrorToSupabase, queryOne, runLocal, getLocalPg, isSupabaseConfigured } from '@/lib/api-backend/db-local';
 
 /** POST /businesses */
 export async function createBusiness(request: NextRequest, user: JwtPayload): Promise<Response> {
@@ -87,8 +87,82 @@ export async function updateUser(id: string, request: NextRequest, user: JwtPayl
     return Response.json({ message: 'Invalid JSON' }, { status: 400 });
   }
   const adminPerms = body.admin_permissions as Record<string, Record<string, boolean>> | undefined;
+  const planId = body.plan_id as string | undefined;
+  const isActive = body.is_active as boolean | undefined;
+  const businessName = body.business_name as string | undefined;
   const bodyWithoutPerms = { ...body };
   delete bodyWithoutPerms.admin_permissions;
+  delete bodyWithoutPerms.plan_id;
+  delete bodyWithoutPerms.is_active;
+  delete bodyWithoutPerms.business_name;
+
+  const applyPlanAndBusiness = async () => {
+    if (!planId && typeof isActive !== 'boolean' && businessName === undefined) return;
+    const targetUser = useLocalDb()
+      ? await queryOne<{ business_id: string | null }>('SELECT business_id FROM users WHERE id = $1', [id])
+      : (await getServerSupabase().from('users').select('business_id').eq('id', id).maybeSingle()).data as { business_id: string | null } | null;
+    const businessId = targetUser?.business_id;
+    if (!businessId) return;
+    if (useLocalDb()) {
+      if (typeof isActive === 'boolean') {
+        await runLocal('UPDATE businesses SET is_active = $1, updated_at = NOW() WHERE id = $2', [isActive, businessId]);
+        if (isSupabaseConfigured()) {
+          const supabase = getServerSupabase();
+          await supabase.from('businesses').update({ is_active: isActive, updated_at: new Date().toISOString() }).eq('id', businessId);
+        }
+      }
+      if (businessName !== undefined) {
+        await runLocal('UPDATE businesses SET name = $1, updated_at = NOW() WHERE id = $2', [businessName, businessId]);
+        if (isSupabaseConfigured()) {
+          const supabase = getServerSupabase();
+          await supabase.from('businesses').update({ name: businessName, updated_at: new Date().toISOString() }).eq('id', businessId);
+        }
+      }
+      if (planId) {
+        const client = await getLocalPg();
+        const { rows } = await client.query('SELECT id FROM subscriptions WHERE business_id = $1 ORDER BY created_at DESC LIMIT 1', [businessId]);
+        const now = new Date().toISOString();
+        const periodEnd = new Date();
+        periodEnd.setMonth(periodEnd.getMonth() + 1);
+        if (rows.length > 0) {
+          await client.query('UPDATE subscriptions SET plan_id = $1, current_period_end = $2, updated_at = NOW() WHERE id = $3', [planId, periodEnd.toISOString(), rows[0].id]);
+        } else {
+          await client.query(
+            'INSERT INTO subscriptions (business_id, plan_id, status, current_period_start, current_period_end) VALUES ($1, $2, $3, $4, $5)',
+            [businessId, planId, 'active', now, periodEnd.toISOString()]
+          );
+        }
+        if (isSupabaseConfigured()) {
+          const supabase = getServerSupabase();
+          const { data: existing } = await supabase.from('subscriptions').select('id').eq('business_id', businessId).order('created_at', { ascending: false }).limit(1).maybeSingle();
+          if (existing) {
+            await supabase.from('subscriptions').update({ plan_id: planId, current_period_end: periodEnd.toISOString() }).eq('id', existing.id);
+          } else {
+            await supabase.from('subscriptions').insert({ business_id: businessId, plan_id: planId, status: 'active', current_period_start: now, current_period_end: periodEnd.toISOString() });
+          }
+        }
+      }
+    } else {
+      const supabase = getServerSupabase();
+      if (typeof isActive === 'boolean') {
+        await supabase.from('businesses').update({ is_active: isActive, updated_at: new Date().toISOString() }).eq('id', businessId);
+      }
+      if (businessName !== undefined) {
+        await supabase.from('businesses').update({ name: businessName, updated_at: new Date().toISOString() }).eq('id', businessId);
+      }
+      if (planId) {
+        const { data: existing } = await supabase.from('subscriptions').select('id').eq('business_id', businessId).order('created_at', { ascending: false }).limit(1).maybeSingle();
+        const now = new Date().toISOString();
+        const periodEnd = new Date();
+        periodEnd.setMonth(periodEnd.getMonth() + 1);
+        if (existing) {
+          await supabase.from('subscriptions').update({ plan_id: planId, current_period_end: periodEnd.toISOString() }).eq('id', existing.id);
+        } else {
+          await supabase.from('subscriptions').insert({ business_id: businessId, plan_id: planId, status: 'active', current_period_start: now, current_period_end: periodEnd.toISOString() });
+        }
+      }
+    }
+  };
 
   const applyAdminPermissions = async (supabaseOrLocal: 'supabase' | 'local') => {
     if (!adminPerms || typeof adminPerms !== 'object') return;
@@ -138,6 +212,7 @@ export async function updateUser(id: string, request: NextRequest, user: JwtPayl
     const data = await updateLocal('users', id, bodyWithoutPerms);
     if (!data) return Response.json({ message: 'Not found' }, { status: 404 });
     await applyAdminPermissions('local');
+    await applyPlanAndBusiness();
     await mirrorToSupabase('users', 'update', { id, row: { ...bodyWithoutPerms, id } });
     return Response.json(data);
   }
@@ -147,6 +222,7 @@ export async function updateUser(id: string, request: NextRequest, user: JwtPayl
     if (error) return Response.json({ message: error.message }, { status: 500 });
   }
   await applyAdminPermissions('supabase');
+  await applyPlanAndBusiness();
   const { data: updated } = await supabase.from('users').select('*').eq('id', id).single();
   return Response.json(updated ?? { message: 'Not found' }, { status: updated ? 200 : 404 });
 }

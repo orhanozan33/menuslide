@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { apiClient } from '@/lib/api';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 import { useToast } from '@/lib/ToastContext';
+import { useConfirm } from '@/lib/ConfirmContext';
 
 interface MenuItem {
   id: string;
@@ -22,6 +23,7 @@ export default function MenuDetailPage() {
   const params = useParams();
   const { t, localePath } = useTranslation();
   const toast = useToast();
+  const { confirm } = useConfirm();
   const menuId = (params?.id ?? '') as string;
 
   const [menu, setMenu] = useState<any>(null);
@@ -55,7 +57,8 @@ export default function MenuDetailPage() {
   };
 
   const handleDeleteItem = async (itemId: string) => {
-    if (!confirm(t('menus_confirm_delete_item'))) return;
+    const ok = await confirm({ title: 'Menü öğesini Sil', message: t('menus_confirm_delete_item') || '', variant: 'danger' });
+    if (!ok) return;
 
     try {
       await apiClient(`/menu-items/${itemId}`, { method: 'DELETE' });

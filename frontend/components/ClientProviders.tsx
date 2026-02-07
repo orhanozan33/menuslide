@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { I18nProvider } from '@/lib/i18n/useTranslation';
 import { ToastProvider } from '@/lib/ToastContext';
+import { ConfirmProvider } from '@/lib/ConfirmContext';
 import { LocaleProvider } from '@/components/LocaleProvider';
 
 export function ClientProviders({ children }: { children: React.ReactNode }) {
@@ -17,7 +18,9 @@ export function ClientProviders({ children }: { children: React.ReactNode }) {
   return (
     <I18nProvider>
       <LocaleProvider>
-        <ToastProvider>{children}</ToastProvider>
+        <ToastProvider>
+          <ConfirmProvider>{children}</ConfirmProvider>
+        </ToastProvider>
       </LocaleProvider>
     </I18nProvider>
   );

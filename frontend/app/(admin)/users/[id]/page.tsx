@@ -297,12 +297,12 @@ export default function EditUserPage() {
         body: JSON.stringify({ user_id: userId }),
       });
       if (!data?.token || !data?.user) {
-        alert('Kullanıcı adına giriş yapılamadı');
+        toast.showError('Kullanıcı adına giriş yapılamadı');
         return;
       }
       const win = window.open(localePath('/as-user'), '_blank', 'width=1400,height=900');
       if (!win) {
-        alert('Pencere açılamadı. Pop-up engelleyicisini kapatıp tekrar deneyin.');
+        toast.showError('Pencere açılamadı. Pop-up engelleyicisini kapatıp tekrar deneyin.');
         return;
       }
       (window as any).__pendingImpersonate = { token: data.token, user: data.user };
@@ -322,7 +322,7 @@ export default function EditUserPage() {
         }
       }, 10000);
     } catch (err: any) {
-      alert(err.message || 'Kullanıcı adına giriş yapılamadı');
+      toast.showError(err.message || 'Kullanıcı adına giriş yapılamadı');
     } finally {
       setKullaniciYonetLoading(false);
     }
@@ -337,7 +337,8 @@ export default function EditUserPage() {
         method: 'DELETE',
       });
 
-      alert('Kullanıcı başarıyla silindi');
+      toast.showSuccess(t('users_delete_success'));
+      setShowDeleteModal(false);
       router.push(localePath('/users'));
     } catch (err: any) {
       console.error('Delete user error:', err);
@@ -639,6 +640,14 @@ export default function EditUserPage() {
               {user.plan_max_screens != null && user.plan_max_screens !== -1 && (
                 <p className="text-xs text-gray-500 mt-1">Plan limiti: {user.plan_max_screens} ekran</p>
               )}
+              {formData.business_id && (
+                <Link
+                  href={localePath(`/screens?user_id=${userId}`)}
+                  className="inline-flex items-center gap-1 mt-2 text-sm font-medium text-blue-600 hover:text-blue-800"
+                >
+                  Ekran ata / yönet →
+                </Link>
+              )}
             </div>
             <div className="bg-white p-4 rounded-xl shadow-md border border-gray-100">
               <h3 className="text-sm font-semibold text-gray-600 mb-2">Template'ler</h3>
@@ -729,7 +738,7 @@ export default function EditUserPage() {
               {formData.business_id && (
                 <div>
                   <label className="block text-sm font-semibold text-gray-800 mb-2">
-                    Ekran Sayısı
+                    Ekran Sayısı (plan limiti)
                   </label>
                   <div className="flex items-center gap-3 flex-wrap">
                     <input
@@ -756,7 +765,7 @@ export default function EditUserPage() {
                       <span className="text-sm text-gray-700">Sınırsız</span>
                     </label>
                   </div>
-                  <p className="text-xs text-gray-500 mt-1.5">0-99 ekran girin veya sınırsız işaretleyin</p>
+                  <p className="text-xs text-gray-500 mt-1.5">Plan limiti (0-99 veya sınırsız). Ekran atamak için <Link href={localePath(`/screens?user_id=${userId}`)} className="text-blue-600 hover:underline font-medium">Ekranlar</Link> sayfasına gidin.</p>
                 </div>
               )}
             </div>
@@ -965,21 +974,24 @@ export default function EditUserPage() {
 
       {/* Delete Confirmation Modal */}
       {showDeleteModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
-            <h3 className="text-xl font-bold text-gray-900 mb-4">{t('users_delete_confirm')}</h3>
-            <p className="text-gray-700 mb-6">
-              <strong>{user?.email}</strong> adlı kullanıcıyı silmek istediğinizden emin misiniz?
-            </p>
-            <p className="text-sm text-red-600 mb-6">
-              ⚠️ {t('users_delete_warning')}
-            </p>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-md w-full border border-slate-200 dark:border-slate-600 overflow-hidden">
+            <div className="p-6">
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3">{t('users_delete_confirm')}</h3>
+              <p className="text-gray-700 dark:text-slate-300 mb-2">
+                <strong>{user?.email}</strong> adlı kullanıcıyı silmek istediğinizden emin misiniz?
+              </p>
+              <p className="text-sm text-red-600 dark:text-red-400 flex items-start gap-2 mb-4">
+                <span>⚠</span>
+                {t('users_delete_warning')}
+              </p>
             {error && (
-              <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+              <div className="mb-4 p-3 bg-red-100 dark:bg-red-900/30 border border-red-400 text-red-700 dark:text-red-300 rounded-xl text-sm">
                 {error}
               </div>
             )}
-            <div className="flex items-center gap-4 justify-end">
+            </div>
+            <div className="flex gap-3 justify-end px-6 pb-6">
               <button
                 type="button"
                 onClick={() => {
@@ -987,7 +999,7 @@ export default function EditUserPage() {
                   setError('');
                 }}
                 disabled={deleting}
-                className="px-6 py-2.5 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors font-semibold disabled:opacity-50"
+                className="px-4 py-2.5 rounded-xl bg-slate-200 dark:bg-slate-600 text-slate-800 dark:text-white hover:bg-slate-300 dark:hover:bg-slate-500 font-medium text-sm disabled:opacity-50 transition-colors"
               >
                 {t('btn_cancel')}
               </button>
@@ -995,7 +1007,7 @@ export default function EditUserPage() {
                 type="button"
                 onClick={handleDelete}
                 disabled={deleting}
-                className="px-6 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors font-semibold shadow-md hover:shadow-lg"
+                className="px-4 py-2.5 rounded-xl bg-red-600 text-white hover:bg-red-700 font-medium text-sm disabled:opacity-50 transition-colors"
               >
                 {deleting ? t('users_deleting') : t('users_yes_delete')}
               </button>
