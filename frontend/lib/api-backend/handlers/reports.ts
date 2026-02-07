@@ -125,7 +125,7 @@ export async function getStats(request: NextRequest, user: JwtPayload): Promise<
   const { data: usersWithBiz } = await supabase.from('users').select('id, business_id').eq('role', 'business_user');
   const usersWithSubscription = (usersWithBiz ?? []).filter((u: { business_id?: string }) => u.business_id && activeBizSet.has(u.business_id)).length;
   const usersWithoutSubscription = (usersWithBiz ?? []).length - usersWithSubscription;
-  const businessesWithSubscription = [...activeBizIds].filter((id) => activeBizSet.has(id)).length;
+  const businessesWithSubscription = Array.from(activeBizIds).filter((id) => activeBizSet.has(id)).length;
   const businessesWithoutSubscription = Math.max(0, totalBusinesses - businessesWithSubscription);
 
   return Response.json({
