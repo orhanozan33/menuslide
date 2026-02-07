@@ -659,7 +659,7 @@ export default function CanvasDesignEditor({ templateId }: CanvasDesignEditorPro
   /** Blok layout'ta seçili blok (resim eklerken bu bloğa eklenir) — null = otomatik */
   const [selectedBlockIndex, setSelectedBlockIndex] = useState<number | null>(null);
   const [showFullScreenPreview, setShowFullScreenPreview] = useState(false);
-  const [users, setUsers] = useState<{ id: string; email: string; business_name?: string }[]>([]);
+  const [users, setUsers] = useState<{ id: string; email: string; business_name?: string; role?: string; business_id?: string }[]>([]);
   const [saveAsLoading, setSaveAsLoading] = useState(false);
   const [saveAsDisplayName, setSaveAsDisplayName] = useState('');
   const [saveAsSelectedUserId, setSaveAsSelectedUserId] = useState('');

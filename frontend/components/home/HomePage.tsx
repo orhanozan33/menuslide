@@ -64,7 +64,7 @@ function TVFrame({
       onClick={onClick}
     >
       <div className="relative w-full max-w-[280px] sm:max-w-sm transition-transform duration-300 group-hover:scale-[1.02] group-active:scale-[0.99]">
-        <div className="relative rounded-xl overflow-hidden bg-[#1a1a2e] border-[10px] border-[#2d2d44] shadow-2xl" style={{ aspectRatio: '16/10' }}>
+        <div className="relative rounded-xl overflow-hidden bg-[#1a1a2e] border-[10px] border-black shadow-2xl" style={{ aspectRatio: '16/10' }}>
           <div className="absolute inset-0 p-2">
             {showIframe ? (
               <iframe
@@ -117,7 +117,7 @@ export function HomePage({ localePath }: HomePageProps) {
     fetch('/api/home-channels', { cache: 'no-store' })
       .then((res) => res.json())
       .then((data: unknown) => {
-        const list = Array.isArray(data) ? data : HOME_CHANNELS;
+        const list = Array.isArray(data) && data.length > 0 ? data : HOME_CHANNELS;
         // Canlıda localhost linklerini kullanma: sadece path kalsın (getPreviewUrl zaten origin kullanır)
         setChannels(
           list.map((c: HomeChannel) => {
