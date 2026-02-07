@@ -58,7 +58,6 @@ function TVFrame({
 
   const showIframe = inView && previewUrl && !loadFailed;
 
-  // Yayın yok / yüklenemedi: her zaman TV çerçevesi görünür, içeride placeholder
   const placeholderText = loadFailed ? (loadFailedLabel ?? noBroadcastLabel) : (noBroadcastLabel ?? loadFailedLabel);
 
   return (
@@ -68,15 +67,25 @@ function TVFrame({
       onClick={onClick}
     >
       <div className="relative w-full max-w-[280px] sm:max-w-sm transition-transform duration-300 group-hover:scale-[1.02] group-active:scale-[0.99]">
-        {/* Modern LCD TV — ince çerçeve, düz ekran */}
+        {/* Sony BRAVIA-style TV — ultra-slim bezel, premium metallic frame */}
         <div
-          className="relative overflow-hidden rounded-sm shadow-[0_8px_32px_rgba(0,0,0,0.4),0_0_0_1px_rgba(255,255,255,0.06)]"
-          style={{ aspectRatio: '16/9' }}
+          className="relative overflow-hidden rounded-[4px]"
+          style={{
+            aspectRatio: '16/9',
+            boxShadow:
+              '0 0 0 1px rgba(255,255,255,0.04), 0 4px 6px -1px rgba(0,0,0,0.3), 0 10px 24px -4px rgba(0,0,0,0.4), 0 24px 48px -12px rgba(0,0,0,0.5)',
+          }}
         >
-          {/* LCD çerçeve — ince metalik kenar */}
-          <div className="absolute inset-0 rounded-sm border-[3px] border-zinc-600/80 bg-zinc-800/40" />
-          {/* Ekran alanı — çerçeve içinde */}
-          <div className="absolute inset-[6px] rounded-[2px] overflow-hidden bg-black">
+          {/* Ultra-slim bezel — charcoal aluminum look */}
+          <div
+            className="absolute inset-0 rounded-[4px]"
+            style={{
+              background: 'linear-gradient(145deg, #2a2d32 0%, #1c1e22 50%, #25282d 100%)',
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), inset 0 -1px 0 rgba(0,0,0,0.3)',
+            }}
+          />
+          {/* Screen area — minimal inset for frameless feel */}
+          <div className="absolute inset-[4px] rounded-[2px] overflow-hidden bg-black">
             {showIframe ? (
               <iframe
                 src={previewUrl}
@@ -100,14 +109,30 @@ function TVFrame({
               </div>
             )}
           </div>
-          <div className="absolute inset-0 pointer-events-none rounded-sm group-hover:ring-2 group-hover:ring-white/20 transition-all" />
+          {/* Subtle screen reflection on bottom bezel */}
+          <div
+            className="absolute bottom-0 left-[15%] right-[15%] h-[3px] rounded-b-[2px] pointer-events-none opacity-40"
+            style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent)' }}
+          />
+          <div className="absolute inset-0 pointer-events-none rounded-[4px] group-hover:ring-2 group-hover:ring-white/15 transition-all" />
         </div>
-        {/* Modern LCD stand — merkezi pedastal */}
-        <div className="flex justify-center -mt-1">
-          <div className="w-1/4 min-w-[50px] h-4 bg-gradient-to-b from-zinc-600 to-zinc-800 rounded-b-md shadow-inner" />
+        {/* Standing pedestal — Sony "slice" style, wide base */}
+        <div className="flex justify-center -mt-0.5">
+          <div
+            className="relative w-[55%] min-w-[70px] h-8 rounded-b-lg"
+            style={{
+              background: 'linear-gradient(180deg, #2a2d32 0%, #1a1c20 40%, #15171a 100%)',
+              boxShadow: 'inset 0 2px 4px rgba(255,255,255,0.03), 0 4px 12px rgba(0,0,0,0.4)',
+            }}
+          >
+            <div
+              className="absolute inset-x-2 top-0 h-1 rounded-full opacity-60"
+              style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent)' }}
+            />
+          </div>
         </div>
-        {/* TV etiketi / taban */}
-        <div className="mt-1 text-center">
+        {/* Channel label */}
+        <div className="mt-2 text-center">
           <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">{title}</span>
         </div>
       </div>
