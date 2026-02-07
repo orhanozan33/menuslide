@@ -450,6 +450,17 @@ async function stopAllScreensForBusiness(businessId: string): Promise<void> {
        FROM screens s WHERE s.business_id = $1 AND str.screen_id = s.id`,
       [businessId]
     );
+    // TV display Supabase'den veri aldığı için ekranları Supabase'de de kilitliyoruz
+    if (isSupabaseConfigured()) {
+      const supabase = getServerSupabase();
+      const { data: screens } = await supabase.from('screens').select('id').eq('business_id', businessId);
+      if (screens?.length) {
+        await supabase.from('screens').update({ is_active: false }).eq('business_id', businessId);
+        for (const s of screens) {
+          await supabase.from('screen_template_rotations').update({ is_active: false }).eq('screen_id', s.id);
+        }
+      }
+    }
   } else {
     const supabase = getServerSupabase();
     const { data: screens } = await supabase.from('screens').select('id').eq('business_id', businessId);

@@ -298,7 +298,13 @@ export async function handleWebhook(rawBody: string | ArrayBuffer, signature: st
       const { data: sub } = await supabase.from('subscriptions').select('business_id').eq('stripe_subscription_id', subscription.id).maybeSingle();
       await supabase.from('subscriptions').update({ status: 'canceled' }).eq('stripe_subscription_id', subscription.id);
       if (sub?.business_id) {
+        const { data: screens } = await supabase.from('screens').select('id').eq('business_id', sub.business_id);
         await supabase.from('screens').update({ is_active: false }).eq('business_id', sub.business_id);
+        if (screens?.length) {
+          for (const s of screens) {
+            await supabase.from('screen_template_rotations').update({ is_active: false }).eq('screen_id', s.id);
+          }
+        }
       }
       break;
     }
@@ -339,7 +345,13 @@ export async function handleWebhook(rawBody: string | ArrayBuffer, signature: st
         attempted_at: new Date((invoice.created ?? Math.floor(Date.now() / 1000)) * 1000).toISOString(),
       });
       if (sub.business_id) {
+        const { data: screens } = await supabase.from('screens').select('id').eq('business_id', sub.business_id);
         await supabase.from('screens').update({ is_active: false }).eq('business_id', sub.business_id);
+        if (screens?.length) {
+          for (const s of screens) {
+            await supabase.from('screen_template_rotations').update({ is_active: false }).eq('screen_id', s.id);
+          }
+        }
       }
       break;
     }
