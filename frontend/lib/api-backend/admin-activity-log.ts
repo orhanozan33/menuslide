@@ -1,7 +1,9 @@
 /**
  * Admin hareket günlüğü - backend handler'lardan çağrılır.
  * Sadece admin/super_admin kullanıcılar için kayıt ekler.
+ * IP ve User-Agent headers'dan alınır (giriş/oturum takibi).
  */
+import { headers } from 'next/headers';
 import type { JwtPayload } from '@/lib/auth-server';
 import { getServerSupabase } from '@/lib/supabase-server';
 import { useLocalDb, insertLocal, queryLocal } from '@/lib/api-backend/db-local';
@@ -14,9 +16,22 @@ export type AdminActivityPayload = {
   details?: Record<string, unknown>;
 };
 
+async function getRequestMeta(): Promise<{ ip_address: string | null; user_agent: string | null }> {
+  try {
+    const h = await headers();
+    if (!h) return { ip_address: null, user_agent: null };
+    const ip = (h.get('x-forwarded-for') || h.get('x-real-ip') || '').split(',')[0]?.trim() || null;
+    const ua = h.get('user-agent') || null;
+    return { ip_address: ip || null, user_agent: ua };
+  } catch {
+    return { ip_address: null, user_agent: null };
+  }
+}
+
 export async function insertAdminActivityLog(user: JwtPayload, payload: AdminActivityPayload): Promise<void> {
   if (user.role !== 'super_admin' && user.role !== 'admin') return;
   try {
+    const meta = await getRequestMeta();
     const row = {
       user_id: user.userId,
       action_type: payload.action_type ?? 'view',
@@ -24,6 +39,8 @@ export async function insertAdminActivityLog(user: JwtPayload, payload: AdminAct
       resource_type: payload.resource_type ?? null,
       resource_id: payload.resource_id ?? null,
       details: payload.details ?? null,
+      ip_address: meta.ip_address,
+      user_agent: meta.user_agent,
     };
     if (useLocalDb()) {
       const tableExists = await queryLocal(

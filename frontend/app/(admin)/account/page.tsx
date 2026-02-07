@@ -348,9 +348,10 @@ export default function AccountPage() {
         )}
       </section>
 
-      {/* Past payments */}
+      {/* Faturalarım */}
       <section className="bg-white rounded-lg border border-slate-200 shadow-sm p-6">
-        <h2 className="text-lg font-medium text-slate-800 mb-4">{t('account_past_payments')}</h2>
+        <h2 className="text-lg font-medium text-slate-800 mb-2">{t('account_my_invoices') || 'Faturalarım'}</h2>
+        <p className="text-sm text-slate-600 mb-4">{t('account_past_payments')}</p>
         <div className="flex flex-wrap items-end gap-3 mb-4">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">{t('account_date_from')}</label>
@@ -458,7 +459,10 @@ export default function AccountPage() {
                       {invoiceModal.company.footer_tax_id && <div>{invoiceModal.company.footer_tax_id}</div>}
                     </div>
                   )}
-                  <div className="mt-6 flex justify-end">
+                  <div className="mt-6 flex gap-2 justify-end">
+                    <button type="button" onClick={() => window.print()} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                      {t('invoice_download') || 'Yazdır / PDF indir'}
+                    </button>
                     <button type="button" onClick={() => setInvoiceModal(null)} className="px-4 py-2 bg-slate-200 text-slate-800 rounded-lg hover:bg-slate-300">
                       {t('btn_close')}
                     </button>

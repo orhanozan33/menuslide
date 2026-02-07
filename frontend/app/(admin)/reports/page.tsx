@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 import { useToast } from '@/lib/ToastContext';
 import { apiClient } from '@/lib/api';
+import { ACTIVITY_PAGE_LABELS, ACTIVITY_ACTION_LABELS, formatActivityDetail } from '@/lib/admin-activity-labels';
 import { useReportsPermissions } from '@/lib/AdminUserContext';
 import { useConfirm } from '@/lib/ConfirmContext';
 
@@ -12,6 +13,7 @@ interface Stats {
   totalUsers: number;
   totalBusinesses: number;
   totalScreens: number;
+  screensStopped?: number;
   newUsers7d: number;
   newUsers30d: number;
   activeSubscriptions: number;
@@ -76,7 +78,7 @@ interface UserDetailReport {
     price_monthly?: number | null;
     price_yearly?: number | null;
   } | null;
-  payments: { id: string; amount: number; currency: string; payment_date: string; status: string }[];
+  payments: { id: string; amount: number; currency: string; payment_date: string; status: string; invoice_number?: string }[];
   payment_failures: { id: string; amount: number; currency: string; failure_reason: string | null; attempted_at: string }[];
   referred_users?: { id: string; email: string; business_name: string | null; created_at: string; reference_number?: string | null }[];
 }
@@ -92,43 +94,7 @@ function getDefaultDateRange() {
 
 const localeMap: Record<string, string> = { en: 'en-US', tr: 'tr-TR', fr: 'fr-FR' };
 
-const ACTIVITY_PAGE_LABELS: Record<string, string> = {
-  editor: 'Editör',
-  library: 'İçerik Kütüphanesi',
-  menus: 'Menüler',
-  templates: 'Şablonlar',
-  screens: 'Ekranlar',
-  users: 'Kullanıcılar',
-  reports: 'Raporlar',
-  'registration_requests': 'Kayıt Talepleri',
-  'user-uploads': 'Yüklemeler',
-  settings: 'Ayarlar',
-  stripe: 'Ödeme Ayarları',
-};
 
-const ACTIVITY_ACTION_LABELS: Record<string, string> = {
-  template_save: 'Şablon kaydedildi',
-  template_create: 'Şablon oluşturuldu',
-  template_delete: 'Şablon silindi',
-  image_add: 'Resim eklendi',
-  image_edit: 'Resim düzenlendi',
-  block_add: 'Blok eklendi',
-  block_remove: 'Blok kaldırıldı',
-  menu_create: 'Menü oluşturuldu',
-  menu_update: 'Menü güncellendi',
-  menu_item_add: 'Menü öğesi eklendi',
-  menu_item_edit: 'Menü öğesi düzenlendi',
-  menu_item_delete: 'Menü öğesi silindi',
-  screen_create: 'Ekran oluşturuldu',
-  screen_update: 'Ekran güncellendi',
-  library_select: 'Kütüphaneden içerik seçildi',
-  library_upload: 'Kütüphaneye yükleme',
-  library_update: 'Kütüphane içeriği güncellendi',
-  library_delete: 'Kütüphane içeriği silindi',
-  library_remove_duplicates: 'Aynı isimdeki tekrarlar silindi',
-  user_create: 'Kullanıcı oluşturuldu',
-  user_edit: 'Kullanıcı düzenlendi',
-};
 
 export default function ReportsPage() {
   const { t, localePath, locale } = useTranslation();
@@ -155,8 +121,9 @@ export default function ReportsPage() {
     error: null,
   });
   const [markPaidLoading, setMarkPaidLoading] = useState<string | null>(null);
+  const [adminInvoiceModal, setAdminInvoiceModal] = useState<{ userId: string; data: Record<string, unknown> | null; loading: boolean }>({ userId: '', data: null, loading: false });
 
-  const [activityLog, setActivityLog] = useState<{ id: string; user_id: string; user_email: string; action_type: string; page_key: string; resource_type?: string; resource_id?: string; details?: Record<string, unknown>; created_at: string }[]>([]);
+  const [activityLog, setActivityLog] = useState<{ id: string; user_id: string; user_email: string; action_type: string; page_key: string; resource_type?: string; resource_id?: string; details?: Record<string, unknown>; created_at: string; ip_address?: string | null; user_agent?: string | null }[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
   const [activityUsers, setActivityUsers] = useState<{ id: string; email: string }[]>([]);
   const getActivityDefaultFrom = () => {
@@ -333,6 +300,7 @@ export default function ReportsPage() {
       const msg = label ? `${label}: ${t('reports_mark_paid_success')}` : t('reports_mark_paid_success');
       toast.showSuccess(msg);
       await loadData();
+      if (userDetailModal.open && userDetailModal.userId) openUserDetail(userDetailModal.userId);
     } catch (e: any) {
       console.error('Mark paid error:', e);
       setError(e?.message || t('reports_mark_paid_failed'));
@@ -341,6 +309,19 @@ export default function ReportsPage() {
       setMarkPaidLoading(null);
     }
   };
+
+  const openAdminInvoice = async (userId: string, paymentId: string) => {
+    setAdminInvoiceModal({ userId, data: null, loading: true });
+    try {
+      const inv = await apiClient(`/reports/user/${userId}/invoice/${paymentId}`);
+      setAdminInvoiceModal({ userId, data: inv as Record<string, unknown>, loading: false });
+    } catch (e) {
+      console.error('Invoice load error:', e);
+      toast.showError(t('common_error'));
+      setAdminInvoiceModal((prev) => ({ ...prev, data: null, loading: false }));
+    }
+  };
+
 
   return (
     <div className="min-w-0 overflow-x-hidden">
@@ -399,6 +380,11 @@ export default function ReportsPage() {
               <div className="text-xs font-medium text-gray-500">{t('reports_total_screens')}</div>
               <div className="text-lg font-bold text-blue-600">{stats?.totalScreens ?? 0}</div>
               <p className="text-[10px] text-gray-400 mt-0.5">{t('reports_total_screens_hint')}</p>
+            </div>
+            <div className="bg-slate-50 rounded-lg border border-slate-200 p-3">
+              <div className="text-xs font-medium text-slate-600">{t('reports_screens_stopped')}</div>
+              <div className="text-lg font-bold text-slate-700">{stats?.screensStopped ?? 0}</div>
+              <p className="text-[10px] text-slate-500 mt-0.5">{t('reports_screens_stopped_hint')}</p>
             </div>
             <div className="bg-white rounded-lg border border-gray-100 p-3">
               <div className="text-xs font-medium text-gray-500">{t('reports_total_businesses')}</div>
@@ -697,7 +683,7 @@ export default function ReportsPage() {
             ) : activityLoading ? (
               <div className="p-8 text-center text-gray-500 text-sm">Yükleniyor...</div>
             ) : (
-              <table className="w-full text-sm min-w-[640px]">
+              <table className="w-full text-sm min-w-[720px]">
                 <thead className="bg-slate-50 sticky top-0">
                   <tr>
                     <th className="px-4 py-2 text-left font-semibold text-gray-600">Tarih / Saat</th>
@@ -705,6 +691,7 @@ export default function ReportsPage() {
                     <th className="px-4 py-2 text-left font-semibold text-gray-600">Sayfa</th>
                     <th className="px-4 py-2 text-left font-semibold text-gray-600">İşlem</th>
                     <th className="px-4 py-2 text-left font-semibold text-gray-600">Detay</th>
+                    <th className="px-4 py-2 text-left font-semibold text-gray-600">Giriş bilgisi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -714,8 +701,12 @@ export default function ReportsPage() {
                       <td className="px-4 py-2 text-gray-900 font-medium">{row.user_email}</td>
                       <td className="px-4 py-2 text-gray-700">{ACTIVITY_PAGE_LABELS[row.page_key] ?? row.page_key}</td>
                       <td className="px-4 py-2 text-gray-700">{ACTIVITY_ACTION_LABELS[row.action_type] ?? row.action_type}</td>
-                      <td className="px-4 py-2 text-gray-500 text-xs max-w-[200px] truncate" title={row.details ? JSON.stringify(row.details) : ''}>
-                        {row.details?.name ? String(row.details.name) : row.resource_type ? `${row.resource_type}${row.resource_id ? ` #${String(row.resource_id).slice(0, 8)}` : ''}` : '-'}
+                      <td className="px-4 py-2 text-gray-600 text-xs max-w-[220px]" title={row.details ? JSON.stringify(row.details) : ''}>
+                        {formatActivityDetail(row)}
+                      </td>
+                      <td className="px-4 py-2 text-gray-500 text-xs max-w-[180px]" title={row.user_agent || ''}>
+                        {row.ip_address ? <span className="font-mono">{row.ip_address}</span> : '-'}
+                        {row.user_agent && <div className="truncate mt-0.5 text-gray-400">{String(row.user_agent).slice(0, 50)}…</div>}
                       </td>
                     </tr>
                   ))}
@@ -994,9 +985,21 @@ export default function ReportsPage() {
                           <div className="p-5 text-sm text-slate-500 text-center">{t('reports_no_payments_history')}</div>
                         ) : (
                           (userDetailModal.data.payments ?? []).map((p) => (
-                            <div key={p.id} className="px-4 py-3 flex justify-between items-center text-sm border-b border-slate-50 last:border-0">
-                              <span className="text-slate-600">{formatDateShort(p.payment_date)}</span>
-                              <span className="font-semibold text-slate-900">{formatCurrency(p.amount)}</span>
+                            <div key={p.id} className="px-4 py-3 flex justify-between items-center text-sm border-b border-slate-50 last:border-0 gap-2">
+                              <div className="flex-1 min-w-0">
+                                <span className="text-slate-600">{formatDateShort(p.payment_date)}</span>
+                                <span className="font-semibold text-slate-900 ml-2">{formatCurrency(p.amount)}</span>
+                                {p.invoice_number && <span className="text-xs text-slate-400 ml-2 font-mono">{p.invoice_number}</span>}
+                              </div>
+                              <div className="flex gap-1 flex-shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => openAdminInvoice(userDetailModal.userId, p.id)}
+                                  className="px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50 rounded"
+                                >
+                                  {t('account_view_invoice')}
+                                </button>
+                              </div>
                             </div>
                           ))
                         )}
@@ -1032,6 +1035,61 @@ export default function ReportsPage() {
                 <div className="py-12 text-center text-gray-500">{t('common_error')}</div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Admin fatura görüntüleme modalı */}
+      {(adminInvoiceModal.loading || adminInvoiceModal.data) && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"
+          onClick={() => !adminInvoiceModal.loading && setAdminInvoiceModal({ userId: '', data: null, loading: false })}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {adminInvoiceModal.loading ? (
+              <div className="py-8 text-center text-slate-600">{t('settings_loading')}</div>
+            ) : adminInvoiceModal.data ? (
+              <>
+                <h3 className="text-lg font-semibold text-slate-900 mb-4">{t('invoice_title')}</h3>
+                {adminInvoiceModal.data.company && (
+                  <div className="mb-4 p-3 bg-slate-50 rounded-lg text-sm">
+                    <div className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">{t('invoice_from')}</div>
+                    <div className="font-medium text-slate-800">{(adminInvoiceModal.data.company as Record<string, string>).company_name}</div>
+                    {(adminInvoiceModal.data.company as Record<string, string>).company_address && <div className="text-slate-600 text-sm">{(adminInvoiceModal.data.company as Record<string, string>).company_address}</div>}
+                  </div>
+                )}
+                <dl className="space-y-2 text-sm">
+                  <div><dt className="text-slate-500">{t('invoice_number')}</dt><dd className="font-medium text-slate-800">{String(adminInvoiceModal.data.invoice_number ?? '-')}</dd></div>
+                  <div><dt className="text-slate-500">{t('invoice_date')}</dt><dd className="text-slate-800">{formatDateShort(adminInvoiceModal.data.payment_date)}</dd></div>
+                  <div><dt className="text-slate-500 font-medium">{t('invoice_bill_to')}</dt><dd className="text-slate-800 mt-1">{String(adminInvoiceModal.data.business_name ?? '—')}</dd></div>
+                  {adminInvoiceModal.data.customer_email && <dd className="text-slate-600 text-xs">{String(adminInvoiceModal.data.customer_email)}</dd>}
+                  <div><dt className="text-slate-500">{t('invoice_plan')}</dt><dd className="text-slate-800">{String(adminInvoiceModal.data.plan_name ?? '—')}</dd></div>
+                  <div><dt className="text-slate-500">{t('invoice_amount')}</dt><dd className="text-slate-800 font-semibold">{Number(adminInvoiceModal.data.amount ?? 0).toFixed(2)} {(String(adminInvoiceModal.data.currency || 'cad')).toUpperCase()}</dd></div>
+                  <div><dt className="text-slate-500">{t('invoice_status')}</dt><dd className="capitalize text-slate-800">{String(adminInvoiceModal.data.status ?? '—')}</dd></div>
+                </dl>
+                <div className="flex gap-2 mt-6">
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+                  >
+                    {t('invoice_download') || 'Yazdır / PDF indir'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAdminInvoiceModal({ userId: '', data: null, loading: false })}
+                    className="px-4 py-2 bg-slate-200 text-slate-800 rounded-lg hover:bg-slate-300 text-sm"
+                  >
+                    {t('common_close')}
+                  </button>
+                </div>
+              </>
+            ) : null}
           </div>
         </div>
       )}

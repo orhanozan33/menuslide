@@ -143,7 +143,10 @@ export async function handleLocal(
     if (sub === 'payment-status') return reportsHandlers.getPaymentStatus(user);
     if (sub === 'activity-users') return reportsHandlers.getActivityAdminUsers(user);
     if (sub === 'activity') return reportsHandlers.getActivityLog(request, user);
-    if (sub === 'user' && id) return reportsHandlers.getUserDetailReport(id, user.userId, user);
+    if (sub === 'user' && id) {
+      if (sub2 === 'invoice' && sub3) return reportsHandlers.getInvoiceForUser(id, sub3, user);
+      return reportsHandlers.getUserDetailReport(id, user.userId, user);
+    }
   }
   if (method === 'POST' && user && resource === 'reports') {
     if (sub === 'activity') return reportsHandlers.logActivity(request, user);

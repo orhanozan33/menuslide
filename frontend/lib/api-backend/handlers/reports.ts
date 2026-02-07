@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { getServerSupabase } from '@/lib/supabase-server';
 import type { JwtPayload } from '@/lib/auth-server';
-import { useLocalDb, queryLocal } from '@/lib/api-backend/db-local';
+import { useLocalDb, queryLocal, queryOne, insertLocal, mirrorToSupabase } from '@/lib/api-backend/db-local';
 import { insertAdminActivityLog } from '@/lib/api-backend/admin-activity-log';
 
 /** Supabase plans join returns object or array; extract max_screens safely. */
@@ -65,7 +65,8 @@ export async function getStats(request: NextRequest, user: JwtPayload): Promise<
   const [
     totalUsersRes,
     usersWithBizRes,
-    totalScreensRes,
+    screensActiveRes,
+    screensStoppedRes,
     newUsers7dRes,
     newUsers30dRes,
     paymentsTotal,
@@ -77,7 +78,8 @@ export async function getStats(request: NextRequest, user: JwtPayload): Promise<
   ] = await Promise.all([
     supabase.from('users').select('*', { count: 'exact', head: true }).eq('role', 'business_user'),
     supabase.from('users').select('business_id').eq('role', 'business_user').not('business_id', 'is', null),
-    supabase.from('screens').select('*', { count: 'exact', head: true }),
+    supabase.from('screens').select('*', { count: 'exact', head: true }).eq('is_active', true),
+    supabase.from('screens').select('*', { count: 'exact', head: true }).eq('is_active', false),
     supabase.from('users').select('*', { count: 'exact', head: true }).eq('role', 'business_user').gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()),
     supabase.from('users').select('*', { count: 'exact', head: true }).eq('role', 'business_user').gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()),
     supabase.from('payments').select('amount').eq('status', 'succeeded'),
@@ -100,24 +102,26 @@ export async function getStats(request: NextRequest, user: JwtPayload): Promise<
     ids.forEach((id) => activeBizIds.add(id));
     totalBusinesses = activeBizIds.size;
   }
-  const totalScreens = totalScreensRes.count ?? 0;
+  const totalScreens = screensActiveRes.count ?? 0;
+  const screensStopped = screensStoppedRes.count ?? 0;
   const newUsers7d = newUsers7dRes.count ?? 0;
   const newUsers30d = newUsers30dRes.count ?? 0;
   const totalSubsCount = totalSubsRes.count ?? 0;
 
-  // En az 1 başarılı ödemesi olan, süresi geçmemiş, max_screens > 0 planlı abonelikler (ödemesi olmayan test kayıtları hariç)
+  // Paketi olan işletmeler: active + süresi geçmemiş + max_screens>0 (ödeme zorunlu değil, admin tarafından atanmış paketler de sayılır)
   const paidSubIds = new Set(
     ((paidSubIdsRes.data ?? []) as { subscription_id: string }[]).map((p) => p.subscription_id)
   );
   const activeSubsRaw = (activeSubsRes.data ?? []) as { id: string; business_id: string; current_period_end?: string; plans?: unknown }[];
-  const trulyActiveSubs = activeSubsRaw.filter(
+  const subsWithValidPeriod = activeSubsRaw.filter(
     (s) =>
-      paidSubIds.has(s.id) &&
       (!s.current_period_end || s.current_period_end >= now) &&
       getMaxScreens(s.plans) > 0
   );
+  const activeBizSet = new Set(subsWithValidPeriod.map((s) => s.business_id));
+  // Aktif abonelik sayısı (gelir raporu için): ödemesi olanlar
+  const trulyActiveSubs = subsWithValidPeriod.filter((s) => paidSubIds.has(s.id));
   const activeSubsCount = trulyActiveSubs.length;
-  const activeBizSet = new Set(trulyActiveSubs.map((s) => s.business_id));
 
   const sum = (arr: { amount?: number }[] | null) => (arr ?? []).reduce((a, p) => a + (Number(p.amount) || 0), 0);
   const revenueTotal = sum(paymentsTotal.data as { amount: number }[] ?? null);
@@ -134,6 +138,7 @@ export async function getStats(request: NextRequest, user: JwtPayload): Promise<
     totalUsers,
     totalBusinesses,
     totalScreens,
+    screensStopped,
     newUsers7d,
     newUsers30d,
     activeSubscriptions: activeSubsCount,
@@ -251,7 +256,42 @@ export async function getUserDetailReport(userId: string, currentUserId: string,
   });
 }
 
-/** POST /reports/subscription/:subscriptionId/mark-paid (admin) */
+/** GET /reports/user/:userId/invoice/:paymentId - admin fatura görüntüleme/indirme */
+export async function getInvoiceForUser(userId: string, paymentId: string, user: JwtPayload): Promise<Response> {
+  if (user.role !== 'super_admin' && user.role !== 'admin') return Response.json({ message: 'Admin required' }, { status: 403 });
+  const supabase = getServerSupabase();
+  const { data: u } = await supabase.from('users').select('email, business_id').eq('id', userId).single();
+  if (!u) return Response.json({ message: 'User not found' }, { status: 404 });
+  const { data: p } = await supabase.from('payments').select('*').eq('id', paymentId).single();
+  if (!p) return Response.json({ message: 'Invoice not found' }, { status: 404 });
+  const { data: sub } = await supabase.from('subscriptions').select('business_id, plan_id').eq('id', (p as { subscription_id: string }).subscription_id).single();
+  if (!sub || (sub as { business_id: string }).business_id !== (u as { business_id: string }).business_id) return Response.json({ message: 'Invoice not found' }, { status: 404 });
+  const { data: plan } = (sub as { plan_id?: string }).plan_id
+    ? await supabase.from('plans').select('display_name').eq('id', (sub as { plan_id: string }).plan_id).single()
+    : { data: null };
+  const { data: biz } = await supabase.from('businesses').select('name').eq('id', (sub as { business_id: string }).business_id).single();
+  let company: Record<string, string> = { company_name: 'MenuSlide', company_address: '', company_phone: '', company_email: '', footer_legal: '', footer_tax_id: '' };
+  try {
+    const { data: layout } = await supabase.from('invoice_layout').select('*').limit(1).maybeSingle();
+    if (layout && typeof layout === 'object') company = layout as Record<string, string>;
+  } catch {
+    // invoice_layout tablosu yoksa varsayılan kullan
+  }
+  return Response.json({
+    id: (p as { id: string }).id,
+    invoice_number: (p as { invoice_number?: string }).invoice_number ?? `INV-${String((p as { id: string }).id).slice(0, 8)}`,
+    amount: (p as { amount: number }).amount,
+    currency: (p as { currency?: string }).currency ?? 'cad',
+    status: (p as { status: string }).status,
+    payment_date: (p as { payment_date: string }).payment_date,
+    plan_name: (plan as { display_name?: string })?.display_name ?? null,
+    business_name: (biz as { name?: string })?.name ?? null,
+    customer_email: (u as { email: string }).email,
+    company,
+  });
+}
+
+/** POST /reports/subscription/:subscriptionId/mark-paid (admin) - Paket eklendiğinde otomatik fatura oluşturur */
 export async function markSubscriptionPaid(subscriptionId: string, request: NextRequest, user: JwtPayload): Promise<Response> {
   if (user.role !== 'super_admin' && user.role !== 'admin') return Response.json({ message: 'Admin required' }, { status: 403 });
   const supabase = getServerSupabase();
@@ -262,12 +302,35 @@ export async function markSubscriptionPaid(subscriptionId: string, request: Next
     body = {};
   }
   const months = body.period_months ?? 1;
-  const { data: sub } = await supabase.from('subscriptions').select('current_period_end').eq('id', subscriptionId).single();
+  const { data: sub } = await supabase.from('subscriptions').select('current_period_end, plan_id').eq('id', subscriptionId).single();
   if (!sub) return Response.json({ message: 'Subscription not found' }, { status: 404 });
   const end = new Date((sub as { current_period_end: string }).current_period_end || Date.now());
   end.setMonth(end.getMonth() + months);
   const { error } = await supabase.from('subscriptions').update({ current_period_end: end.toISOString(), status: 'active' }).eq('id', subscriptionId);
   if (error) return Response.json({ message: error.message }, { status: 500 });
+  // Otomatik fatura oluştur (paket eklendiğinde)
+  const planId = (sub as { plan_id?: string }).plan_id;
+  if (planId) {
+    const amount = useLocalDb()
+      ? ((await queryOne<{ price_monthly: number }>('SELECT price_monthly FROM plans WHERE id = $1', [planId]))?.price_monthly ?? 0)
+      : ((await supabase.from('plans').select('price_monthly').eq('id', planId).single()).data as { price_monthly?: number })?.price_monthly ?? 0;
+    const invoiceNumber = `INV-${new Date().getFullYear()}-${Date.now().toString(36).toUpperCase()}`;
+    const paymentRow = {
+      subscription_id: subscriptionId,
+      stripe_payment_intent_id: `admin-${subscriptionId}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      amount,
+      currency: 'cad',
+      status: 'succeeded',
+      payment_date: new Date().toISOString(),
+      invoice_number: invoiceNumber,
+    };
+    if (useLocalDb()) {
+      const inserted = await insertLocal('payments', paymentRow);
+      await mirrorToSupabase('payments', 'insert', { row: inserted });
+    } else {
+      await supabase.from('payments').insert(paymentRow);
+    }
+  }
   await insertAdminActivityLog(user, { action_type: 'subscription_mark_paid', page_key: 'reports', resource_type: 'subscription', resource_id: subscriptionId, details: { period_months: months } });
   return Response.json({ message: 'Marked as paid' });
 }

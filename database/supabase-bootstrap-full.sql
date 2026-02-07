@@ -1025,6 +1025,8 @@ CREATE TABLE IF NOT EXISTS admin_activity_log (
   resource_type VARCHAR(80),
   resource_id UUID,
   details JSONB,
+  ip_address TEXT,
+  user_agent TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 

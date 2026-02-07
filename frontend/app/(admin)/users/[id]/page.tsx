@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { apiClient } from '@/lib/api';
+import { ACTIVITY_PAGE_LABELS, ACTIVITY_ACTION_LABELS, formatActivityDetail } from '@/lib/admin-activity-labels';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 import { useAdminPagePermissions } from '@/lib/useAdminPagePermissions';
 import { useToast } from '@/lib/ToastContext';
@@ -50,7 +51,7 @@ export default function EditUserPage() {
   const [selectedPermissionPage, setSelectedPermissionPage] = useState<string>('users');
   const [savingPermissions, setSavingPermissions] = useState(false);
   const [showPermissionsModal, setShowPermissionsModal] = useState(false);
-  const [activityLog, setActivityLog] = useState<{ id: string; action_type: string; page_key: string; resource_type?: string; resource_id?: string; details?: Record<string, unknown>; created_at: string }[]>([]);
+  const [activityLog, setActivityLog] = useState<{ id: string; action_type: string; page_key: string; resource_type?: string; resource_id?: string; details?: Record<string, unknown>; created_at: string; ip_address?: string | null; user_agent?: string | null }[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
   const [clearLogsLoading, setClearLogsLoading] = useState(false);
 
@@ -582,17 +583,6 @@ export default function EditUserPage() {
     ],
   };
 
-  const ACTIVITY_PAGE_LABELS: Record<string, string> = {
-    editor: 'Editör', library: 'İçerik Kütüphanesi', menus: 'Menüler', templates: 'Şablonlar', screens: 'Ekranlar',
-    users: 'Kullanıcılar', reports: 'Raporlar', registration_requests: 'Kayıt Talepleri', 'user-uploads': 'Yüklemeler', settings: 'Ayarlar', stripe: 'Ödeme Ayarları',
-  };
-  const ACTIVITY_ACTION_LABELS: Record<string, string> = {
-    template_save: 'Şablon kaydedildi', template_create: 'Şablon oluşturuldu', template_delete: 'Şablon silindi',
-    image_add: 'Resim eklendi', image_edit: 'Resim düzenlendi', block_add: 'Blok eklendi', block_remove: 'Blok kaldırıldı',
-    menu_create: 'Menü oluşturuldu', menu_update: 'Menü güncellendi', menu_item_add: 'Menü öğesi eklendi', menu_item_edit: 'Menü öğesi düzenlendi', menu_item_delete: 'Menü öğesi silindi',
-    screen_create: 'Ekran oluşturuldu', screen_update: 'Ekran güncellendi', library_select: 'Kütüphaneden içerik seçildi', library_upload: 'Kütüphaneye yükleme',
-    user_create: 'Kullanıcı oluşturuldu', user_edit: 'Kullanıcı düzenlendi',
-  };
   const formatActivityDate = (iso: string) => {
     try {
       const d = new Date(iso);
@@ -842,13 +832,14 @@ export default function EditUserPage() {
               ) : activityLog.length === 0 ? (
                 <div className="p-8 text-center text-gray-500 text-sm">Kayıtlı hareket yok.</div>
               ) : (
-                <table className="w-full text-sm min-w-[520px]">
+                <table className="w-full text-sm min-w-[640px]">
                   <thead className="bg-slate-50 sticky top-0">
                     <tr>
                       <th className="px-4 py-2 text-left font-semibold text-gray-600">Tarih / Saat</th>
                       <th className="px-4 py-2 text-left font-semibold text-gray-600">Sayfa</th>
                       <th className="px-4 py-2 text-left font-semibold text-gray-600">İşlem</th>
                       <th className="px-4 py-2 text-left font-semibold text-gray-600">Detay</th>
+                      <th className="px-4 py-2 text-left font-semibold text-gray-600">Giriş bilgisi</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -857,8 +848,12 @@ export default function EditUserPage() {
                         <td className="px-4 py-2 text-gray-600 whitespace-nowrap">{formatActivityDate(row.created_at)}</td>
                         <td className="px-4 py-2 text-gray-700">{ACTIVITY_PAGE_LABELS[row.page_key] ?? row.page_key}</td>
                         <td className="px-4 py-2 text-gray-700">{ACTIVITY_ACTION_LABELS[row.action_type] ?? row.action_type}</td>
-                        <td className="px-4 py-2 text-gray-500 text-xs max-w-[200px] truncate" title={row.details ? JSON.stringify(row.details) : ''}>
-                          {row.details?.name ? String(row.details.name) : row.resource_type ? `${row.resource_type}${row.resource_id ? ` #${String(row.resource_id).slice(0, 8)}` : ''}` : '-'}
+                        <td className="px-4 py-2 text-gray-600 text-xs max-w-[220px]" title={row.details ? JSON.stringify(row.details) : ''}>
+                          {formatActivityDetail(row)}
+                        </td>
+                        <td className="px-4 py-2 text-gray-500 text-xs max-w-[180px]" title={row.user_agent || ''}>
+                          {row.ip_address ? <span className="font-mono">{row.ip_address}</span> : '-'}
+                          {row.user_agent && <div className="truncate mt-0.5 text-gray-400">{String(row.user_agent).slice(0, 50)}…</div>}
                         </td>
                       </tr>
                     ))}

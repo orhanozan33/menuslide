@@ -11,6 +11,7 @@ interface Stats {
   totalUsers: number;
   totalBusinesses: number;
   totalScreens: number;
+  screensStopped?: number;
   newUsers7d: number;
   newUsers30d: number;
   activeSubscriptions: number;
@@ -297,6 +298,11 @@ export default function ReportsPage() {
               <div className="text-xs font-medium text-gray-500">{t('reports_total_screens')}</div>
               <div className="text-lg font-bold text-blue-600">{stats?.totalScreens ?? 0}</div>
               <p className="text-[10px] text-gray-400 mt-0.5">{t('reports_total_screens_hint')}</p>
+            </div>
+            <div className="bg-slate-50 rounded-lg border border-slate-200 p-3">
+              <div className="text-xs font-medium text-slate-600">{t('reports_screens_stopped')}</div>
+              <div className="text-lg font-bold text-slate-700">{stats?.screensStopped ?? 0}</div>
+              <p className="text-[10px] text-slate-500 mt-0.5">{t('reports_screens_stopped_hint')}</p>
             </div>
             <div className="bg-white rounded-lg border border-gray-100 p-3">
               <div className="text-xs font-medium text-gray-500">{t('reports_total_businesses')}</div>
