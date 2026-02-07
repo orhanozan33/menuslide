@@ -253,12 +253,13 @@ export async function handleLocal(
   }
 
   if (resource === 'template-blocks' && user) {
+    const blockId = (sub && /^[0-9a-f-]{36}$/i.test(sub)) ? sub : id;
     if (method === 'GET' && sub === 'template' && id) return templateBlocksHandlers.findByTemplate(id);
     if (method === 'POST' && sub === 'batch-update') return templateBlocksHandlers.batchUpdate(request);
-    if (method === 'GET' && id) return templateBlocksHandlers.findOne(id);
-    if (method === 'POST' && !id) return templateBlocksHandlers.create(request);
-    if (method === 'PATCH' && id) return templateBlocksHandlers.update(id, request);
-    if (method === 'DELETE' && id) return templateBlocksHandlers.remove(id);
+    if (method === 'GET' && blockId) return templateBlocksHandlers.findOne(blockId);
+    if (method === 'POST' && !sub) return templateBlocksHandlers.create(request);
+    if (method === 'PATCH' && blockId) return templateBlocksHandlers.update(blockId, request);
+    if (method === 'DELETE' && blockId) return templateBlocksHandlers.remove(blockId);
   }
   if (resource === 'template-block-contents' && user) {
     const contentId = sub === 'block' ? undefined : (id || sub);
