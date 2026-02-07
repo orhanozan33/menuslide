@@ -5,6 +5,35 @@ import type { JwtPayload } from '@/lib/auth-server';
 import { useLocalDb, insertLocal, updateLocal, deleteLocal, mirrorToSupabase, queryOne, runLocal, getLocalPg, isSupabaseConfigured } from '@/lib/api-backend/db-local';
 import { insertAdminActivityLog } from '@/lib/api-backend/admin-activity-log';
 
+/** Admin paket atadığında otomatik fatura oluştur */
+async function createPaymentForSubscription(subscriptionId: string, planId: string, periodMonths: number = 1): Promise<void> {
+  let priceMonthly = 0;
+  if (useLocalDb()) {
+    const planRow = await queryOne<{ price_monthly: number }>('SELECT price_monthly FROM plans WHERE id = $1', [planId]);
+    priceMonthly = planRow?.price_monthly ?? 0;
+  } else {
+    const { data } = await getServerSupabase().from('plans').select('price_monthly').eq('id', planId).single();
+    priceMonthly = (data as { price_monthly?: number })?.price_monthly ?? 0;
+  }
+  const amount = priceMonthly * periodMonths;
+  const invoiceNumber = `INV-${new Date().getFullYear()}-${Date.now().toString(36).toUpperCase()}`;
+  const paymentRow = {
+    subscription_id: subscriptionId,
+    stripe_payment_intent_id: `admin-${subscriptionId}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+    amount,
+    currency: 'cad',
+    status: 'succeeded',
+    payment_date: new Date().toISOString(),
+    invoice_number: invoiceNumber,
+  };
+  if (useLocalDb()) {
+    const inserted = await insertLocal('payments', paymentRow);
+    if (isSupabaseConfigured()) await mirrorToSupabase('payments', 'insert', { row: inserted });
+  } else {
+    await getServerSupabase().from('payments').insert(paymentRow);
+  }
+}
+
 /** Create screens for business up to maxScreens (used when plan assigned by admin) */
 async function createScreensForBusiness(businessId: string, maxScreens: number): Promise<void> {
   if (maxScreens < 1 || maxScreens === -1) return;
@@ -126,14 +155,14 @@ export async function createUser(request: NextRequest, user: JwtPayload): Promis
       periodEnd.setMonth(periodEnd.getMonth() + 1);
       const nowStr = now.toISOString();
       const endStr = periodEnd.toISOString();
-      await client.query(
-        'INSERT INTO subscriptions (business_id, plan_id, status, current_period_start, current_period_end) VALUES ($1, $2, $3, $4, $5)',
+      const { rows } = await client.query(
+        'INSERT INTO subscriptions (business_id, plan_id, status, current_period_start, current_period_end) VALUES ($1, $2, $3, $4, $5) RETURNING *',
         [businessId, planId, 'active', nowStr, endStr]
       );
-      if (isSupabaseConfigured()) {
-        const supabase = getServerSupabase();
-        await supabase.from('subscriptions').insert({ business_id: businessId, plan_id: planId, status: 'active', current_period_start: nowStr, current_period_end: endStr });
-      }
+      const subRow = rows[0];
+      const subId = subRow?.id;
+      if (isSupabaseConfigured() && subRow) await mirrorToSupabase('subscriptions', 'insert', { row: subRow });
+      if (subId) await createPaymentForSubscription(subId, planId, 1);
       const planRow = await queryOne<{ max_screens: number }>('SELECT max_screens FROM plans WHERE id = $1', [planId]);
       const maxScreens = planRow?.max_screens ?? 0;
       if (maxScreens > 0 && maxScreens !== -1) await createScreensForBusiness(businessId, maxScreens);
@@ -150,7 +179,9 @@ export async function createUser(request: NextRequest, user: JwtPayload): Promis
     periodEnd.setMonth(periodEnd.getMonth() + 1);
     const nowStr = now.toISOString();
     const endStr = periodEnd.toISOString();
-    await supabase.from('subscriptions').insert({ business_id: businessId, plan_id: planId, status: 'active', current_period_start: nowStr, current_period_end: endStr });
+    const { data: subData } = await supabase.from('subscriptions').insert({ business_id: businessId, plan_id: planId, status: 'active', current_period_start: nowStr, current_period_end: endStr }).select('id').single();
+    const subId = (subData as { id?: string })?.id;
+    if (subId) await createPaymentForSubscription(subId, planId, 1);
     const { data: planData } = await supabase.from('plans').select('max_screens').eq('id', planId).maybeSingle();
     const maxScreens = (planData as { max_screens?: number })?.max_screens ?? 0;
     if (maxScreens > 0 && maxScreens !== -1) await createScreensForBusiness(businessId, maxScreens);
@@ -215,21 +246,26 @@ export async function updateUser(id: string, request: NextRequest, user: JwtPayl
         periodEnd.setMonth(periodEnd.getMonth() + subscriptionPeriodMonths);
         const nowStr = now.toISOString();
         const endStr = periodEnd.toISOString();
+        let subId: string;
+        let subRow: Record<string, unknown> | null = null;
         if (rows.length > 0) {
-          await client.query('UPDATE subscriptions SET plan_id = $1, status = $2, current_period_start = $3, current_period_end = $4, updated_at = NOW() WHERE id = $5', [planId, newStatus, nowStr, endStr, rows[0].id]);
+          subId = rows[0].id;
+          await client.query('UPDATE subscriptions SET plan_id = $1, status = $2, current_period_start = $3, current_period_end = $4, updated_at = NOW() WHERE id = $5', [planId, newStatus, nowStr, endStr, subId]);
+          subRow = await queryOne('SELECT * FROM subscriptions WHERE id = $1', [subId]) as Record<string, unknown>;
         } else {
-          await client.query(
-            'INSERT INTO subscriptions (business_id, plan_id, status, current_period_start, current_period_end) VALUES ($1, $2, $3, $4, $5)',
+          const { rows: insRows } = await client.query(
+            'INSERT INTO subscriptions (business_id, plan_id, status, current_period_start, current_period_end) VALUES ($1, $2, $3, $4, $5) RETURNING *',
             [businessId, planId, newStatus, nowStr, endStr]
           );
+          subRow = insRows[0] as Record<string, unknown>;
+          subId = subRow?.id as string;
         }
-        if (isSupabaseConfigured()) {
-          const supabase = getServerSupabase();
-          const { data: existing } = await supabase.from('subscriptions').select('id').eq('business_id', businessId).order('created_at', { ascending: false }).limit(1).maybeSingle();
-          if (existing) {
-            await supabase.from('subscriptions').update({ plan_id: planId, status: newStatus, current_period_start: nowStr, current_period_end: endStr }).eq('id', existing.id);
+        if (subId && newStatus === 'active') await createPaymentForSubscription(subId, planId, subscriptionPeriodMonths);
+        if (isSupabaseConfigured() && subRow) {
+          if (rows.length > 0) {
+            await mirrorToSupabase('subscriptions', 'update', { id: subId, row: subRow });
           } else {
-            await supabase.from('subscriptions').insert({ business_id: businessId, plan_id: planId, status: newStatus, current_period_start: nowStr, current_period_end: endStr });
+            await mirrorToSupabase('subscriptions', 'insert', { row: subRow });
           }
         }
         if (maxScreens === 0) {
@@ -257,11 +293,15 @@ export async function updateUser(id: string, request: NextRequest, user: JwtPayl
         periodEnd.setMonth(periodEnd.getMonth() + subscriptionPeriodMonths);
         const nowStr = now.toISOString();
         const endStr = periodEnd.toISOString();
+        let subId: string | undefined;
         if (existing) {
-          await supabase.from('subscriptions').update({ plan_id: planId, status: newStatus, current_period_start: nowStr, current_period_end: endStr }).eq('id', existing.id);
+          subId = existing.id;
+          await supabase.from('subscriptions').update({ plan_id: planId, status: newStatus, current_period_start: nowStr, current_period_end: endStr }).eq('id', subId);
         } else {
-          await supabase.from('subscriptions').insert({ business_id: businessId, plan_id: planId, status: newStatus, current_period_start: nowStr, current_period_end: endStr });
+          const { data: ins } = await supabase.from('subscriptions').insert({ business_id: businessId, plan_id: planId, status: newStatus, current_period_start: nowStr, current_period_end: endStr }).select('id').single();
+          subId = (ins as { id?: string })?.id;
         }
+        if (subId && newStatus === 'active') await createPaymentForSubscription(subId, planId, subscriptionPeriodMonths);
         if (maxScreens === 0) {
           await stopAllScreensForBusiness(businessId);
         } else {
