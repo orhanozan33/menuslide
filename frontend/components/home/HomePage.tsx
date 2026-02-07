@@ -26,12 +26,14 @@ function TVFrame({
   onClick,
   thumbnail,
   loadFailedLabel,
+  noBroadcastLabel,
 }: {
   previewUrl: string;
   title: string;
   onClick: () => void;
   thumbnail?: string;
   loadFailedLabel?: string;
+  noBroadcastLabel?: string;
 }) {
   const [inView, setInView] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -50,12 +52,14 @@ function TVFrame({
     return () => io.disconnect();
   }, []);
 
-  // previewUrl değişince hata bayrağını sıfırla
   useEffect(() => {
     setLoadFailed(false);
   }, [previewUrl]);
 
   const showIframe = inView && previewUrl && !loadFailed;
+
+  // Yayın yok / yüklenemedi: her zaman TV çerçevesi görünür, içeride placeholder
+  const placeholderText = loadFailed ? (loadFailedLabel ?? noBroadcastLabel) : (noBroadcastLabel ?? loadFailedLabel);
 
   return (
     <div
@@ -64,35 +68,47 @@ function TVFrame({
       onClick={onClick}
     >
       <div className="relative w-full max-w-[280px] sm:max-w-sm transition-transform duration-300 group-hover:scale-[1.02] group-active:scale-[0.99]">
-        {/* Ekran */}
-        <div className="relative rounded-t-xl overflow-hidden bg-[#1a1a2e] border-[10px] border-b-0 border-black shadow-2xl" style={{ aspectRatio: '16/10' }}>
-          <div className="absolute inset-0 p-2">
+        {/* Modern LCD TV — ince çerçeve, düz ekran */}
+        <div
+          className="relative overflow-hidden rounded-sm shadow-[0_8px_32px_rgba(0,0,0,0.4),0_0_0_1px_rgba(255,255,255,0.06)]"
+          style={{ aspectRatio: '16/9' }}
+        >
+          {/* LCD çerçeve — ince metalik kenar */}
+          <div className="absolute inset-0 rounded-sm border-[3px] border-zinc-600/80 bg-zinc-800/40" />
+          {/* Ekran alanı — çerçeve içinde */}
+          <div className="absolute inset-[6px] rounded-[2px] overflow-hidden bg-black">
             {showIframe ? (
               <iframe
                 src={previewUrl}
                 title={title}
-                className="w-full h-full rounded pointer-events-none"
+                className="w-full h-full pointer-events-none"
                 loading="lazy"
                 onError={() => setLoadFailed(true)}
               />
             ) : (
-              <div className="w-full h-full flex items-center justify-center bg-[#0f172a] text-white/50 text-sm rounded px-2 text-center">
-                {loadFailed && loadFailedLabel ? (
-                  <span>{loadFailedLabel}</span>
-                ) : thumbnail ? (
+              <div className="w-full h-full flex flex-col items-center justify-center bg-zinc-950 text-zinc-500 text-sm px-2 text-center gap-2">
+                {thumbnail ? (
                   <img src={thumbnail} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" />
                 ) : (
-                  <span className="animate-pulse">…</span>
+                  <>
+                    <svg className="w-12 h-12 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                    <span>{placeholderText || '…'}</span>
+                  </>
                 )}
               </div>
             )}
           </div>
-          <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-[#1a1a2e] to-transparent pointer-events-none" />
-          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/15 transition-colors pointer-events-none" />
+          <div className="absolute inset-0 pointer-events-none rounded-sm group-hover:ring-2 group-hover:ring-white/20 transition-all" />
         </div>
-        {/* Ayaklı taban — modern TV stand */}
-        <div className="flex justify-center -mt-0.5">
-          <div className="w-2/5 min-w-[70px] h-7 sm:h-9 bg-gradient-to-b from-zinc-700 to-black rounded-b-2xl border-[5px] border-t-0 border-black shadow-2xl" />
+        {/* Modern LCD stand — merkezi pedastal */}
+        <div className="flex justify-center -mt-1">
+          <div className="w-1/4 min-w-[50px] h-4 bg-gradient-to-b from-zinc-600 to-zinc-800 rounded-b-md shadow-inner" />
+        </div>
+        {/* TV etiketi / taban */}
+        <div className="mt-1 text-center">
+          <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">{title}</span>
         </div>
       </div>
     </div>
@@ -321,6 +337,7 @@ export function HomePage({ localePath }: HomePageProps) {
                     onClick={() => setPreviewChannel(ch)}
                     thumbnail={ch.thumbnail}
                     loadFailedLabel={t('home_channel_preview_unavailable')}
+                    noBroadcastLabel={t('home_channel_no_broadcast')}
                   />
                 </div>
               );
