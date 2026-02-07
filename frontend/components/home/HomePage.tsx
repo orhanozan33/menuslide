@@ -60,11 +60,12 @@ function TVFrame({
   return (
     <div
       ref={containerRef}
-      className="group flex justify-center cursor-pointer touch-manipulation"
+      className="group flex flex-col items-center cursor-pointer touch-manipulation"
       onClick={onClick}
     >
       <div className="relative w-full max-w-[280px] sm:max-w-sm transition-transform duration-300 group-hover:scale-[1.02] group-active:scale-[0.99]">
-        <div className="relative rounded-xl overflow-hidden bg-[#1a1a2e] border-[10px] border-black shadow-2xl" style={{ aspectRatio: '16/10' }}>
+        {/* Ekran */}
+        <div className="relative rounded-t-xl overflow-hidden bg-[#1a1a2e] border-[10px] border-b-0 border-black shadow-2xl" style={{ aspectRatio: '16/10' }}>
           <div className="absolute inset-0 p-2">
             {showIframe ? (
               <iframe
@@ -86,8 +87,12 @@ function TVFrame({
               </div>
             )}
           </div>
-          <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-[#1a1a2e] to-transparent" />
+          <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-[#1a1a2e] to-transparent pointer-events-none" />
           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/15 transition-colors pointer-events-none" />
+        </div>
+        {/* Ayaklı taban — modern TV stand */}
+        <div className="flex justify-center -mt-0.5">
+          <div className="w-2/5 min-w-[70px] h-7 sm:h-9 bg-gradient-to-b from-zinc-700 to-black rounded-b-2xl border-[5px] border-t-0 border-black shadow-2xl" />
         </div>
       </div>
     </div>
