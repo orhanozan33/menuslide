@@ -15,7 +15,16 @@ interface User {
   business_name?: string;
 }
 
-export function TemplatesLibraryContent({ mode = 'system' }: { mode?: 'system' | 'mine' }) {
+/** Wrapper that provides useSearchParams - must be inside Suspense to avoid 500 */
+export function TemplatesWithSearchParams({ mode }: { mode: 'system' | 'mine' }) {
+  const searchParams = useSearchParams();
+  return <TemplatesLibraryContent mode={mode} searchParams={searchParams} />;
+}
+
+export function TemplatesLibraryContent({
+  mode = 'system',
+  searchParams,
+}: { mode?: 'system' | 'mine'; searchParams?: URLSearchParams | null }) {
   const router = useRouter();
   const { t, localePath } = useTranslation();
   const toast = useToast();
@@ -63,6 +72,7 @@ export function TemplatesLibraryContent({ mode = 'system' }: { mode?: 'system' |
   const [previewFullscreen, setPreviewFullscreen] = useState(false);
   const [deleteConfirmTemplate, setDeleteConfirmTemplate] = useState<any | null>(null);
   const [useThisLoadingId, setUseThisLoadingId] = useState<string | null>(null);
+  const [copyToSystemLoadingId, setCopyToSystemLoadingId] = useState<string | null>(null);
   const [showCreateSystemModal, setShowCreateSystemModal] = useState(false);
   const [createSystemBlockCounts, setCreateSystemBlockCounts] = useState<number[]>([1, 2, 4]);
   const [createSystemCountPerType, setCreateSystemCountPerType] = useState(1);
@@ -135,8 +145,6 @@ export function TemplatesLibraryContent({ mode = 'system' }: { mode?: 'system' |
     }
   };
 
-  const searchParams = useSearchParams();
-
   const loadTemplates = async (showLoading = true) => {
     const token = typeof window !== 'undefined' ? (sessionStorage.getItem('impersonation_token') || localStorage.getItem('auth_token')) : null;
     if (!token) {
@@ -187,7 +195,7 @@ export function TemplatesLibraryContent({ mode = 'system' }: { mode?: 'system' |
       }
 
       let userData: any[] = [];
-      if (mode === 'mine') {
+      if (mode === 'mine' || (mode === 'system' && (userRole === 'super_admin' || userRole === 'admin') && effectiveUserId)) {
         try {
           userData = await fetchWithTimeout(`/templates/scope/user${userIdParam}`) || [];
           if (!Array.isArray(userData)) userData = [];
@@ -386,6 +394,26 @@ export function TemplatesLibraryContent({ mode = 'system' }: { mode?: 'system' |
       toast.showError(t('templates_use_failed') + ': ' + (err?.message || t('common_error')));
     } finally {
       setUseThisLoadingId(null);
+    }
+  };
+
+  const handleCopyToSystem = async (template: any) => {
+    const newName = prompt(t('templates_copy_to_system_prompt', { name: template.display_name }), template.display_name);
+    if (newName == null || !newName.trim()) return;
+
+    try {
+      setCopyToSystemLoadingId(template.id);
+      await apiClient(`/templates/${template.id}/copy-to-system`, {
+        method: 'POST',
+        body: { name: newName.trim() },
+      });
+      toast.showSuccess(t('templates_copy_to_system_success'));
+      loadTemplates();
+    } catch (err: any) {
+      console.error('Error copying to system:', err);
+      toast.showError(t('templates_copy_to_system_failed') + ': ' + (err?.message || t('common_error')));
+    } finally {
+      setCopyToSystemLoadingId(null);
     }
   };
 
@@ -676,6 +704,8 @@ export function TemplatesLibraryContent({ mode = 'system' }: { mode?: 'system' |
     setPreviewBlocksLoading,
     handleUseThisTemplate,
     handleDuplicateTemplate,
+    handleCopyToSystem,
+    copyToSystemLoadingId,
     openDeleteConfirm,
     useThisLoadingId,
     router,

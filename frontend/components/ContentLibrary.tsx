@@ -808,7 +808,7 @@ export default function ContentLibrary({ onSelectContent, initialCategory, compa
     : (compact ? 'grid grid-cols-5 sm:grid-cols-6 gap-2' : 'grid grid-cols-2 gap-4');
 
   return (
-    <div className="h-full flex flex-col bg-white">
+    <div className="h-full min-h-0 flex flex-col bg-white">
       {/* Arama + Yenile - Admin ile senkronize */}
       <div className="p-4 border-b flex gap-2">
         <input

@@ -51,7 +51,23 @@ export async function handleGet(
 
   if (useLocalDb()) {
     if (id && id.length === 36 && id.match(/^[0-9a-f-]{36}$/i)) {
-      const data = await queryOne(`SELECT * FROM ${actualTable} WHERE id = $1`, [id]);
+      if (user.role === 'business_user' && actualTable === 'businesses') {
+        const u = await queryOne<{ business_id: string | null }>('SELECT business_id FROM users WHERE id = $1', [user.userId]);
+        if (!u || u.business_id !== id) return Response.json({ message: 'Access denied' }, { status: 403 });
+      }
+      let data = await queryOne(`SELECT * FROM ${actualTable} WHERE id = $1`, [id]);
+      if (data && actualTable === 'users' && (data as { role?: string }).role === 'admin') {
+        const perms = await queryLocal<{ page_key: string; permission: string; actions?: Record<string, boolean> | null }>(
+          'SELECT page_key, permission, actions FROM admin_permissions WHERE user_id = $1',
+          [id]
+        );
+        const admin_permissions: Record<string, Record<string, boolean>> = {};
+        perms.forEach((r) => {
+          const actions = r.actions && typeof r.actions === 'object' ? r.actions : {};
+          admin_permissions[r.page_key] = { view: r.permission !== 'none', ...actions };
+        });
+        data = { ...data, admin_permissions };
+      }
       return Response.json(data ?? { message: 'Not found' }, { status: data ? 200 : 404 });
     }
     let sql = `SELECT * FROM ${actualTable}`;
@@ -66,6 +82,17 @@ export async function handleGet(
     if (user.role === 'business_user' && actualTable === 'content_library') {
       sql += (params.length ? ' AND' : ' WHERE') + ` (uploaded_by = $${params.length + 1} OR uploaded_by IS NULL)`;
       params.push(user.userId);
+    }
+    if (user.role === 'business_user' && actualTable === 'businesses' && !id) {
+      const u = await queryOne<{ business_id: string | null }>('SELECT business_id FROM users WHERE id = $1', [user.userId]);
+      if (u?.business_id) {
+        sql = `SELECT * FROM businesses WHERE id = $1`;
+        params.length = 0;
+        params.push(u.business_id);
+      } else {
+        sql = `SELECT * FROM businesses WHERE 1=0`;
+        params.length = 0;
+      }
     }
     const userIdParam = searchParams.get('user_id');
     if (userIdParam && (actualTable === 'templates' || actualTable === 'screens' || actualTable === 'menus')) {
@@ -84,9 +111,12 @@ export async function handleGet(
       return Response.json({ menus: list, business_id: businessId ?? null });
     }
     if (actualTable === 'screens') {
-      const businessId = user.role === 'business_user' ? (await queryOne<{ business_id: string | null }>('SELECT business_id FROM users WHERE id = $1', [user.userId]))?.business_id : null;
-      const screens = (list as { id: string }[]).map((s) => ({ ...s, active_viewer_count: 0 }));
+      const businessId = user.role === 'business_user'
+        ? (await queryOne<{ business_id: string | null }>('SELECT business_id FROM users WHERE id = $1', [user.userId]))?.business_id
+        : (userIdParam ? (await queryOne<{ business_id: string | null }>('SELECT business_id FROM users WHERE id = $1', [searchParams.get('user_id')]))?.business_id : null);
       const subActive = businessId ? (await queryOne('SELECT id FROM subscriptions WHERE business_id = $1 AND status = $2 LIMIT 1', [businessId, 'active'])) != null : true;
+      // Paketi olmayan işletme: ekran listesini boş döndür (ekranlar DB'de kalır ama kullanıcı göremez)
+      const screens = subActive ? (list as { id: string }[]).map((s) => ({ ...s, active_viewer_count: 0 })) : [];
       return Response.json({ screens, subscription_active: subActive });
     }
     return Response.json(list);
@@ -103,11 +133,33 @@ export async function handleGet(
   if (user.role === 'business_user' && user.userId && actualTable === 'content_library') {
     query = query.or(`uploaded_by.eq.${user.userId},uploaded_by.is.null`);
   }
+  if (user.role === 'business_user' && user.userId && actualTable === 'businesses' && !id) {
+    const { data: u } = await supabase.from('users').select('business_id').eq('id', user.userId).single();
+    const bizId = (u as { business_id?: string } | null)?.business_id;
+    if (bizId) query = query.eq('id', bizId);
+    else query = query.eq('id', '00000000-0000-0000-0000-000000000000');
+  }
 
   if (id && id.length === 36 && id.match(/^[0-9a-f-]{36}$/i)) {
+    if (user.role === 'business_user' && actualTable === 'businesses') {
+      const { data: u } = await supabase.from('users').select('business_id').eq('id', user.userId).single();
+      if ((u as { business_id?: string } | null)?.business_id !== id) {
+        return Response.json({ message: 'Access denied' }, { status: 403 });
+      }
+    }
     const { data, error } = await query.eq('id', id).maybeSingle();
     if (error) return Response.json({ message: error.message }, { status: 500 });
-    return Response.json(data ?? { message: 'Not found' }, { status: data ? 200 : 404 });
+    let result = data ?? null;
+    if (result && actualTable === 'users' && (result as { role?: string }).role === 'admin') {
+      const { data: perms } = await supabase.from('admin_permissions').select('page_key, permission, actions').eq('user_id', id);
+      const admin_permissions: Record<string, Record<string, boolean>> = {};
+      (perms || []).forEach((r: { page_key: string; permission: string; actions?: Record<string, boolean> | null }) => {
+        const actions = r.actions && typeof r.actions === 'object' ? r.actions : {};
+        admin_permissions[r.page_key] = { view: r.permission !== 'none', ...actions };
+      });
+      result = { ...result, admin_permissions };
+    }
+    return Response.json(result ?? { message: 'Not found' }, { status: result ? 200 : 404 });
   }
 
   const userIdParam = searchParams.get('user_id');
@@ -126,7 +178,12 @@ export async function handleGet(
   }
   if (actualTable === 'screens') {
     const businessId = await getListBusinessId(supabase, user, actualTable, searchParams);
-    const screenIds = (list as { id: string }[]).map((s) => s.id);
+    const subActive = businessId
+      ? (await supabase.from('subscriptions').select('id').eq('business_id', businessId).eq('status', 'active').limit(1).maybeSingle()).data != null
+      : true;
+    // Paketi olmayan işletme: ekran listesini boş döndür
+    const screensRaw = subActive ? (list as { id: string }[]) : [];
+    const screenIds = screensRaw.map((s) => s.id);
     let viewerCounts: Record<string, number> = {};
     if (screenIds.length > 0) {
       const stale = new Date(Date.now() - 2 * 60 * 1000).toISOString();
@@ -138,12 +195,32 @@ export async function handleGet(
       }
       viewerCounts = byScreen;
     }
-    const subActive = businessId
-      ? (await supabase.from('subscriptions').select('id').eq('business_id', businessId).eq('status', 'active').limit(1).maybeSingle()).data != null
-      : true;
-    const screens = (list as { id: string }[]).map((s) => ({ ...s, active_viewer_count: viewerCounts[s.id] ?? 0 }));
+    const screens = screensRaw.map((s) => ({ ...s, active_viewer_count: viewerCounts[s.id] ?? 0 }));
     return Response.json({ screens, subscription_active: subActive });
   }
 
   return Response.json(list);
+}
+
+/** GET /plans - Public: sadece aktif planları döndür (token gerekmez, fiyatlandırma sayfası için) */
+export async function getPlansPublic(): Promise<Response> {
+  try {
+    if (useLocalDb()) {
+      const list = await queryLocal(
+        'SELECT * FROM plans WHERE is_active = true ORDER BY price_monthly ASC'
+      );
+      return Response.json(list);
+    }
+    const supabase = getServerSupabase();
+    const { data, error } = await supabase
+      .from('plans')
+      .select('*')
+      .eq('is_active', true)
+      .order('price_monthly', { ascending: true });
+    if (error) return Response.json({ message: error.message }, { status: 500 });
+    return Response.json(data ?? []);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return Response.json({ message: msg }, { status: 500 });
+  }
 }

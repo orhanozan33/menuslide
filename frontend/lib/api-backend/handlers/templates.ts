@@ -125,6 +125,35 @@ export async function remove(id: string, user: JwtPayload): Promise<Response> {
   return Response.json({ message: 'Template deleted successfully' });
 }
 
+/** GET /templates/:id - single template (business_user: created_by OR business_id) */
+export async function findOne(id: string, user: JwtPayload): Promise<Response> {
+  if (useLocalDb()) {
+    const t = await queryOne<{ created_by: string | null; business_id: string | null }>(
+      'SELECT id, created_by, business_id FROM templates WHERE id = $1',
+      [id]
+    );
+    if (!t) return Response.json({ message: 'Not found' }, { status: 404 });
+    if (user.role === 'business_user') {
+      const u = await queryOne<{ business_id: string | null }>('SELECT business_id FROM users WHERE id = $1', [user.userId]);
+      const ok = t.created_by === user.userId || (u?.business_id && t.business_id === u.business_id);
+      if (!ok) return Response.json({ message: 'Not found' }, { status: 404 });
+    }
+    const data = await queryOne('SELECT * FROM templates WHERE id = $1', [id]);
+    return Response.json(data ?? { message: 'Not found' }, { status: data ? 200 : 404 });
+  }
+  const supabase = getServerSupabase();
+  const { data: t, error: err } = await supabase.from('templates').select('id, created_by, business_id').eq('id', id).maybeSingle();
+  if (err) return Response.json({ message: err.message }, { status: 500 });
+  if (!t) return Response.json({ message: 'Not found' }, { status: 404 });
+  if (user.role === 'business_user') {
+    const { data: u } = await supabase.from('users').select('business_id').eq('id', user.userId).single();
+    const ok = (t as { created_by: string | null }).created_by === user.userId || (u?.business_id && (t as { business_id: string | null }).business_id === u.business_id);
+    if (!ok) return Response.json({ message: 'Not found' }, { status: 404 });
+  }
+  const { data } = await supabase.from('templates').select('*').eq('id', id).single();
+  return Response.json(data ?? { message: 'Not found' }, { status: data ? 200 : 404 });
+}
+
 /** GET /templates/:id/blocks - returns template_blocks for template */
 export async function getTemplateBlocks(templateId: string): Promise<Response> {
   if (useLocalDb()) {
@@ -165,7 +194,10 @@ export async function findByScope(scope: string, request: NextRequest, user: Jwt
       params.push(businessId);
       sql += ` AND business_id = $${params.length}`;
     }
-    if (user.role !== 'super_admin' && user.role !== 'admin') {
+    if (scope === 'user' && targetUserId) {
+      params.push(targetUserId);
+      sql += ` AND created_by = $${params.length}`;
+    } else if (user.role !== 'super_admin' && user.role !== 'admin') {
       params.push(targetUserId);
       sql += ` AND (created_by = $${params.length} OR scope = 'system')`;
     }
@@ -177,7 +209,8 @@ export async function findByScope(scope: string, request: NextRequest, user: Jwt
   const supabase = getServerSupabase();
   let q = supabase.from('templates').select('*').eq('scope', scope).eq('is_active', true);
   if (scope === 'user' && businessId) q = q.eq('business_id', businessId);
-  if (user.role !== 'super_admin' && user.role !== 'admin') q = q.or(`created_by.eq.${targetUserId},scope.eq.system`);
+  if (scope === 'user' && targetUserId) q = q.eq('created_by', targetUserId);
+  else if (user.role !== 'super_admin' && user.role !== 'admin') q = q.or(`created_by.eq.${targetUserId},scope.eq.system`);
   const { data, error } = await q.order('block_count', { ascending: true }).order('name', { ascending: true });
   if (error) {
     if (error.message?.includes('could not find the table') || error.message?.includes('schema cache') || error.code === '42P01') {
@@ -322,6 +355,162 @@ export async function duplicate(id: string, request: NextRequest, user: JwtPaylo
   return Response.json(withBlocks ?? created);
 }
 
+/** POST /templates/:id/copy-to-system - Admin/super_admin: copy user template to system templates for all users */
+export async function copyToSystem(id: string, request: NextRequest, user: JwtPayload): Promise<Response> {
+  if (user.role !== 'super_admin' && user.role !== 'admin') {
+    return Response.json({ message: 'Only admin or super_admin can copy templates to system' }, { status: 403 });
+  }
+  let body: { name?: string } = {};
+  try {
+    body = await request.json();
+  } catch {
+    body = {};
+  }
+  const baseName = body.name?.trim() || '';
+
+  if (useLocalDb()) {
+    const orig = await queryOne<Record<string, unknown>>('SELECT * FROM templates WHERE id = $1', [id]);
+    if (!orig) return Response.json({ message: 'Template not found' }, { status: 404 });
+    const displayName = String(orig.display_name || orig.name || 'Template');
+    const newDisplayName = baseName || displayName.replace(/\s*\([kK]opya\)\s*$/, '').trim();
+    const created = await insertLocal('templates', {
+      name: baseName || String(orig.name || '').replace(/\s*\([kK]opya\)\s*$/, '').trim() || newDisplayName,
+      display_name: newDisplayName,
+      description: orig.description,
+      block_count: orig.block_count,
+      preview_image_url: orig.preview_image_url,
+      is_active: true,
+      scope: 'system',
+      is_system: true,
+      created_by: null,
+      business_id: null,
+      canvas_design: orig.canvas_design ?? null,
+    }) as { id: string };
+    await mirrorToSupabase('templates', 'insert', { row: created });
+    const blocks = await queryLocal<Record<string, unknown> & { id: string }>('SELECT * FROM template_blocks WHERE template_id = $1 ORDER BY block_index', [id]);
+    const oldToNew: Record<string, string> = {};
+    for (const bl of blocks) {
+      const inserted = await insertLocal('template_blocks', {
+        template_id: created.id,
+        block_index: bl.block_index,
+        position_x: bl.position_x,
+        position_y: bl.position_y,
+        width: bl.width,
+        height: bl.height,
+        z_index: bl.z_index,
+        animation_type: bl.animation_type,
+        animation_duration: bl.animation_duration,
+        animation_delay: bl.animation_delay,
+        style_config: bl.style_config,
+      });
+      oldToNew[bl.id] = (inserted as { id: string }).id;
+      await mirrorToSupabase('template_blocks', 'insert', { row: inserted });
+    }
+    const blockIds = Object.keys(oldToNew);
+    if (blockIds.length > 0) {
+      const contents = await queryLocal<Record<string, unknown> & { template_block_id: string }>(
+        'SELECT * FROM template_block_contents WHERE template_block_id = ANY($1::uuid[]) ORDER BY display_order',
+        [blockIds]
+      );
+      for (const c of contents) {
+        const newBlockId = oldToNew[c.template_block_id];
+        if (!newBlockId) continue;
+        const row = {
+          template_block_id: newBlockId,
+          content_type: c.content_type,
+          image_url: c.image_url,
+          icon_name: c.icon_name,
+          title: c.title,
+          description: c.description,
+          price: c.price,
+          campaign_text: c.campaign_text,
+          background_color: c.background_color,
+          background_image_url: c.background_image_url,
+          text_color: c.text_color,
+          style_config: c.style_config,
+          menu_item_id: null,
+          menu_id: null,
+          display_order: c.display_order ?? 0,
+          is_active: c.is_active ?? true,
+        };
+        const ins = await insertLocal('template_block_contents', row);
+        await mirrorToSupabase('template_block_contents', 'insert', { row: ins });
+      }
+    }
+    const withBlocks = await queryLocal('SELECT * FROM template_blocks WHERE template_id = $1 ORDER BY block_index', [created.id]);
+    return Response.json({ ...created, template_blocks: withBlocks });
+  }
+
+  const supabase = getServerSupabase();
+  const { data: orig } = await supabase.from('templates').select('*').eq('id', id).single();
+  if (!orig) return Response.json({ message: 'Template not found' }, { status: 404 });
+  const o = orig as Record<string, unknown>;
+  const displayName = String(o.display_name || o.name || 'Template');
+  const newDisplayName = baseName || displayName.replace(/\s*\([kK]opya\)\s*$/, '').trim();
+  const { data: created, error } = await supabase.from('templates').insert({
+    name: baseName || (String(o.name || '').replace(/\s*\([kK]opya\)\s*$/, '').trim() || newDisplayName),
+    display_name: newDisplayName,
+    description: o.description,
+    block_count: o.block_count,
+    preview_image_url: o.preview_image_url,
+    is_active: true,
+    scope: 'system',
+    is_system: true,
+    created_by: null,
+    business_id: null,
+    canvas_design: o.canvas_design ?? null,
+  }).select().single();
+  if (error) return Response.json({ message: error.message }, { status: 500 });
+  const { data: blocks } = await supabase.from('template_blocks').select('*').eq('template_id', id).order('block_index', { ascending: true });
+  const oldToNew: Record<string, string> = {};
+  for (const b of blocks ?? []) {
+    const bl = b as Record<string, unknown>;
+    const { data: inserted } = await supabase.from('template_blocks').insert({
+      template_id: created.id,
+      block_index: bl.block_index,
+      position_x: bl.position_x,
+      position_y: bl.position_y,
+      width: bl.width,
+      height: bl.height,
+      z_index: bl.z_index,
+      animation_type: bl.animation_type,
+      animation_duration: bl.animation_duration,
+      animation_delay: bl.animation_delay,
+      style_config: bl.style_config,
+    }).select('id').single();
+    if (inserted) oldToNew[(bl.id as string)] = (inserted as { id: string }).id;
+  }
+  const blockIds = Object.keys(oldToNew);
+  if (blockIds.length > 0) {
+    const { data: contents } = await supabase.from('template_block_contents').select('*').in('template_block_id', blockIds).order('display_order', { ascending: true });
+    for (const c of contents ?? []) {
+      const ct = c as Record<string, unknown>;
+      const newBlockId = oldToNew[ct.template_block_id as string];
+      if (!newBlockId) continue;
+      await supabase.from('template_block_contents').insert({
+        template_block_id: newBlockId,
+        content_type: ct.content_type,
+        image_url: ct.image_url,
+        icon_name: ct.icon_name,
+        title: ct.title,
+        description: ct.description,
+        price: ct.price,
+        campaign_text: ct.campaign_text,
+        background_color: ct.background_color,
+        background_image_url: ct.background_image_url,
+        text_color: ct.text_color,
+        style_config: ct.style_config,
+        menu_item_id: null,
+        menu_id: null,
+        display_order: ct.display_order ?? 0,
+        is_active: ct.is_active ?? true,
+      });
+    }
+  }
+  const { data: withBlocks } = await supabase.from('templates').select('*, template_blocks(*)').eq('id', created.id).single();
+  return Response.json(withBlocks ?? created);
+}
+
 /** POST /templates/:id/save-as */
 export async function saveAs(id: string, request: NextRequest, user: JwtPayload): Promise<Response> {
   return duplicate(id, request, user);
@@ -329,12 +518,17 @@ export async function saveAs(id: string, request: NextRequest, user: JwtPayload)
 
 /** POST /templates/:id/create-menu-from-products - create menu from template block contents */
 export async function createMenuFromProducts(id: string, request: NextRequest, user: JwtPayload): Promise<Response> {
+  const body = await request.json().catch(() => ({})) as { business_id?: string };
+  const bodyBusinessId = body?.business_id ?? null;
+
   if (useLocalDb()) {
     const template = await queryOne<{ display_name: string }>('SELECT display_name FROM templates WHERE id = $1', [id]);
     if (!template) return Response.json({ message: 'Template not found' }, { status: 404 });
     const u = await queryOne<{ business_id: string }>('SELECT business_id FROM users WHERE id = $1', [user.userId]);
-    const businessId = u?.business_id;
-    if (!businessId) return Response.json({ message: 'User has no business' }, { status: 400 });
+    const businessId = u?.business_id ?? bodyBusinessId;
+    if (!businessId) {
+      return Response.json({ menu: null, productsCount: 0, skipped: true, message: 'Admin users have no business. Create menus from the Menus section for a specific business.' });
+    }
     const menu = await insertLocal('menus', {
       business_id: businessId,
       name: `${template.display_name} Menüsü`,
@@ -349,8 +543,10 @@ export async function createMenuFromProducts(id: string, request: NextRequest, u
   const { data: template } = await supabase.from('templates').select('display_name').eq('id', id).single();
   if (!template) return Response.json({ message: 'Template not found' }, { status: 404 });
   const { data: u } = await supabase.from('users').select('business_id').eq('id', user.userId).single();
-  const businessId = (u as { business_id: string } | null)?.business_id;
-  if (!businessId) return Response.json({ message: 'User has no business' }, { status: 400 });
+  const businessId = (u as { business_id: string } | null)?.business_id ?? bodyBusinessId;
+  if (!businessId) {
+    return Response.json({ menu: null, productsCount: 0, skipped: true, message: 'Admin users have no business. Create menus from the Menus section for a specific business.' });
+  }
   const { data: menu } = await supabase.from('menus').insert({
     business_id: businessId,
     name: `${(template as { display_name: string }).display_name} Menüsü`,

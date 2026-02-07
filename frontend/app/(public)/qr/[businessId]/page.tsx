@@ -266,23 +266,23 @@ export default function QrMenuPage() {
                     <h2 className="text-xl font-bold text-gray-900 mb-4 border-b-2 border-gray-200 pb-2">
                       {currentCategory.name}
                     </h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
                       {(currentCategory.items || []).map((item: any) => (
                         <div
                           key={item.id}
                           onClick={() => loadItemDetails(item.id)}
                           className="bg-white rounded-lg shadow-sm p-4 hover:shadow-md transition-shadow cursor-pointer"
                         >
-                          <div className="flex gap-4">
+                          <div className="flex gap-3">
                             {item.image_url && (
                               <img
                                 src={item.image_url}
                                 alt={item.display_name}
-                                className="w-24 h-24 object-cover rounded-lg flex-shrink-0"
+                                className="w-20 h-20 object-cover rounded-lg flex-shrink-0"
                               />
                             )}
-                            <div className="flex-1 min-w-0">
-                              <h3 className="font-bold text-lg text-gray-900 mb-1">
+                            <div className="flex-1 min-w-0 overflow-hidden">
+                              <h3 className="font-bold text-base text-gray-900 mb-1 truncate">
                                 {item.display_name}
                               </h3>
                               {item.display_description && (

@@ -3,7 +3,7 @@
 import React, { Suspense, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslation } from '@/lib/i18n/useTranslation';
-import { TemplatesLibraryContent } from '@/app/(admin)/templates/TemplatesLibraryContent';
+import { TemplatesWithSearchParams } from '@/app/(admin)/templates/TemplatesLibraryContent';
 
 function TemplatesFallback() {
   return (
@@ -40,7 +40,7 @@ export default function MineTemplatesPage() {
 
   return (
     <Suspense fallback={<TemplatesFallback />}>
-      <TemplatesLibraryContent mode="mine" />
+      <TemplatesWithSearchParams mode="mine" />
     </Suspense>
   );
 }

@@ -377,7 +377,7 @@ export default function EditUserPage() {
       });
       if (user) setUser({ ...user, admin_permissions: payload });
       setShowPermissionsModal(false);
-      alert('Yetkiler kaydedildi.');
+      toast.showSuccess('Yetkiler kaydedildi.');
     } catch (err: any) {
       setError(err.message || 'Yetkiler kaydedilemedi.');
     } finally {

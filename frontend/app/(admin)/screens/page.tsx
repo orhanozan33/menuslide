@@ -304,15 +304,15 @@ export default function ScreensPage() {
         console.error('Error fetching user data:', err);
       }
       
-      // Eğer user data'dan bulamadıysak subscription'dan dene
+      // Eğer user data'dan bulamadıysak subscription'dan dene (sadece aktif abonelik için)
       if (!maxScreens) {
         const subscription = await apiClient(`/subscriptions/business/${currentUser.business_id}`).catch((err) => {
           console.error('Error fetching subscription:', err);
           return null;
         });
         
-        if (subscription) {
-          // Plans bilgisi kontrolü - farklı formatlar olabilir
+        // Paketi yok veya abonelik iptal/süresi dolmuş ise ekran oluşturma
+        if (subscription && subscription.status === 'active') {
           if (subscription.plans && subscription.plans.max_screens) {
             maxScreens = subscription.plans.max_screens;
           } else if (subscription.plan_max_screens) {
@@ -323,7 +323,8 @@ export default function ScreensPage() {
         }
       }
       
-      if (!maxScreens) {
+      // maxScreens yok veya 0 ise (paket yok) otomatik ekran oluşturma
+      if (!maxScreens || maxScreens === 0) {
         return;
       }
 
@@ -386,9 +387,9 @@ export default function ScreensPage() {
 
   const loadTemplates = async () => {
     try {
-      const data = await apiClient('/templates');
-      // Backend'den gelen response array veya obje olabilir
-      const templatesArray = Array.isArray(data) ? data : (data?.templates || []);
+      // Sadece kullanıcının "Benim Şablonlarım" şablonları
+      const userRes = await apiClient('/templates/scope/user').catch(() => []);
+      const templatesArray = Array.isArray(userRes) ? userRes : [];
       setTemplates(templatesArray);
     } catch (error) {
       console.error('Error loading templates:', error);

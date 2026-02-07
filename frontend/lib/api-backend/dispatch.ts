@@ -7,6 +7,7 @@ import * as crudMutations from './handlers/crud-mutations';
 import * as menuItemsHandlers from './handlers/menu-items';
 import * as menusHandlers from './handlers/menus';
 import * as qrMenusHandlers from './handlers/qr-menus';
+import * as menuResolverHandlers from './handlers/menu-resolver';
 import * as publicScreenHandlers from './handlers/public-screen';
 import * as screensHandlers from './handlers/screens';
 import * as reportsHandlers from './handlers/reports';
@@ -52,8 +53,55 @@ export async function handleLocal(
     if (method === 'POST' && !id) return registrationRequestsHandlers.create(request);
   }
 
+  // Fiyatlandırma sayfası: Planlar token olmadan erişilebilir
+  if (method === 'GET' && resource === 'plans' && !id) return crudHandlers.getPlansPublic();
+
+  // Stripe durumu (pricing sayfası için, public)
+  if (method === 'GET' && resource === 'settings' && sub === 'stripe-available') {
+    const hasStripe = !!(process.env.STRIPE_SECRET_KEY || process.env.STRIPE_PUBLISHABLE_KEY);
+    return Response.json({ available: !!hasStripe });
+  }
+
+  // Menu resolver - QR sayfası için (public, token gerekmez)
+  if (resource === 'menu-resolver') {
+    if (method === 'GET' && sub === 'business' && id) return menuResolverHandlers.getBusinessMenus(id, request);
+    if (method === 'GET' && sub === 'item' && id) {
+      const url = new URL(request.url);
+      const lang = url.searchParams.get('lang') || 'en';
+      return menuResolverHandlers.getMenuItemDetails(id, lang);
+    }
+    if (method === 'GET' && sub === 'languages' && id) return menuResolverHandlers.getMenuLanguages(id);
+  }
+
+  // QR menü - slug çözümleme ve görüntüleme kaydı (public)
+  if (resource === 'qr-menus') {
+    if (method === 'GET' && sub === 'slug' && id) return qrMenusHandlers.resolveBySlug(id);
+    if (method === 'POST' && sub === 'view' && id) return qrMenusHandlers.recordView(id, request);
+  }
+
   const authHeader = request.headers.get('authorization');
   const user = await verifyToken(authHeader);
+
+  // Stripe ayarlar sayfası (admin gerekli)
+  if (method === 'GET' && resource === 'settings' && sub === 'stripe-status' && user) {
+    if (user.role !== 'super_admin' && user.role !== 'admin') {
+      return Response.json({ message: 'Admin access required' }, { status: 403 });
+    }
+    const secretKey = process.env.STRIPE_SECRET_KEY || '';
+    const publishableKey = process.env.STRIPE_PUBLISHABLE_KEY || '';
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || '';
+    const configured =
+      !!secretKey &&
+      secretKey.length > 0 &&
+      secretKey !== 'sk_test_your_stripe_secret_key';
+    const stripeMode = secretKey?.startsWith('sk_live_') ? 'live' : 'test';
+    return Response.json({
+      configured,
+      stripeMode,
+      hasPublishableKey: !!publishableKey && publishableKey.length > 0 && publishableKey !== 'pk_test_your_publishable_key',
+      hasWebhookSecret: !!webhookSecret && webhookSecret.length > 0 && webhookSecret !== 'whsec_your_webhook_secret',
+    });
+  }
 
   if (resource === 'subscriptions' && user) {
     if (sub === 'business' && id && method === 'GET') return subscriptionsHandlers.getByBusiness(id, user);
@@ -122,20 +170,23 @@ export async function handleLocal(
   }
 
   if (resource === 'menu-items' && user) {
-    if (method === 'GET' && !id) return menuItemsHandlers.findAll(request, user);
-    if (method === 'GET' && id) return menuItemsHandlers.findOne(id, user);
+    const itemId = id || (sub && /^[0-9a-f-]{36}$/i.test(sub) ? sub : undefined);
+    if (method === 'GET' && !itemId) return menuItemsHandlers.findAll(request, user);
+    if (method === 'GET' && itemId) return menuItemsHandlers.findOne(itemId, user);
     if (method === 'POST' && !id) return menuItemsHandlers.create(request, user);
-    if (method === 'PATCH' && id) return menuItemsHandlers.update(id, request, user);
-    if (method === 'DELETE' && id) return menuItemsHandlers.remove(id, user);
+    if (method === 'PATCH' && itemId) return menuItemsHandlers.update(itemId, request, user);
+    if (method === 'DELETE' && itemId) return menuItemsHandlers.remove(itemId, user);
   }
 
   if (resource === 'templates' && user) {
     const templateId = sub && /^[0-9a-f-]{36}$/i.test(sub) ? sub : undefined;
     if (method === 'GET' && sub === 'scope' && id) return templatesHandlers.findByScope(id, request, user);
+    if (method === 'GET' && templateId && !id) return templatesHandlers.findOne(templateId, user);
     if (method === 'GET' && templateId && id === 'blocks') return templatesHandlers.getTemplateBlocks(templateId);
     if (method === 'POST' && sub === 'apply') return templatesHandlers.applyToScreen(request, user);
     if (method === 'POST' && sub === 'bulk-system') return templatesHandlers.createBulkSystem(request, user);
     if (method === 'POST' && templateId && id === 'duplicate') return templatesHandlers.duplicate(templateId, request, user);
+    if (method === 'POST' && templateId && id === 'copy-to-system') return templatesHandlers.copyToSystem(templateId, request, user);
     if (method === 'POST' && templateId && id === 'save-as') return templatesHandlers.saveAs(templateId, request, user);
     if (method === 'POST' && templateId && id === 'create-menu-from-products') return templatesHandlers.createMenuFromProducts(templateId, request, user);
     if (method === 'POST' && !sub) return templatesHandlers.create(request, user);
@@ -150,8 +201,9 @@ export async function handleLocal(
     if (method === 'PATCH' && id) return screenBlocksHandlers.update(id, request, user);
   }
   if (resource === 'businesses' && user) {
+    const businessId = id || (sub && /^[0-9a-f-]{36}$/i.test(sub) ? sub : undefined);
     if (method === 'POST' && !id) return crudMutations.createBusiness(request, user);
-    if (method === 'PATCH' && id) return crudMutations.updateBusiness(id, request, user);
+    if (method === 'PATCH' && businessId) return crudMutations.updateBusiness(businessId, request, user);
   }
   if (resource === 'users' && user) {
     const userId = id || (sub && /^[0-9a-f-]{36}$/i.test(sub) ? sub : undefined);
@@ -169,9 +221,10 @@ export async function handleLocal(
     return Response.json({ message: 'AI template generation is not available on Vercel. Use backend.', template: null }, { status: 501 });
   }
   if (resource === 'menus' && user) {
+    const menuId = (id || sub) && /^[0-9a-f-]{36}$/i.test(String(id || sub)) ? (id || sub) : undefined;
     if (method === 'POST' && !id) return menusHandlers.create(request, user);
-    if (method === 'PATCH' && id) return menusHandlers.update(id, request, user);
-    if (method === 'DELETE' && id) return menusHandlers.remove(id, user);
+    if (method === 'PATCH' && menuId) return menusHandlers.update(menuId, request, user);
+    if (method === 'DELETE' && menuId) return menusHandlers.remove(menuId, user);
   }
   if (resource === 'screens' && user) {
     // /screens -> sub undefined | /screens/fix-names -> sub=fix-names | /screens/uuid -> sub=uuid | /screens/uuid/menus -> sub=uuid, id=menus
@@ -198,11 +251,12 @@ export async function handleLocal(
     if (method === 'DELETE' && id) return templateBlocksHandlers.remove(id);
   }
   if (resource === 'template-block-contents' && user) {
+    const contentId = sub === 'block' ? undefined : (id || sub);
     if (method === 'GET' && sub === 'block' && id) return templateBlockContentsHandlers.findByBlock(id);
-    if (method === 'GET' && id) return templateBlockContentsHandlers.findOne(id);
+    if (method === 'GET' && contentId) return templateBlockContentsHandlers.findOne(contentId);
     if (method === 'POST' && !id) return templateBlockContentsHandlers.create(request);
-    if (method === 'PATCH' && id) return templateBlockContentsHandlers.update(id, request);
-    if (method === 'DELETE' && id) return templateBlockContentsHandlers.remove(id);
+    if (method === 'PATCH' && contentId) return templateBlockContentsHandlers.update(contentId, request);
+    if (method === 'DELETE' && contentId) return templateBlockContentsHandlers.remove(contentId);
   }
 
   // Generic GET for CRUD tables (templates/scope/* handled above by findByScope for business_user)

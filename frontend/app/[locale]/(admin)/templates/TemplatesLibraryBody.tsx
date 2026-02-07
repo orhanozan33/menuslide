@@ -47,6 +47,8 @@ export interface TemplatesLibraryBodyProps {
   setPreviewBlocksLoading: (b: boolean) => void;
   handleUseThisTemplate: (template: any) => void;
   handleDuplicateTemplate: (template: any) => void;
+  handleCopyToSystem?: (template: any) => void;
+  copyToSystemLoadingId?: string | null;
   openDeleteConfirm: (template: any) => void;
   useThisLoadingId: string | null;
   router: any;
@@ -111,6 +113,8 @@ export function TemplatesLibraryBody(props: TemplatesLibraryBodyProps) {
     setPreviewBlocksLoading,
     handleUseThisTemplate,
     handleDuplicateTemplate,
+    handleCopyToSystem,
+    copyToSystemLoadingId,
     openDeleteConfirm,
     useThisLoadingId,
     router,
@@ -208,13 +212,7 @@ export function TemplatesLibraryBody(props: TemplatesLibraryBodyProps) {
                 {useThisLoadingId === template.id ? '...' : t('templates_use_this')}
               </button>
             )}
-            <button
-              onClick={() => handleDuplicateTemplate(template)}
-              className="px-3 py-1.5 text-sm bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300"
-            >
-              {t('btn_copy')}
-            </button>
-            {(userRole !== 'super_admin' && userRole !== 'admin') && (
+            {isSystem && (userRole !== 'super_admin' && userRole !== 'admin') && (
               <button
                 onClick={() => {
                   setSelectedTemplate(template);
@@ -227,6 +225,15 @@ export function TemplatesLibraryBody(props: TemplatesLibraryBodyProps) {
             )}
             {(userRole === 'super_admin' || userRole === 'admin') && (
               <>
+                {!isSystem && mode === 'system' && selectedUserId && handleCopyToSystem && (
+                  <button
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleCopyToSystem(template); }}
+                    disabled={copyToSystemLoadingId !== null}
+                    className="px-3 py-1.5 text-sm bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50"
+                  >
+                    {copyToSystemLoadingId === template.id ? '...' : t('templates_copy_to_system')}
+                  </button>
+                )}
                 <button
                   onClick={() => {
                     const isCanvas = template?.canvas_design && typeof template.canvas_design === 'object';
@@ -253,12 +260,23 @@ export function TemplatesLibraryBody(props: TemplatesLibraryBodyProps) {
               </>
             )}
             {!isSystem && (userRole !== 'super_admin' && userRole !== 'admin') && (
-              <button
-                onClick={(e) => { e.preventDefault(); e.stopPropagation(); openDeleteConfirm(template); }}
-                className="px-3 py-1.5 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200"
-              >
-                {t('common_delete')}
-              </button>
+              <>
+                <button
+                  onClick={() => {
+                    const isCanvas = template?.canvas_design && typeof template.canvas_design === 'object';
+                    router.push(isCanvas ? `${localePath('/editor')}?templateId=${template.id}` : localePath(`/templates/${template.id}/edit`));
+                  }}
+                  className="px-3 py-1.5 text-sm bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200"
+                >
+                  {t('common_edit')}
+                </button>
+                <button
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); openDeleteConfirm(template); }}
+                  className="px-3 py-1.5 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200"
+                >
+                  {t('common_delete')}
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -298,7 +316,7 @@ export function TemplatesLibraryBody(props: TemplatesLibraryBodyProps) {
         </div>
       )}
 
-      {(userRole === 'super_admin' || userRole === 'admin') && setSelectedUserId && mode === 'mine' && (
+      {(userRole === 'super_admin' || userRole === 'admin') && setSelectedUserId && (mode === 'mine' || mode === 'system') && (
         <div className="mb-6 p-4 bg-blue-50 rounded-lg border-2 border-blue-200">
           <label className="block text-sm font-semibold text-gray-800 mb-2">
             👤 {t('templates_select_user')}
@@ -319,7 +337,23 @@ export function TemplatesLibraryBody(props: TemplatesLibraryBodyProps) {
       )}
 
       <div className="space-y-8">
-        {mode === 'system' && (
+        {mode === 'system' && (userRole === 'super_admin' || userRole === 'admin') && selectedUserId ? (
+          <section>
+            <p className="text-sm text-gray-600 mb-4">
+              {users.find((u) => u.id === selectedUserId)?.email || users.find((u) => u.id === selectedUserId)?.business_name || t('templates_user')} {t('templates_user_templates_desc')}
+            </p>
+            {userTemplates && userTemplates.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {userTemplates.map((tpl) => renderTemplateCard(tpl, false))}
+              </div>
+            ) : (
+              <div className="py-12 text-center bg-gray-50 rounded-xl border border-gray-200">
+                <p className="text-gray-600">{t('templates_no_mine')}</p>
+                <p className="text-sm text-gray-500 mt-1">{t('templates_create_hint')}</p>
+              </div>
+            )}
+          </section>
+        ) : mode === 'system' && (
           <section>
             <p className="text-sm text-gray-600 mb-4">{t('templates_system_desc')}</p>
             {systemTemplates && systemTemplates.length > 0 ? (

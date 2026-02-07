@@ -334,9 +334,11 @@ INSERT INTO languages (code, name, is_default, is_active) VALUES
     ('pt', 'Portuguese', false, true)
 ON CONFLICT (code) DO NOTHING;
 
--- Insert default plans (1 ekran = 14.99$, yıllık %15 indirim)
+-- Insert default plans (1 ekran = 12.99$, yıllık %10 indirim, fiyat sonu .99): 1-3, 1-5, 1-7, 1-10, Sınırsız
 INSERT INTO plans (name, display_name, max_screens, price_monthly, price_yearly, is_active) VALUES
-    ('basic', '1 Screen', 1, 14.99, 152.90, true),
-    ('pro', '5 Screens', 5, 74.95, 764.49, true),
-    ('enterprise', 'Enterprise Plan', -1, 149.99, 1529.89, true)
+    ('1-3-screens', '1-3 Ekran', 3, 38.99, 420.99, true),
+    ('1-5-screens', '1-5 Ekran', 5, 64.99, 701.99, true),
+    ('1-7-screens', '1-7 Ekran', 7, 90.99, 982.99, true),
+    ('1-10-screens', '1-10 Ekran', 10, 129.99, 1403.99, true),
+    ('enterprise', 'Sınırsız', -1, 194.99, 2105.99, true)
 ON CONFLICT (name) DO NOTHING;

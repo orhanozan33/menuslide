@@ -1,7 +1,7 @@
 'use client';
 
 import React, { Suspense } from 'react';
-import { TemplatesLibraryContent } from '@/app/(admin)/templates/TemplatesLibraryContent';
+import { TemplatesWithSearchParams } from '@/app/(admin)/templates/TemplatesLibraryContent';
 
 function TemplatesFallback() {
   return (
@@ -16,7 +16,7 @@ function TemplatesFallback() {
 export default function SystemTemplatesPage() {
   return (
     <Suspense fallback={<TemplatesFallback />}>
-      <TemplatesLibraryContent mode="system" />
+      <TemplatesWithSearchParams mode="system" />
     </Suspense>
   );
 }

@@ -1462,7 +1462,7 @@ export default function CanvasDesignEditor({ templateId }: CanvasDesignEditorPro
                     disabled={saveAsLoading}
                   >
                     <option value="">{t('editor_select_user_placeholder')}</option>
-                    {users.filter((u) => u.business_name).map((u) => (
+                    {users.filter((u) => u.role === 'business_user' || u.business_id).map((u) => (
                       <option key={u.id} value={u.id}>{u.business_name || u.email} — {u.email}</option>
                     ))}
                   </select>

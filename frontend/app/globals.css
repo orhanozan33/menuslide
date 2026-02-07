@@ -66,6 +66,28 @@ textarea::placeholder {
   animation: pulse-scale 1.5s ease-in-out infinite;
 }
 
+/* İçerik Kütüphanesi kaydırma çubuğu - her zaman görünür */
+.content-library-scroll {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable;
+}
+.content-library-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+.content-library-scroll::-webkit-scrollbar-track {
+  background: #e5e7eb;
+  border-radius: 4px;
+}
+.content-library-scroll::-webkit-scrollbar-thumb {
+  background: #9ca3af;
+  border-radius: 4px;
+}
+.content-library-scroll::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
+
 /* Hareketli indirim bloğu - hareket çeşitleri */
 @keyframes discount-pulse {
   0%, 100% { transform: translate(-50%, -50%) scale(1); box-shadow: 0 0 8px 2px currentColor; filter: brightness(1); }

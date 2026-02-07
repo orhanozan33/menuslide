@@ -12,9 +12,15 @@ export default async function LocaleLayout({
   children: React.ReactNode;
   params: Promise<{ locale?: string }>;
 }) {
-  const { locale: localeParam } = await params;
-  if (localeParam && !VALID_LOCALES.includes(localeParam as (typeof VALID_LOCALES)[number])) {
-    notFound();
+  try {
+    const resolved = await params;
+    const localeParam = resolved?.locale;
+    if (localeParam && !VALID_LOCALES.includes(localeParam as (typeof VALID_LOCALES)[number])) {
+      notFound();
+    }
+    return <>{children}</>;
+  } catch (e) {
+    console.error('[LocaleLayout] params error:', e);
+    throw e;
   }
-  return <>{children}</>;
 }

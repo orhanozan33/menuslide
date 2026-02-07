@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useRouter, useParams } from 'next/navigation';
 import { apiClient } from '@/lib/api';
 import { useTranslation } from '@/lib/i18n/useTranslation';
+import { useToast } from '@/lib/ToastContext';
+import { resolveMediaUrl } from '@/lib/resolveMediaUrl';
 import ContentLibrary from '@/components/ContentLibrary';
 import { logAdminActivity } from '@/lib/admin-activity';
 import { VideoRotationPlayer } from '@/components/display/VideoRotationPlayer';
@@ -131,6 +133,7 @@ interface TemplateEditorPageProps {
 export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateEditorPageProps) {
   const router = useRouter();
   const { t, localePath } = useTranslation();
+  const toast = useToast();
 
   const [template, setTemplate] = useState<any>(null);
   const [blocks, setBlocks] = useState<any[]>([]);
@@ -1272,7 +1275,7 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
       setEditingImageRotationItems([]);
     } catch (err: any) {
       console.error('Reset error:', err);
-      alert(`❌ ${t('editor_reset_error')}: ${err.message}`);
+      toast.showError(`${t('editor_reset_error')}: ${err.message}`);
     } finally {
       setSaving(false);
     }
@@ -2264,31 +2267,8 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
       });
       logAdminActivity({ action_type: 'template_save', page_key: 'editor', resource_type: 'template', resource_id: templateId, details: { name: template?.display_name } });
 
-      // Template'teki ürünleri menu'ye aktar
-      try {
-        const menuResult = await apiClient(`/templates/${templateId}/create-menu-from-products`, {
-          method: 'POST',
-        });
-        
-        if (menuResult && menuResult.menu) {
-          showSuccess(`✅ ${t('editor_template_saved_products_transferred').replace('{count}', String(menuResult.productsCount || 0)).replace('{name}', menuResult.menu.name || '')}`);
-        } else {
-          showSuccess(`✅ ${t('editor_template_saved_products_transferred_short').replace('{count}', String(menuResult?.productsCount || 0))}`);
-        }
-      } catch (menuErr: any) {
-        console.error('❌ Menü oluşturma hatası:', menuErr);
-        console.error('Hata detayları:', {
-          message: menuErr?.message,
-          status: menuErr?.status,
-          data: menuErr?.data,
-        });
-        const errorMsg = menuErr?.data?.message || menuErr?.message || 'Bilinmeyen hata';
-        
-        // Hata mesajını daha görünür göster
-        alert(`⚠️ ${t('editor_template_saved_menu_failed')}\n\n${t('common_error')}: ${errorMsg}\n\n${t('editor_template_saved_retry_transfer')}`);
-        showSuccess(`✅ ${t('editor_template_saved_no_menu')}`);
-      }
-      
+      showSuccess(`✅ ${t('editor_template_saved')}`);
+
       // Template listesine dön
       setTimeout(() => {
         router.push(localePath('/templates'));
@@ -4656,24 +4636,38 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
                   className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-gray-900 resize-none"
                 />
               </div>
-              {selectedBlockContent?.content_type === 'image' && (
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    {t('editor_image_blur')}
-                  </label>
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="range"
-                      min={0}
-                      max={20}
-                      value={editingImageBlur}
-                      onChange={(e) => setEditingImageBlur(Number(e.target.value))}
-                      className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
-                    />
-                    <span className="text-sm font-medium text-gray-700 tabular-nums w-8">{editingImageBlur}px</span>
+              {selectedBlockContent?.content_type === 'image' && (() => {
+                const previewUrl = (editingImageRotationItems?.[0]?.url) || selectedBlockContent?.image_url || '';
+                const resolvedUrl = resolveMediaUrl(previewUrl);
+                return (
+                  <div>
+                    {resolvedUrl && (
+                      <div className="mb-3 rounded-lg overflow-hidden bg-gray-100 aspect-video max-h-32">
+                        <img
+                          src={resolvedUrl}
+                          alt=""
+                          className="w-full h-full object-cover transition-[filter] duration-150"
+                          style={{ filter: `blur(${editingImageBlur}px)` }}
+                        />
+                      </div>
+                    )}
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      {t('editor_image_blur')}
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="range"
+                        min={0}
+                        max={20}
+                        value={editingImageBlur}
+                        onChange={(e) => setEditingImageBlur(Number(e.target.value))}
+                        className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                      />
+                      <span className="text-sm font-medium text-gray-700 tabular-nums w-8">{editingImageBlur}px</span>
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
               {/* Resim / içerik düzenleme: yazı ekleme, resim sırası, indirim bloğu */}
               {(selectedBlockContent?.content_type === 'image' || selectedBlockContent?.content_type === 'video') && (
                 <div className="pt-2 border-t border-gray-200">

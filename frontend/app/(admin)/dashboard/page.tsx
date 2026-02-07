@@ -237,12 +237,6 @@ export default function DashboardPage() {
             </div>
           )}
         </section>
-
-        <div className="mt-4">
-          <Link href={localePath('/pricing')} className="text-blue-600 hover:underline">
-            Fiyatlandırma sayfası
-          </Link>
-        </div>
       </div>
     );
   }
