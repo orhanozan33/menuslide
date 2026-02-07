@@ -145,6 +145,132 @@ textarea::placeholder {
 .discount-style-ticket { border-radius: 0.5rem; padding: 0.4rem 1rem; border: 2px dashed currentColor; background-clip: padding-box; }
 .discount-style-diamond { clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%); padding: 0.6rem 1rem; }
 
+/* Fiyat etiketi (price badge) - köşede indirim/önemli fiyat etiketi */
+.price-badge {
+  position: absolute;
+  z-index: 35;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0.4rem 0.75rem;
+  min-width: 3.5rem;
+  min-height: 2rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  white-space: nowrap;
+}
+.price-badge.top-left { left: 5%; top: 5%; transform-origin: 0 0; }
+.price-badge.top-right { right: 5%; top: 5%; left: auto; transform-origin: 100% 0; }
+.price-badge.bottom-left { left: 5%; bottom: 5%; top: auto; transform-origin: 0 100%; }
+.price-badge.bottom-right { right: 5%; bottom: 5%; left: auto; top: auto; transform-origin: 100% 100%; }
+.price-badge .badge-top { font-size: 0.6em; font-weight: 600; line-height: 1.2; text-transform: uppercase; letter-spacing: 0.02em; }
+.price-badge .badge-price { font-size: 1em; font-weight: 800; line-height: 1.2; }
+.price-badge .badge-bottom { font-size: 0.6em; font-weight: 600; line-height: 1.2; }
+.price-badge.rounded { border-radius: 0.5rem; }
+.price-badge.fiyat-etiketi { border-radius: 0.5rem; }
+.price-badge.serit { border-radius: 0; }
+.price-badge.balon { border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%; padding: 0.5rem 1rem; }
+.price-badge.peeled_circle { border-radius: 50%; box-shadow: 0 2px 8px rgba(0,0,0,0.25), 2px 2px 4px rgba(0,0,0,0.15); }
+.price-badge.simple_circle { border-radius: 50%; }
+.price-badge.folded_corner { border-radius: 0.5rem 0 0.5rem 0; }
+.price-badge.starburst { clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%); }
+.price-badge.pointed_rectangle { border-radius: 0.25rem; }
+/* Asma etiket stilleri (üstte delikli etiket şekli) */
+.price-badge.simple_hang_tag { border-radius: 0.5rem; clip-path: polygon(50% 0%, 55% 0%, 55% 8%, 100% 8%, 100% 100%, 0 100%, 0 8%, 45% 8%, 45% 0%); }
+.price-badge.classic_hang_tag { border-radius: 0.5rem; clip-path: polygon(50% 0%, 58% 0%, 58% 10%, 100% 10%, 100% 100%, 0 100%, 0 10%, 42% 10%, 42% 0%); box-shadow: 0 3px 10px rgba(0,0,0,0.3); }
+.price-badge.hang_tag_banner { border-radius: 0.5rem 0.5rem 0 0; border-bottom: 3px solid rgba(0,0,0,0.2); box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+.price-badge.folded_ribbon { clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px)); }
+.price-badge.box_3d { border-radius: 0.5rem; box-shadow: 0 4px 0 rgba(0,0,0,0.25), 3px 3px 0 rgba(0,0,0,0.15), 0 6px 14px rgba(0,0,0,0.35); border: 1px solid rgba(0,0,0,0.1); }
+.price-badge.price-badge-draggable { pointer-events: auto; }
+
+/* Resim döngüsü geçiş efektleri (ImageRotationPlayer) - her geçişte yeni resim bu animasyonla girer */
+.image-rotation-transition-wrap {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+}
+.image-rotation-transition-none .image-rot-media { animation: none !important; opacity: 1 !important; }
+.image-rotation-transition-none.image-rotation-transition-wrap { animation: none !important; opacity: 1 !important; }
+.image-rot-media {
+  animation-iteration-count: 1 !important;
+  animation-fill-mode: both !important;
+}
+/* Overlay varsa animasyon wrap'e uygulanır; resim+overlay birlikte hareket eder */
+.image-rotation-transition-wrap {
+  animation-iteration-count: 1 !important;
+  animation-fill-mode: both !important;
+}
+@keyframes imgRotFadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes imgRotSlideLeftIn { from { opacity: 0; transform: translateX(100%); } to { opacity: 1; transform: translateX(0); } }
+@keyframes imgRotSlideRightIn { from { opacity: 0; transform: translateX(-100%); } to { opacity: 1; transform: translateX(0); } }
+@keyframes imgRotSlideUpIn { from { opacity: 0; transform: translateY(100%); } to { opacity: 1; transform: translateY(0); } }
+@keyframes imgRotSlideDownIn { from { opacity: 0; transform: translateY(-100%); } to { opacity: 1; transform: translateY(0); } }
+@keyframes imgRotZoomIn { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
+@keyframes imgRotZoomOut { from { opacity: 0; transform: scale(1.2); } to { opacity: 1; transform: scale(1); } }
+@keyframes imgRotBlurIn { from { opacity: 0; filter: blur(12px); } to { opacity: 1; filter: blur(0); } }
+@keyframes imgRotFlipH { from { opacity: 0; transform: perspective(800px) rotateY(90deg); } to { opacity: 1; transform: perspective(800px) rotateY(0); } }
+@keyframes imgRotFlipV { from { opacity: 0; transform: perspective(800px) rotateX(90deg); } to { opacity: 1; transform: perspective(800px) rotateX(0); } }
+@keyframes imgRotateIn { from { opacity: 0; transform: rotate(-180deg) scale(0.5); } to { opacity: 1; transform: rotate(0) scale(1); } }
+@keyframes imgRotRevealCenter { from { opacity: 0; transform: scale(0); } to { opacity: 1; transform: scale(1); } }
+@keyframes imgRotDissolve { from { opacity: 0; filter: grayscale(1); } to { opacity: 1; filter: grayscale(0); } }
+@keyframes imgRotIrisOpen { from { opacity: 0; clip-path: circle(0% at 50% 50%); } to { opacity: 1; clip-path: circle(150% at 50% 50%); } }
+@keyframes imgRotIrisClose { from { opacity: 0; clip-path: circle(150% at 50% 50%); } to { opacity: 1; clip-path: circle(100% at 50% 50%); } }
+@keyframes imgRotSpiralIn { from { opacity: 0; transform: rotate(-360deg) scale(0); } to { opacity: 1; transform: rotate(0) scale(1); } }
+@keyframes imgRotBlindsH { from { opacity: 0; clip-path: inset(0 100% 0 0); } to { opacity: 1; clip-path: inset(0 0 0 0); } }
+@keyframes imgRotBlindsV { from { opacity: 0; clip-path: inset(100% 0 0 0); } to { opacity: 1; clip-path: inset(0 0 0 0); } }
+@keyframes imgRotTiles { from { opacity: 0; transform: scale(0.5); } to { opacity: 1; transform: scale(1); } }
+/* Animasyon wrap'e uygulanır; overlay'lar resimle birlikte hareket eder */
+.image-rotation-transition-fade { animation-name: imgRotFadeIn; }
+.image-rotation-transition-fade .image-rot-media { animation: none !important; opacity: 1 !important; }
+.image-rotation-transition-slide-left { animation-name: imgRotSlideLeftIn; }
+.image-rotation-transition-slide-left .image-rot-media { animation: none !important; opacity: 1 !important; }
+.image-rotation-transition-slide-right { animation-name: imgRotSlideRightIn; }
+.image-rotation-transition-slide-right .image-rot-media { animation: none !important; opacity: 1 !important; }
+.image-rotation-transition-slide-up { animation-name: imgRotSlideUpIn; }
+.image-rotation-transition-slide-up .image-rot-media { animation: none !important; opacity: 1 !important; }
+.image-rotation-transition-slide-down { animation-name: imgRotSlideDownIn; }
+.image-rotation-transition-slide-down .image-rot-media { animation: none !important; opacity: 1 !important; }
+.image-rotation-transition-zoom-in { animation-name: imgRotZoomIn; }
+.image-rotation-transition-zoom-in .image-rot-media { animation: none !important; opacity: 1 !important; }
+.image-rotation-transition-zoom-out { animation-name: imgRotZoomOut; }
+.image-rotation-transition-zoom-out .image-rot-media { animation: none !important; opacity: 1 !important; }
+.image-rotation-transition-blur-in { animation-name: imgRotBlurIn; }
+.image-rotation-transition-blur-in .image-rot-media { animation: none !important; opacity: 1 !important; }
+.image-rotation-transition-flip-h { animation-name: imgRotFlipH; }
+.image-rotation-transition-flip-h .image-rot-media { animation: none !important; opacity: 1 !important; }
+.image-rotation-transition-flip-v { animation-name: imgRotFlipV; }
+.image-rotation-transition-flip-v .image-rot-media { animation: none !important; opacity: 1 !important; }
+.image-rotation-transition-rotate-in { animation-name: imgRotateIn; }
+.image-rotation-transition-rotate-in .image-rot-media { animation: none !important; opacity: 1 !important; }
+.image-rotation-transition-reveal-center { animation-name: imgRotRevealCenter; }
+.image-rotation-transition-reveal-center .image-rot-media { animation: none !important; opacity: 1 !important; }
+.image-rotation-transition-dissolve { animation-name: imgRotDissolve; }
+.image-rotation-transition-dissolve .image-rot-media { animation: none !important; opacity: 1 !important; }
+.image-rotation-transition-iris-open { animation-name: imgRotIrisOpen; }
+.image-rotation-transition-iris-open .image-rot-media { animation: none !important; opacity: 1 !important; }
+.image-rotation-transition-iris-close { animation-name: imgRotIrisClose; }
+.image-rotation-transition-iris-close .image-rot-media { animation: none !important; opacity: 1 !important; }
+.image-rotation-transition-spiral-in { animation-name: imgRotSpiralIn; }
+.image-rotation-transition-spiral-in .image-rot-media { animation: none !important; opacity: 1 !important; }
+.image-rotation-transition-blinds-h { animation-name: imgRotBlindsH; }
+.image-rotation-transition-blinds-h .image-rot-media { animation: none !important; opacity: 1 !important; }
+.image-rotation-transition-blinds-v { animation-name: imgRotBlindsV; }
+.image-rotation-transition-blinds-v .image-rot-media { animation: none !important; opacity: 1 !important; }
+.image-rotation-transition-tiles { animation-name: imgRotTiles; }
+.image-rotation-transition-tiles .image-rot-media { animation: none !important; opacity: 1 !important; }
+.image-rotation-transition-puzzle-expand { animation-name: imgRotZoomIn; }
+.image-rotation-transition-puzzle-expand .image-rot-media { animation: none !important; opacity: 1 !important; }
+.image-rotation-transition-puzzle-rows { animation-name: imgRotSlideUpIn; }
+.image-rotation-transition-puzzle-rows .image-rot-media { animation: none !important; opacity: 1 !important; }
+.image-rotation-transition-puzzle-cols { animation-name: imgRotSlideLeftIn; }
+.image-rotation-transition-puzzle-cols .image-rot-media { animation: none !important; opacity: 1 !important; }
+.image-rotation-transition-puzzle-diagonal { animation-name: imgRotSlideLeftIn; }
+.image-rotation-transition-puzzle-diagonal .image-rot-media { animation: none !important; opacity: 1 !important; }
+.image-rotation-transition-puzzle-grid { animation-name: imgRotRevealCenter; }
+.image-rotation-transition-puzzle-grid .image-rot-media { animation: none !important; opacity: 1 !important; }
+
 /* Tasarım Editörü: tüm araç takımları solda (TLDraw toolbar dikey + stil paneli solda) */
 .tldraw-editor-left-tools .tlui-layout__top {
   flex-direction: column;

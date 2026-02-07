@@ -11,6 +11,7 @@ import 'react-resizable/css/styles.css';
 import Toast from '@/components/Toast';
 import { useToast } from '@/hooks/useToast';
 import ContentLibrary from '@/components/ContentLibrary';
+import { TemplateDisplay } from '@/components/display/TemplateDisplay';
 
 interface Block {
   id: string;
@@ -1574,13 +1575,15 @@ export default function TemplatePage() {
                                     const isDisc = !!layer.isDiscountBlock;
                                     const iconB = layer.icon && layer.iconPosition !== 'after';
                                     const iconA = layer.icon && layer.iconPosition === 'after';
+                                    const px = typeof layer.x === 'number' ? layer.x : 50;
+                                    const py = typeof layer.y === 'number' ? layer.y : 50;
                                     return (
                                       <div
                                         key={layer.id}
                                         className={`absolute z-30 ${isDisc ? getDiscountBlockClasses(layer) + ' px-2 py-1 shadow border' : ''}`}
                                         style={{
-                                          left: `${layer.x}%`,
-                                          top: `${layer.y}%`,
+                                          left: `${px}%`,
+                                          top: `${py}%`,
                                           transform: 'translate(-50%, -50%)',
                                           ...(isDisc ? getDiscountBlockStyles(layer) : { color: layer.color }),
                                           fontSize: `${layer.size * 0.4}px`,
@@ -1641,13 +1644,15 @@ export default function TemplatePage() {
                                     const isDisc = !!layer.isDiscountBlock;
                                     const iconB = layer.icon && layer.iconPosition !== 'after';
                                     const iconA = layer.icon && layer.iconPosition === 'after';
+                                    const px = typeof layer.x === 'number' ? layer.x : 50;
+                                    const py = typeof layer.y === 'number' ? layer.y : 50;
                                     return (
                                       <div
                                         key={layer.id}
                                         className={`absolute z-30 ${isDisc ? getDiscountBlockClasses(layer) + ' px-2 py-1 shadow border' : ''}`}
                                         style={{
-                                          left: `${layer.x}%`,
-                                          top: `${layer.y}%`,
+                                          left: `${px}%`,
+                                          top: `${py}%`,
                                           transform: 'translate(-50%, -50%)',
                                           ...(isDisc ? getDiscountBlockStyles(layer) : { color: layer.color }),
                                           fontSize: `${layer.size * 0.4}px`,
@@ -1921,8 +1926,42 @@ export default function TemplatePage() {
         </div>
       )}
 
-      {/* Full Screen TV Preview Modal */}
-      {showFullScreenPreview && (
+      {/* Full Screen TV Preview Modal - TemplateDisplay ile önizleme/düzenleme tutarlılığı (indirim etiketi aynı konumda) */}
+      {showFullScreenPreview && (() => {
+        const rawBlocks = previewTemplate ? previewBlocks : blocks;
+        const currentBlocks = rawBlocks.length === 0 ? [] : rawBlocks
+          .slice()
+          .sort((a: Block, b: Block) => (a.block_index ?? 0) - (b.block_index ?? 0));
+        const screenBlocks = currentBlocks.map((b: Block) => ({
+          id: b.id,
+          template_block_id: b.id,
+          block_index: b.block_index ?? 0,
+          position_x: b.position_x ?? 0,
+          position_y: b.position_y ?? 0,
+          width: b.width ?? 100,
+          height: b.height ?? 100,
+          style_config: b.style_config,
+        }));
+        const blockContents = currentBlocks.flatMap((b: Block) =>
+          (b.contents || []).map((c: any) => {
+            const sc = c.style_config ? (typeof c.style_config === 'string' ? JSON.parse(c.style_config || '{}') : c.style_config) : {};
+            const mergedTextLayers = previewEditingTextLayers[c.id] ?? sc.textLayers ?? [];
+            const mergedStyle = { ...sc, textLayers: mergedTextLayers };
+            return {
+              ...c,
+              screen_block_id: b.id,
+              template_block_id: b.id,
+              style_config: mergedStyle,
+            };
+          })
+        );
+        const screenData = {
+          screen: { id: screen?.id || 'preview', animation_type: 'fade', animation_duration: 500, frame_type: screen?.frame_type || 'none', ticker_text: screen?.ticker_text || '' },
+          template: { id: selectedTemplate || '', block_count: currentBlocks.length },
+          screenBlocks,
+          blockContents,
+        };
+        return (
         <div 
           className="fixed inset-0 z-50 bg-black flex items-center justify-center"
           onClick={() => setShowFullScreenPreview(false)}
@@ -1941,281 +1980,14 @@ export default function TemplatePage() {
               <span>Kapat (ESC)</span>
             </button>
 
-            {/* TV Preview Content - Profesyonel Tasarım */}
-            {(() => {
-              const currentBlocks = previewTemplate ? previewBlocks : blocks;
-              const gridLayout = getProfessionalGridLayout(currentBlocks.length);
-              
-              return (
-                <div
-                  className="w-full h-full bg-gradient-to-br from-gray-900 via-gray-800 to-black"
-                  style={{ 
-                    display: 'grid',
-                    gridTemplateColumns: `repeat(${gridLayout.cols}, 1fr)`,
-                    gridTemplateRows: `repeat(${gridLayout.rows}, 1fr)`,
-                    gap: '2px',
-                    padding: '8px',
-                  }}
-                >
-                  {currentBlocks.map((block, index) => {
-                    const styleConfig = block.style_config ? (typeof block.style_config === 'string' ? JSON.parse(block.style_config) : block.style_config) : {};
-                    const bgColor = styleConfig.background_color || '#1a1a1a';
-                    const bgGradient = styleConfig.background_gradient;
-                    const bgImage = styleConfig.background_image;
-                    
-                    // Tüm içerikleri al ve kategorize et (overlay sistemi için)
-                    const contents = block.contents || [];
-                    const imageContent = contents.find((c: any) => c.content_type === 'image');
-                    const videoContent = contents.find((c: any) => c.content_type === 'video');
-                    const iconContent = contents.find((c: any) => c.content_type === 'icon');
-                    const badgeContent = contents.find((c: any) => c.content_type === 'campaign_badge');
-                    const textContent = contents.find((c: any) => c.content_type === 'text');
-                    const productContent = contents.find((c: any) => !c.content_type && (c.title || c.name));
-                    
-                    // Yazı ve fiyat için: textContent veya productContent'ten al
-                    const displayTitle = textContent?.title || productContent?.title || productContent?.name || imageContent?.title || videoContent?.title || '';
-                    const displayPrice = textContent?.price || productContent?.price || imageContent?.price || videoContent?.price || null;
-                    
-                    // Arka plan varsa border'ı kaldır
-                    const hasBackground = bgImage || bgGradient || (bgColor && bgColor !== '#1a1a1a');
-                    
-                    // 3 blok için: son blok (index 2) hem 2 satırı hem 2 sütunu kaplıyor (tüm alt kısım)
-                    // 5 blok için: 3. blok (index 2) 2 satırı kaplıyor
-                    // 7 blok için: son blok (index 6) 2 sütunu kaplıyor
-                    const is3BlockLast = currentBlocks.length === 3 && index === 2;
-                    const is5BlockThird = currentBlocks.length === 5 && index === 2;
-                    const is7BlockLast = currentBlocks.length === 7 && index === 6;
-                    const shouldSpanRows = gridLayout.specialLayout && (is3BlockLast || is5BlockThird);
-                    const shouldSpanCols = is3BlockLast || is7BlockLast; // 3 blok ve 7 blok için son blok 2 sütunu kaplıyor
-                    
-                    return (
-                      <div
-                        key={block.id}
-                        className={`relative overflow-hidden shadow-2xl ${
-                          hasBackground ? '' : 'rounded-lg'
-                        }`}
-                        style={{
-                          background: bgImage 
-                            ? `url(${bgImage}) center/cover no-repeat, ${bgGradient || bgColor}`
-                            : bgGradient || bgColor,
-                          backgroundImage: bgImage ? `url(${bgImage})` : undefined,
-                          backgroundSize: bgImage ? 'cover' : undefined,
-                          backgroundPosition: bgImage ? 'center' : undefined,
-                          backgroundRepeat: bgImage ? 'no-repeat' : undefined,
-                          minHeight: '0',
-                          gridRow: shouldSpanRows ? 'span 2' : 'auto',
-                          gridColumn: shouldSpanCols ? 'span 2' : 'auto',
-                          border: hasBackground ? 'none' : undefined,
-                        }}
-                      >
-                        <div className="w-full h-full relative">
-                          {/* 1. Video İçeriği - üzerine yazı katmanları */}
-                          {videoContent?.image_url && (() => {
-                            const videoStyleConfig = videoContent.style_config
-                              ? (typeof videoContent.style_config === 'string' ? JSON.parse(videoContent.style_config || '{}') : videoContent.style_config)
-                              : {};
-                            const savedTextLayers = videoStyleConfig.textLayers || [];
-                            return (
-                              <div className="absolute inset-0 w-full h-full">
-                                <video
-                                  src={videoContent.image_url}
-                                  className="w-full h-full object-cover"
-                                  autoPlay
-                                  loop
-                                  muted
-                                  playsInline
-                                  style={{ imageRendering: 'auto', backfaceVisibility: 'hidden' }}
-                                />
-                                {(previewEditingTextLayers[videoContent.id] || savedTextLayers).map((layer: any) => {
-                                  const isDisc = !!layer.isDiscountBlock;
-                                  const iconB = layer.icon && layer.iconPosition !== 'after';
-                                  const iconA = layer.icon && layer.iconPosition === 'after';
-                                  return (
-                                    <div
-                                      key={layer.id}
-                                      className={`absolute z-30 cursor-grab active:cursor-grabbing select-none ${isDisc ? getDiscountBlockClasses(layer) + ' px-3 py-1.5 shadow-lg border' : ''}`}
-                                      style={{
-                                        left: `${layer.x}%`,
-                                        top: `${layer.y}%`,
-                                        transform: 'translate(-50%, -50%)',
-                                        ...(isDisc ? getDiscountBlockStyles(layer) : { color: layer.color }),
-                                        fontSize: `${layer.size}px`,
-                                        fontWeight: layer.fontWeight,
-                                        fontStyle: layer.fontStyle,
-                                        fontFamily: layer.fontFamily || 'Arial',
-                                        textShadow: isDisc ? '0 1px 2px rgba(0,0,0,0.3)' : '3px 3px 6px rgba(0,0,0,0.9)',
-                                        whiteSpace: 'pre' as const,
-                                        textAlign: 'center',
-                                      }}
-                                      onMouseDown={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        const container = (e.currentTarget as HTMLElement).parentElement;
-                                        if (!container || !videoContent?.id) return;
-                                        const layers = savedTextLayers.map((l: any) => ({ ...l, fontFamily: l.fontFamily || 'Arial' }));
-                                        setPreviewEditingTextLayers((prev) => ({ ...prev, [videoContent.id]: layers }));
-                                        previewDragLayersRef.current = layers;
-                                        setPreviewDragState({ contentId: videoContent.id, layerId: layer.id, containerEl: container });
-                                      }}
-                                    >
-                                      {iconB && <span className="mr-1">{layer.icon}</span>}
-                                      {layer.text}
-                                      {iconA && <span className="ml-1">{layer.icon}</span>}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            );
-                          })()}
-                          {/* 2. Arka Plan: Resim İçeriği (video yoksa) */}
-                          {!videoContent && imageContent && imageContent.image_url && (() => {
-                            const imageStyleConfig = imageContent.style_config
-                              ? (typeof imageContent.style_config === 'string' ? JSON.parse(imageContent.style_config || '{}') : imageContent.style_config)
-                              : {};
-                            const blurPx = typeof imageStyleConfig.blur === 'number' ? imageStyleConfig.blur : 0;
-                            const savedTextLayers = imageStyleConfig.textLayers || [];
-                            
-                            return (
-                              <div className="absolute inset-0 w-full h-full">
-                                <img
-                                  src={imageContent.image_url}
-                                  alt={imageContent.title || 'Image'}
-                                  className="w-full h-full object-cover"
-                                  style={{ 
-                                    display: 'block', 
-                                    minHeight: '100%',
-                                    objectFit: 'cover',
-                                    objectPosition: 'center',
-                                    imageRendering: '-webkit-optimize-contrast',
-                                    ...(blurPx > 0 ? { filter: `blur(${blurPx}px)` } : {}),
-                                  }}
-                                  loading="lazy"
-                                  decoding="async"
-                                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                                />
-                                {/* Çoklu yazı katmanları - Tam Ekran (ikon + indirim bloğu, sürüklenebilir) */}
-                                {(previewEditingTextLayers[imageContent.id] || savedTextLayers).map((layer: any) => {
-                                  const isDisc = !!layer.isDiscountBlock;
-                                  const iconB = layer.icon && layer.iconPosition !== 'after';
-                                  const iconA = layer.icon && layer.iconPosition === 'after';
-                                  return (
-                                    <div
-                                      key={layer.id}
-                                      className={`absolute z-30 cursor-grab active:cursor-grabbing select-none ${isDisc ? getDiscountBlockClasses(layer) + ' px-3 py-1.5 shadow-lg border' : ''}`}
-                                      style={{
-                                        left: `${layer.x}%`,
-                                        top: `${layer.y}%`,
-                                        transform: 'translate(-50%, -50%)',
-                                        ...(isDisc ? getDiscountBlockStyles(layer) : { color: layer.color }),
-                                        fontSize: `${layer.size}px`,
-                                        fontWeight: layer.fontWeight,
-                                        fontStyle: layer.fontStyle,
-                                        fontFamily: layer.fontFamily || 'Arial',
-                                        textShadow: isDisc ? '0 1px 2px rgba(0,0,0,0.3)' : '3px 3px 6px rgba(0,0,0,0.9)',
-                                        whiteSpace: 'pre' as const,
-                                        textAlign: 'center',
-                                      }}
-                                      onMouseDown={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        const container = (e.currentTarget as HTMLElement).parentElement;
-                                        if (!container || !imageContent?.id) return;
-                                        const layers = savedTextLayers.map((l: any) => ({ ...l, fontFamily: l.fontFamily || 'Arial' }));
-                                        setPreviewEditingTextLayers((prev) => ({ ...prev, [imageContent.id]: layers }));
-                                        previewDragLayersRef.current = layers;
-                                        setPreviewDragState({ contentId: imageContent.id, layerId: layer.id, containerEl: container });
-                                      }}
-                                    >
-                                      {iconB && <span className="mr-1">{layer.icon}</span>}
-                                      {layer.text}
-                                      {iconA && <span className="ml-1">{layer.icon}</span>}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            );
-                          })()}
-                          
-                          {/* 2. Üst Overlay: İkon (konumlandırılabilir) */}
-                          {iconContent && iconContent.icon_name && (() => {
-                            const iconStyleConfig = iconContent.style_config 
-                              ? (typeof iconContent.style_config === 'string' 
-                                  ? JSON.parse(iconContent.style_config) 
-                                  : iconContent.style_config)
-                              : {};
-                            
-                            // Konum bilgisini al (varsayılan: sağ üst)
-                            const iconPosition = iconStyleConfig.position || 'top-right';
-                            const positionStyles: { [key: string]: React.CSSProperties } = {
-                              'top-left': { top: '24px', left: '24px', right: 'auto', bottom: 'auto' },
-                              'top-right': { top: '24px', right: '24px', left: 'auto', bottom: 'auto' },
-                              'bottom-left': { bottom: '24px', left: '24px', right: 'auto', top: 'auto' },
-                              'bottom-right': { bottom: '24px', right: '24px', left: 'auto', top: 'auto' },
-                              'center': { top: '50%', left: '50%', right: 'auto', bottom: 'auto', transform: 'translate(-50%, -50%)' },
-                            };
-                            
-                            return (
-                              <div 
-                                className="absolute z-20 flex items-center justify-center" 
-                                style={{ 
-                                  color: iconContent.text_color || '#ffffff', 
-                                  fontSize: '5rem',
-                                  ...(positionStyles[iconPosition] || positionStyles['top-right']),
-                                  ...iconStyleConfig,
-                                }}
-                              >
-                                {iconContent.icon_name}
-                              </div>
-                            );
-                          })()}
-                          
-                          {/* 3. Üst Overlay: Rozet (sol üst köşe) - Animasyonlu */}
-                          {badgeContent && badgeContent.campaign_text && (
-                            <div className="absolute top-6 left-6 z-20">
-                              <span 
-                                className="px-6 py-3 rounded-lg text-xl font-bold shadow-2xl badge-pulse"
-                                style={{ 
-                                  backgroundColor: badgeContent.background_color || '#3B82F6', 
-                                  color: badgeContent.text_color || '#FFFFFF',
-                                }}
-                              >
-                                {badgeContent.campaign_text}
-                              </span>
-                            </div>
-                          )}
-                          
-                          {/* 4. Alt Overlay: Yazı (solda) ve Fiyat (sağda) */}
-                          {(displayTitle || displayPrice) && (
-                            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/70 to-transparent p-6 z-10 flex items-end justify-between">
-                              {displayTitle && (
-                                <div className="text-white text-3xl font-bold drop-shadow-lg">
-                                  {displayTitle}
-                                </div>
-                              )}
-                              {displayPrice && (
-                                <div className="text-green-400 text-4xl font-extrabold drop-shadow-lg">
-                                  ${Number(displayPrice || 0).toFixed(2)}
-                                </div>
-                              )}
-                            </div>
-                          )}
-                          
-                          {/* Boş Blok Göstergesi */}
-                          {!videoContent && !imageContent && !iconContent && !badgeContent && !textContent && !productContent && (
-                            <div className="w-full h-full flex items-center justify-center bg-gray-800/50">
-                              <div className="text-gray-500 text-2xl font-medium">Boş</div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })()}
+            {/* TV Preview - TemplateDisplay (ön izleme ile aynı render, indirim etiketi doğru konumda) */}
+            <div className="absolute inset-0">
+              <TemplateDisplay screenData={screenData as any} animationType="fade" animationDuration={500} inline />
+            </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {showIconPositionModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">

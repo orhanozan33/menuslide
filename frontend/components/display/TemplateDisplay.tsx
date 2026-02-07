@@ -529,13 +529,15 @@ export function TemplateDisplay({
                           const iconBefore = l.icon && l.iconPosition !== 'after';
                           const iconAfter = l.icon && l.iconPosition === 'after';
                           const discountProps = isDiscount ? getDiscountBlockProps(l) : {} as { className?: string; style?: React.CSSProperties };
+                          const px = typeof layer.x === 'number' ? layer.x : 50;
+                          const py = typeof layer.y === 'number' ? layer.y : 50;
                           return (
                             <div
                               key={layer.id}
                               className={`absolute z-30 ${isDiscount ? discountProps.className : ''}`}
                               style={{
-                                left: `${layer.x}%`,
-                                top: `${layer.y}%`,
+                                left: `${px}%`,
+                                top: `${py}%`,
                                 transform: `translate(-50%, -50%) rotate(${(layer as { rotation?: number }).rotation ?? 0}deg)`,
                                 ...(isDiscount ? discountProps.style : { color: layer.color }),
                                 fontSize: `${layer.size}px`,
@@ -558,7 +560,13 @@ export function TemplateDisplay({
                   </>
                 );
               })()}
-              {!regionalMenuContent && !videoContent && imageContent?.image_url && (() => {
+              {!regionalMenuContent && !videoContent && (imageContent?.image_url || (imageContent?.style_config && (() => {
+                try {
+                  const sc = typeof imageContent.style_config === 'string' ? JSON.parse(imageContent.style_config || '{}') : imageContent.style_config;
+                  const ir = sc?.imageRotation;
+                  return Array.isArray(ir?.rotationItems) && ir.rotationItems.length > 0;
+                } catch { return false; }
+              })())) && (() => {
                 let imageBlur = 0;
                 let imageOpacity = 1;
                 let imageClipShape: 'rect' | 'circle' = 'rect';
@@ -613,10 +621,6 @@ export function TemplateDisplay({
                     }));
                   return [];
                 })();
-                const useImageRotation = ir && (irRotationItems.length > 0 || (typeof ir.firstImageDurationSeconds === 'number' && ir.firstImageDurationSeconds > 0));
-                const firstImageDuration = typeof ir?.firstImageDurationSeconds === 'number' ? Math.max(1, Math.min(120, ir.firstImageDurationSeconds)) : 10;
-                const firstImageTransition = (ir?.firstImageTransitionType as string) || imageRotationTransition;
-                const firstImageTransitionDur = typeof ir?.firstImageTransitionDuration === 'number' ? Math.max(200, Math.min(5000, ir.firstImageTransitionDuration)) : imageRotationTransitionDuration;
                 const irRotationItemsForPlayer: ImageRotationItem[] = irRotationItems.map((it) => ({
                   url: it.url,
                   durationSeconds: it.durationSeconds ?? 10,
@@ -624,57 +628,25 @@ export function TemplateDisplay({
                   transitionType: it.transitionType as ImageRotationItem['transitionType'],
                   transitionDuration: it.transitionDuration,
                 }));
-                return (
+                const effectiveFirstImageUrl = (imageContent.image_url as string) || (irRotationItems[0]?.url as string) || '';
+                const effectiveRotationItemsForPlayer = imageContent.image_url ? irRotationItemsForPlayer : irRotationItemsForPlayer.slice(1);
+                const useImageRotation = ir && effectiveFirstImageUrl && (effectiveRotationItemsForPlayer.length > 0 || (typeof ir.firstImageDurationSeconds === 'number' && ir.firstImageDurationSeconds > 0));
+                const firstImageDuration = typeof ir?.firstImageDurationSeconds === 'number' ? Math.max(1, Math.min(120, ir.firstImageDurationSeconds)) : 10;
+                const firstImageTransition = (ir?.firstImageTransitionType as string) || imageRotationTransition;
+                const firstImageTransitionDur = typeof ir?.firstImageTransitionDuration === 'number' ? Math.max(200, Math.min(5000, ir.firstImageTransitionDuration)) : imageRotationTransitionDuration;
+                const phaseState = (imageContent as { id?: string }).id ? imageRotationPhaseByContentId[(imageContent as { id: string }).id] : null;
+                const activeTextLayers = useImageRotation && phaseState
+                  ? (phaseState.phase === 'first' ? textLayers : (irRotationItems[phaseState.index]?.textLayers || []))
+                  : textLayers;
+                const activePriceBadge = useImageRotation && phaseState && phaseState.phase !== 'first' && typeof phaseState.index === 'number'
+                  ? (irRotationItems[phaseState.index]?.priceBadge ?? null)
+                  : priceBadge;
+                const imageOverlays = useImageRotation ? (
                   <>
-                    <div
-                      className="absolute inset-0 w-full h-full overflow-hidden"
-                      style={{
-                        opacity: imageOpacity,
-                        overflow: imageClipShape === 'circle' ? 'hidden' : undefined,
-                        borderRadius: imageClipShape === 'circle' ? '50%' : undefined,
-                      }}
-                    >
-                      <div className="absolute inset-0" style={{ transform: `scale(${scaleX}, ${scaleY})`, transformOrigin: pos }}>
-                        {useImageRotation ? (
-                          <ImageRotationPlayer
-                            firstImageUrl={imageContent.image_url as string}
-                            firstImageDurationSeconds={firstImageDuration}
-                            rotationItems={irRotationItemsForPlayer}
-                            onPhaseChange={(phase, idx) => {
-                              const cid = (imageContent as { id?: string }).id;
-                              if (cid) setImageRotationPhaseByContentId((prev) => ({ ...prev, [cid]: { phase, index: idx } }));
-                            }}
-                            objectFit={fit}
-                            objectPosition={pos}
-                            imageScale={1}
-                            imageBlur={imageBlur}
-                            transitionType={imageRotationTransition as 'fade' | 'slide-left' | 'slide-right' | 'slide-up' | 'slide-down' | 'zoom-in' | 'zoom-out' | 'blur-in' | 'flip-h' | 'flip-v' | 'rotate-in' | 'reveal-center' | 'dissolve' | 'iris-open' | 'iris-close' | 'spiral-in' | 'blinds-h' | 'blinds-v' | 'tiles' | 'puzzle-expand' | 'puzzle-rows' | 'puzzle-cols' | 'puzzle-diagonal' | 'puzzle-grid' | 'none'}
-                            transitionDuration={imageRotationTransitionDuration}
-                            firstImageTransitionType={firstImageTransition as 'fade' | 'slide-left' | 'slide-right' | 'slide-up' | 'slide-down' | 'zoom-in' | 'zoom-out' | 'blur-in' | 'flip-h' | 'flip-v' | 'rotate-in' | 'reveal-center' | 'dissolve' | 'iris-open' | 'iris-close' | 'spiral-in' | 'blinds-h' | 'blinds-v' | 'tiles' | 'puzzle-expand' | 'puzzle-rows' | 'puzzle-cols' | 'puzzle-diagonal' | 'puzzle-grid' | 'none'}
-                            firstImageTransitionDuration={firstImageTransitionDur}
-                            className="w-full h-full"
-                          />
-                        ) : (
-                          <img
-                            src={resolveMediaUrl(imageContent.image_url as string)}
-                            alt=""
-                            className="w-full h-full"
-                            style={{
-                              objectFit: fit,
-                              objectPosition: pos,
-                              imageRendering: '-webkit-optimize-contrast',
-                              WebkitBackfaceVisibility: 'hidden',
-                              backfaceVisibility: 'hidden',
-                              ...(imageBlur > 0 ? { filter: `blur(${imageBlur}px)` } : {}),
-                            }}
-                          />
-                        )}
-                      </div>
-                    </div>
                     {overlayImages.map((o) => (
                       <div
                         key={o.id}
-                        className="absolute z-20 pointer-events-none"
+                        className="absolute z-20"
                         style={{
                           left: `${o.x}%`,
                           top: `${o.y}%`,
@@ -689,14 +661,7 @@ export function TemplateDisplay({
                         <img src={resolveMediaUrl(o.image_url)} alt="" className="w-full h-full object-cover" />
                       </div>
                     ))}
-                    {/* Çoklu yazı katmanları (ikon + hareketli indirim bloğu destekli) - resim döngüsünde fase göre */}
-                    {(useImageRotation && (imageContent as { id?: string }).id ? (() => {
-                      const phaseState = imageRotationPhaseByContentId[(imageContent as { id: string }).id];
-                      const activeTextLayers = phaseState
-                        ? (phaseState.phase === 'first' ? textLayers : (irRotationItems[phaseState.index]?.textLayers || []))
-                        : textLayers;
-                      return activeTextLayers;
-                    })() : textLayers).map((layer: Record<string, unknown>) => {
+                    {activeTextLayers.map((layer: Record<string, unknown>) => {
                       const l = layer as { id?: string; icon?: string; iconPosition?: 'before' | 'after'; isDiscountBlock?: boolean; discountAnimation?: string; discountBlockStyle?: string; blockColor?: string; x?: number; y?: number; color?: string; size?: number; fontWeight?: string; fontStyle?: string; fontFamily?: string; text?: string; textAlign?: 'left' | 'center' | 'right' };
                       const isDiscount = !!l.isDiscountBlock;
                       const iconBefore = l.icon && l.iconPosition !== 'after';
@@ -726,45 +691,36 @@ export function TemplateDisplay({
                         </div>
                       );
                     })}
-                    {/* Fiyat etiketi (price badge) - resim döngüsünde sadece o resmin etiketi; 2. resimde etiket yoksa hiç gösterme */}
                     {(() => {
-                      const phaseState = (imageContent as { id?: string }).id ? imageRotationPhaseByContentId[(imageContent as { id: string }).id] : null;
-                      const rawActive = useImageRotation && phaseState && phaseState.phase !== 'first' && typeof phaseState.index === 'number'
-                        ? (irRotationItems[phaseState.index]?.priceBadge ?? null)
-                        : priceBadge;
-                      const activePriceBadge = rawActive as { enabled?: boolean; position?: string; positionX?: number; positionY?: number; sizeScale?: number; color?: string; textColor?: string; textTop?: string; price?: string; textBottom?: string; model?: string } | null;
-                      return activePriceBadge?.enabled && (() => {
-                        const pb = activePriceBadge;
-                        const hasXY = typeof pb.positionX === 'number' && typeof pb.positionY === 'number';
-                        const pos = pb.position || 'bottom-right';
-                        const x = pb.positionX ?? (pos === 'top-left' ? 15 : pos === 'top-right' ? 85 : pos === 'bottom-left' ? 15 : 85);
-                        const y = pb.positionY ?? (pos === 'top-left' ? 15 : pos === 'top-right' ? 15 : pos === 'bottom-left' ? 85 : 85);
-                        const scale = typeof pb.sizeScale === 'number' ? Math.max(0.5, Math.min(2, pb.sizeScale)) : 1;
-                        const origin = pos === 'bottom-right' ? '100% 100%' : pos === 'bottom-left' ? '0% 100%' : pos === 'top-right' ? '100% 0%' : '0% 0%';
-                        return (
-                          <div
-                            className={`price-badge ${pb.model === 'price-tag' ? 'fiyat-etiketi' : pb.model || 'rounded'} ${!hasXY ? (pb.position || 'bottom-right') : ''}`}
-                            style={{
-                              ...(hasXY ? { left: `${x}%`, top: `${y}%`, transform: `translate(-50%, -50%) scale(${scale})` } : { transform: `scale(${scale})`, transformOrigin: origin }),
-                              backgroundColor: pb.color || '#E53935',
-                              color: pb.textColor || '#ffffff',
-                            }}
-                          >
-                            {pb.textTop && <div className="badge-top">{pb.textTop}</div>}
-                            <div className="badge-price">{pb.price ?? ''}</div>
-                            {pb.textBottom && <div className="badge-bottom">{pb.textBottom}</div>}
-                          </div>
-                        );
-                      })();
+                      const pb = activePriceBadge as { enabled?: boolean; position?: string; positionX?: number; positionY?: number; sizeScale?: number; color?: string; textColor?: string; textTop?: string; price?: string; textBottom?: string; model?: string } | null;
+                      if (!pb?.enabled) return null;
+                      const hasXY = typeof pb.positionX === 'number' && typeof pb.positionY === 'number';
+                      const pos = pb.position || 'bottom-right';
+                      const x = pb.positionX ?? (pos === 'top-left' ? 15 : pos === 'top-right' ? 85 : pos === 'bottom-left' ? 15 : 85);
+                      const y = pb.positionY ?? (pos === 'top-left' ? 15 : pos === 'top-right' ? 15 : pos === 'bottom-left' ? 85 : 85);
+                      const scale = typeof pb.sizeScale === 'number' ? Math.max(0.5, Math.min(2, pb.sizeScale)) : 1;
+                      const origin = pos === 'bottom-right' ? '100% 100%' : pos === 'bottom-left' ? '0% 100%' : pos === 'top-right' ? '100% 0%' : '0% 0%';
+                      return (
+                        <div
+                          className={`price-badge ${pb.model === 'price-tag' ? 'fiyat-etiketi' : pb.model || 'rounded'} ${!hasXY ? (pb.position || 'bottom-right') : ''}`}
+                          style={{
+                            ...(hasXY ? { left: `${x}%`, top: `${y}%`, transform: `translate(-50%, -50%) scale(${scale})` } : { transform: `scale(${scale})`, transformOrigin: origin }),
+                            backgroundColor: pb.color || '#E53935',
+                            color: pb.textColor || '#ffffff',
+                          }}
+                        >
+                          {pb.textTop && <div className="badge-top">{pb.textTop}</div>}
+                          <div className="badge-price">{pb.price ?? ''}</div>
+                          {pb.textBottom && <div className="badge-bottom">{pb.textBottom}</div>}
+                        </div>
+                      );
                     })()}
-                    {/* Ürün ismi ve fiyat overlay - resim döngüsünde faz bazlı göster */}
                     {(() => {
-                      const phaseState = (imageContent as { id?: string }).id ? imageRotationPhaseByContentId[(imageContent as { id: string }).id] : null;
-                      const rawTitle = useImageRotation && phaseState
+                      const rawTitle = phaseState
                         ? (phaseState.phase === 'first' ? (imageContent?.title as string) : (irRotationItems[phaseState.index]?.title as string))
                         : (displayTitle as string);
                       const activeTitle = sanitizeDisplayText(rawTitle);
-                      const activePrice = useImageRotation && phaseState
+                      const activePrice = phaseState
                         ? (phaseState.phase === 'first' ? imageContent?.price : irRotationItems[phaseState.index]?.price)
                         : displayPrice;
                       const showTitle = !!activeTitle;
@@ -788,6 +744,157 @@ export function TemplateDisplay({
                         </div>
                       );
                     })()}
+                  </>
+                ) : null;
+
+                return (
+                  <>
+                    <div
+                      className="absolute inset-0 w-full h-full overflow-hidden"
+                      style={{
+                        opacity: imageOpacity,
+                        overflow: imageClipShape === 'circle' ? 'hidden' : undefined,
+                        borderRadius: imageClipShape === 'circle' ? '50%' : undefined,
+                      }}
+                    >
+                      <div className="absolute inset-0" style={{ transform: `scale(${scaleX}, ${scaleY})`, transformOrigin: pos }}>
+                        {useImageRotation ? (
+                          <ImageRotationPlayer
+                            firstImageUrl={effectiveFirstImageUrl}
+                            firstImageDurationSeconds={firstImageDuration}
+                            rotationItems={effectiveRotationItemsForPlayer}
+                            onPhaseChange={(phase, idx) => {
+                              const cid = (imageContent as { id?: string }).id;
+                              if (cid) setImageRotationPhaseByContentId((prev) => ({ ...prev, [cid]: { phase, index: idx } }));
+                            }}
+                            objectFit={fit}
+                            objectPosition={pos}
+                            imageScale={1}
+                            imageBlur={imageBlur}
+                            transitionType={imageRotationTransition as 'fade' | 'slide-left' | 'slide-right' | 'slide-up' | 'slide-down' | 'zoom-in' | 'zoom-out' | 'blur-in' | 'flip-h' | 'flip-v' | 'rotate-in' | 'reveal-center' | 'dissolve' | 'iris-open' | 'iris-close' | 'spiral-in' | 'blinds-h' | 'blinds-v' | 'tiles' | 'puzzle-expand' | 'puzzle-rows' | 'puzzle-cols' | 'puzzle-diagonal' | 'puzzle-grid' | 'none'}
+                            transitionDuration={imageRotationTransitionDuration}
+                            firstImageTransitionType={firstImageTransition as 'fade' | 'slide-left' | 'slide-right' | 'slide-up' | 'slide-down' | 'zoom-in' | 'zoom-out' | 'blur-in' | 'flip-h' | 'flip-v' | 'rotate-in' | 'reveal-center' | 'dissolve' | 'iris-open' | 'iris-close' | 'spiral-in' | 'blinds-h' | 'blinds-v' | 'tiles' | 'puzzle-expand' | 'puzzle-rows' | 'puzzle-cols' | 'puzzle-diagonal' | 'puzzle-grid' | 'none'}
+                            firstImageTransitionDuration={firstImageTransitionDur}
+                            className="w-full h-full"
+                            overlays={imageOverlays}
+                          />
+                        ) : (
+                          <img
+                            src={resolveMediaUrl((imageContent.image_url || effectiveFirstImageUrl) as string)}
+                            alt=""
+                            className="w-full h-full"
+                            style={{
+                              objectFit: fit,
+                              objectPosition: pos,
+                              imageRendering: '-webkit-optimize-contrast',
+                              WebkitBackfaceVisibility: 'hidden',
+                              backfaceVisibility: 'hidden',
+                              ...(imageBlur > 0 ? { filter: `blur(${imageBlur}px)` } : {}),
+                            }}
+                          />
+                        )}
+                      </div>
+                    </div>
+                    {/* useImageRotation değilse overlay'lar blokta; useImageRotation ise ImageRotationPlayer içinde */}
+                    {!useImageRotation && (
+                      <>
+                        {overlayImages.map((o) => (
+                          <div
+                            key={o.id}
+                            className="absolute z-20 pointer-events-none"
+                            style={{
+                              left: `${o.x}%`,
+                              top: `${o.y}%`,
+                              width: `${o.size}%`,
+                              aspectRatio: '1',
+                              transform: 'translate(-50%, -50%)',
+                              borderRadius: o.shape === 'round' ? '50%' : o.shape === 'rounded' ? '12px' : 0,
+                              boxShadow: o.shape === 'shadow' ? '0 4px 12px rgba(0,0,0,0.35)' : undefined,
+                              overflow: 'hidden',
+                            }}
+                          >
+                            <img src={resolveMediaUrl(o.image_url)} alt="" className="w-full h-full object-cover" />
+                          </div>
+                        ))}
+                        {activeTextLayers.map((layer: Record<string, unknown>) => {
+                          const l = layer as { id?: string; icon?: string; iconPosition?: 'before' | 'after'; isDiscountBlock?: boolean; discountAnimation?: string; discountBlockStyle?: string; blockColor?: string; x?: number; y?: number; color?: string; size?: number; fontWeight?: string; fontStyle?: string; fontFamily?: string; text?: string; textAlign?: 'left' | 'center' | 'right' };
+                          const isDiscount = !!l.isDiscountBlock;
+                          const iconBefore = l.icon && l.iconPosition !== 'after';
+                          const iconAfter = l.icon && l.iconPosition === 'after';
+                          const discountProps = isDiscount ? getDiscountBlockProps(l) : {} as { className?: string; style?: React.CSSProperties };
+                          return (
+                            <div
+                              key={l.id ?? ''}
+                              className={`absolute z-30 ${isDiscount ? discountProps.className : ''}`}
+                              style={{
+                                left: `${l.x ?? 50}%`,
+                                top: `${l.y ?? 50}%`,
+                                transform: 'translate(-50%, -50%)',
+                                ...(isDiscount ? discountProps.style : { color: l.color }),
+                                fontSize: `${l.size ?? 24}px`,
+                                fontWeight: (l.fontWeight as React.CSSProperties['fontWeight']) ?? 'bold',
+                                fontStyle: (l.fontStyle as React.CSSProperties['fontStyle']) ?? 'normal',
+                                fontFamily: l.fontFamily || 'Arial',
+                                textShadow: isDiscount ? '0 1px 2px rgba(0,0,0,0.3)' : '2px 2px 4px rgba(0,0,0,0.8)',
+                                whiteSpace: 'pre' as const,
+                                textAlign: (l.textAlign as 'left' | 'center' | 'right') || 'center',
+                              }}
+                            >
+                              {iconBefore && <span className="mr-1">{l.icon}</span>}
+                              {sanitizeDisplayText(l.text)}
+                              {iconAfter && <span className="ml-1">{l.icon}</span>}
+                            </div>
+                          );
+                        })}
+                        {activePriceBadge?.enabled && (() => {
+                          const pb = activePriceBadge as { enabled?: boolean; position?: string; positionX?: number; positionY?: number; sizeScale?: number; color?: string; textColor?: string; textTop?: string; price?: string; textBottom?: string; model?: string };
+                          const hasXY = typeof pb.positionX === 'number' && typeof pb.positionY === 'number';
+                          const pos = pb.position || 'bottom-right';
+                          const x = pb.positionX ?? (pos === 'top-left' ? 15 : pos === 'top-right' ? 85 : pos === 'bottom-left' ? 15 : 85);
+                          const y = pb.positionY ?? (pos === 'top-left' ? 15 : pos === 'top-right' ? 15 : pos === 'bottom-left' ? 85 : 85);
+                          const scale = typeof pb.sizeScale === 'number' ? Math.max(0.5, Math.min(2, pb.sizeScale)) : 1;
+                          const origin = pos === 'bottom-right' ? '100% 100%' : pos === 'bottom-left' ? '0% 100%' : pos === 'top-right' ? '100% 0%' : '0% 0%';
+                          return (
+                            <div
+                              className={`price-badge ${pb.model === 'price-tag' ? 'fiyat-etiketi' : pb.model || 'rounded'} ${!hasXY ? (pb.position || 'bottom-right') : ''}`}
+                              style={{
+                                ...(hasXY ? { left: `${x}%`, top: `${y}%`, transform: `translate(-50%, -50%) scale(${scale})` } : { transform: `scale(${scale})`, transformOrigin: origin }),
+                                backgroundColor: pb.color || '#E53935',
+                                color: pb.textColor || '#ffffff',
+                              }}
+                            >
+                              {pb.textTop && <div className="badge-top">{pb.textTop}</div>}
+                              <div className="badge-price">{pb.price ?? ''}</div>
+                              {pb.textBottom && <div className="badge-bottom">{pb.textBottom}</div>}
+                            </div>
+                          );
+                        })()}
+                        {(() => {
+                          const activeTitle = sanitizeDisplayText(displayTitle as string);
+                          const activePrice = displayPrice;
+                          const showTitle = !!activeTitle;
+                          const showPrice = activePrice != null && activePrice !== '';
+                          if (!showTitle && !showPrice) return null;
+                          return (
+                            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/70 to-transparent p-4 z-20 flex items-end justify-between">
+                              {showTitle && (
+                                <div className="text-white text-base font-bold drop-shadow-lg flex items-center gap-2">
+                                  <span>{activeTitle}</span>
+                                  {drinkContent?.image_url && (
+                                    <img src={resolveMediaUrl(drinkContent.image_url as string)} alt="" className="w-8 h-8 object-contain rounded shadow-md bg-white/20" />
+                                  )}
+                                </div>
+                              )}
+                              {showPrice && (
+                                <div className="text-green-400 text-xl font-extrabold drop-shadow-lg">
+                                  ${Number(activePrice).toFixed(2)}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
+                      </>
+                    )}
                   </>
                 );
               })()}

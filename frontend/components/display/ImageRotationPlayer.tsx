@@ -66,6 +66,8 @@ export interface ImageRotationPlayerProps {
   firstImageTransitionDuration?: number;
   /** true ise döngü bir kez oynatılır ve son resimde kalır */
   playOnce?: boolean;
+  /** Resmin üzerinde gösterilecek overlay'lar (yazı, etiket vb.) - resimle birlikte hareket eder */
+  overlays?: React.ReactNode;
 }
 
 /**
@@ -88,6 +90,7 @@ export function ImageRotationPlayer({
   firstImageTransitionType,
   firstImageTransitionDuration,
   playOnce = false,
+  overlays,
 }: ImageRotationPlayerProps) {
   const [currentUrl, setCurrentUrl] = useState<string>(firstImageUrl);
   const [phase, setPhase] = useState<'first' | 'rotation'>('first');
@@ -202,7 +205,7 @@ export function ImageRotationPlayer({
         overflow: 'hidden',
       }}
     >
-      <div className={`image-rotation-transition-wrap ${transitionClass}`} style={{ animationDuration: `${durationMs}ms` }}>
+      <div key={currentUrl} className={`image-rotation-transition-wrap ${transitionClass}`} style={{ animationDuration: `${durationMs}ms` }}>
         {isVideoUrl ? (
           <video
             key={currentUrl}
@@ -251,6 +254,11 @@ export function ImageRotationPlayer({
               e.currentTarget.style.display = 'none';
             }}
           />
+        )}
+        {overlays && (
+          <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 10 }}>
+            {overlays}
+          </div>
         )}
       </div>
     </div>

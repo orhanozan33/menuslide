@@ -880,9 +880,9 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
     }
   }, [showRegionalMenuEditModal, selectedBlockContent]);
 
-  const loadTemplate = async () => {
+  const loadTemplate = async (opts?: { silent?: boolean }) => {
     try {
-      setLoading(true);
+      if (!opts?.silent) setLoading(true);
       const [templateData, blocksData] = await Promise.all([
         apiClient(`/templates/${templateId}`),
         apiClient(`/templates/${templateId}/blocks`),
@@ -911,9 +911,11 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
       );
       
       setBlocks(blocksWithContents);
+      return blocksWithContents;
     } catch (err: any) {
       console.error('Error loading template:', err);
       setError(err.message || t('editor_template_load_failed'));
+      return undefined;
     } finally {
       setLoading(false);
     }
@@ -1956,8 +1958,13 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
           body: { image_url: '', title: '', price: null },
         });
       }
-      await loadTemplate();
-      setShowImageRotationModal(false);
+      const updatedBlocks = await loadTemplate({ silent: true });
+      // selectedBlockContent güncelle ki modal doğru veriyi göstersin; modal açık kalsın
+      if (updatedBlocks && selectedBlock && selectedBlockContent?.id) {
+        const block = updatedBlocks.find((b: any) => b.id === selectedBlock);
+        const content = (block?.contents || []).find((c: any) => c.id === selectedBlockContent.id);
+        if (content) setSelectedBlockContent(content);
+      }
     } catch (e) {
       setError((e as Error).message || t('editor_delete_error'));
     }
@@ -5070,8 +5077,8 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
 
       {/* Resim sırası / döngü modalı - boş blokta kütüphane, resim blokta config */}
       {showImageRotationModal && selectedBlock && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className={`bg-white rounded-xl w-full p-6 max-h-[90vh] overflow-hidden flex flex-col ${selectedBlockContent?.content_type === 'image' ? (imageRotationEditMode ? 'max-w-5xl' : 'max-w-2xl') : 'max-w-4xl'}`}>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2">
+          <div className={`bg-white rounded-xl w-full p-4 max-h-[95vh] overflow-hidden flex flex-col min-h-[600px] w-[96vw] ${selectedBlockContent?.content_type === 'image' ? (imageRotationEditMode ? 'max-w-7xl' : 'max-w-2xl') : 'max-w-4xl'}`}>
             {selectedBlockContent?.content_type !== 'image' ? (
               <>
                 <div className="flex items-center justify-between mb-4">
@@ -5106,19 +5113,19 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
             </div>
             {imageRotationEditMode ? (
               /* Düzenle modu: solda liste (tıklanınca önizlemeye gelir), sağda önizleme bloğu */
-              <div className="flex gap-4 flex-1 min-h-0 overflow-hidden">
-                <div className="w-[45%] flex flex-col min-h-0 overflow-y-auto pr-2 border-r border-gray-200">
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">{t('editor_first_image_duration')}</label>
+              <div className="flex gap-2 flex-1 min-h-0 overflow-hidden">
+                <div className="w-[360px] max-w-[45%] flex flex-col min-h-0 overflow-hidden pr-2 border-r border-gray-200 shrink-0">
+                  <label className="block text-sm font-semibold text-gray-700 mb-1 shrink-0">{t('editor_first_image_duration')}</label>
                   <input
                     type="number"
                     min={1}
                     max={120}
                     value={editingFirstImageDuration}
                     onChange={(e) => setEditingFirstImageDuration(Math.max(1, Math.min(120, Number(e.target.value) || 10)))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 text-gray-900 mb-3"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 text-gray-900 mb-2 shrink-0"
                   />
-                  <p className="text-sm font-semibold text-gray-700 mb-2">{t('editor_rotation_images')}</p>
-                  <ul className="space-y-2">
+                  <p className="text-sm font-semibold text-gray-700 mb-1 shrink-0">{t('editor_rotation_images')}</p>
+                  <ul className="flex flex-col gap-2 flex-1 min-h-0 overflow-y-auto list-none pl-0 m-0 pr-1">
                     {selectedBlockContent?.image_url && (
                       <li
                         onClick={() => setImageRotationPreviewIndex(-1)}
@@ -5170,9 +5177,8 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
                     ))}
                   </ul>
                 </div>
-                <div className="flex-1 min-h-0 flex flex-col">
-                  <p className="text-sm font-semibold text-gray-700 mb-2">{t('editor_preview')}</p>
-                  <div className="flex-1 min-h-0 rounded-xl border-2 border-gray-300 bg-black overflow-hidden flex items-center justify-center" style={{ aspectRatio: '16/9' }}>
+                <div className="flex-1 min-h-0 min-w-0 overflow-auto flex items-center justify-center bg-gray-900 p-4">
+                  <div className="relative overflow-hidden select-none bg-gray-800 shrink-0 rounded" style={{ width: 'min(100%, 420px)', aspectRatio: '16/9' }}>
                     {imageRotationPreviewIndex === -1 && selectedBlockContent?.image_url ? (
                       <img src={selectedBlockContent.image_url} alt="" className="w-full h-full object-contain" />
                     ) : editingImageRotationItems[imageRotationPreviewIndex] ? (
@@ -5182,7 +5188,7 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
                         <img src={editingImageRotationItems[imageRotationPreviewIndex].url} alt="" className="w-full h-full object-contain" />
                       )
                     ) : (
-                      <p className="text-gray-500 text-sm">{t('editor_select_item_from_left')}</p>
+                      <p className="text-gray-500 text-sm absolute inset-0 flex items-center justify-center">{t('editor_select_item_from_left')}</p>
                     )}
                   </div>
                 </div>
@@ -5308,7 +5314,7 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
               </div>
             </div>
             )}
-            <div className="flex gap-2 mt-4 pt-4 border-t border-gray-200">
+            <div className="flex gap-2 mt-2 pt-3 border-t border-gray-200 shrink-0">
               <button type="button" onClick={() => { setShowImageRotationModal(false); setImageRotationEditMode(false); }} className="flex-1 px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg font-semibold">
                 {t('btn_cancel')}
               </button>

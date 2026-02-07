@@ -383,6 +383,13 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
   const [imageRotationPreviewIndex, setImageRotationPreviewIndex] = useState<number>(-1);
   const imageRotationPreviewIndexRef = useRef<number | undefined>(undefined);
   const [imageRotationPreviewPlayOnce, setImageRotationPreviewPlayOnce] = useState(false);
+  /** Döngüyü 1 kez önizle aktifken: o anda gösterilen resmin phase + index (overlay senkronu için) */
+  const [imageRotationPlayOncePhase, setImageRotationPlayOncePhase] = useState<'first' | 'rotation'>('first');
+  const [imageRotationPlayOnceIndex, setImageRotationPlayOnceIndex] = useState(0);
+  const [priceBadgeSectionCollapsed, setPriceBadgeSectionCollapsed] = useState(false);
+  const [textsSectionCollapsed, setTextsSectionCollapsed] = useState(false);
+  const [imagesPanelCollapsed, setImagesPanelCollapsed] = useState(false);
+  const [imageRotationModalMinimized, setImageRotationModalMinimized] = useState(false);
   const [videoRotationEditMode, setVideoRotationEditMode] = useState(false);
   const [videoRotationPreviewIndex, setVideoRotationPreviewIndex] = useState<number>(-1);
 
@@ -1143,9 +1150,9 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
   // eslint-disable-next-line react-hooks/exhaustive-deps -- sadece modal açıldığında
   }, [showImageRotationModal]);
 
-  const loadTemplate = async () => {
+  const loadTemplate = async (opts?: { silent?: boolean }) => {
     try {
-      setLoading(true);
+      if (!opts?.silent) setLoading(true);
       const [templateData, blocksData] = await Promise.all([
         apiClient(`/templates/${templateId}`),
         apiClient(`/templates/${templateId}/blocks`),
@@ -1177,10 +1184,12 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
       );
       
       setBlocks(blocksWithContents);
+      return blocksWithContents;
     } catch (err: any) {
       const msg = err?.message ?? err?.data?.message ?? t('editor_template_load_failed');
       const safeMsg = typeof msg === 'string' ? msg : t('editor_template_load_failed');
       setError(safeMsg === 'Not found' ? t('editor_template_not_found') : safeMsg);
+      return undefined;
     } finally {
       setLoading(false);
     }
@@ -2270,6 +2279,8 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
     };
     setImageRotationTextLayers((prev) => [...prev, newLayer]);
     setSelectedImageRotationTextLayerId(newLayer.id);
+    setTextsSectionCollapsed(false);
+    setImagesPanelCollapsed(true);
   };
 
   const updateImageRotationTextLayer = (layerId: string, updates: Partial<TextLayer>) => {
@@ -2385,8 +2396,12 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
           body: { image_url: '', title: '', price: null },
         });
       }
-      await loadTemplate();
-      setShowImageRotationModal(false);
+      const updatedBlocks = await loadTemplate({ silent: true });
+      if (updatedBlocks && selectedBlock && selectedBlockContent?.id) {
+        const block = updatedBlocks.find((b: any) => b.id === selectedBlock);
+        const content = (block?.contents || []).find((c: any) => c.id === selectedBlockContent.id);
+        if (content) setSelectedBlockContent(content);
+      }
     } catch (e) {
       setError((e as Error).message || t('editor_delete_error'));
     }
@@ -2493,24 +2508,43 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
     const patchTitle = editingFirstImageTitle.trim() || selectedBlockContent.title;
     const patchPrice = editingFirstImagePrice.trim() ? editingFirstImagePrice : null;
     const priceBadgeForFirstImage = imageRotationPreviewIndex === -1 ? editingPriceBadge : (styleConfig as { priceBadge?: PriceBadge }).priceBadge;
+    const effectiveFirstUrl = selectedBlockContent.image_url || editingImageRotationItems[0]?.url;
+    const effectiveRotationItems = effectiveFirstUrl === selectedBlockContent.image_url
+      ? rotationItems
+      : editingImageRotationItems.slice(1).map((it, i) => ({
+          url: it.url,
+          durationSeconds: Math.max(1, Math.min(120, it.durationSeconds)),
+          textLayers: imageRotationPreviewIndex === i + 1 ? (Array.isArray(imageRotationTextLayers) ? imageRotationTextLayers : []) : (Array.isArray(it.textLayers) ? it.textLayers : []),
+          title: it.title || '',
+          price: it.price != null && it.price !== '' ? it.price : undefined,
+          isVideo: it.isVideo || undefined,
+          priceBadge: imageRotationPreviewIndex === i + 1 ? editingPriceBadge ?? undefined : (it as { priceBadge?: PriceBadge }).priceBadge,
+          transitionType: it.transitionType,
+          transitionDuration: it.transitionDuration,
+        }));
+    const patchBody: Record<string, unknown> = {
+      title: patchTitle,
+      price: patchPrice,
+      style_config: JSON.stringify({
+        ...styleConfig,
+        textLayers: firstImageTextLayers,
+        imageRotation: {
+          firstImageDurationSeconds,
+          firstImageTransitionType: editingFirstImageTransitionType,
+          firstImageTransitionDuration: editingFirstImageTransitionDuration,
+          rotationItems: effectiveRotationItems,
+        },
+        ...(priceBadgeForFirstImage != null && { priceBadge: priceBadgeForFirstImage }),
+      }),
+    };
+    if (effectiveFirstUrl && !selectedBlockContent.image_url) {
+      patchBody.image_url = effectiveFirstUrl;
+    }
     try {
+      setSaving(true);
       await apiClient(`/template-block-contents/${selectedBlockContent.id}`, {
         method: 'PATCH',
-        body: {
-          title: patchTitle,
-          price: patchPrice,
-          style_config: JSON.stringify({
-            ...styleConfig,
-            textLayers: firstImageTextLayers,
-            imageRotation: {
-              firstImageDurationSeconds,
-              firstImageTransitionType: editingFirstImageTransitionType,
-              firstImageTransitionDuration: editingFirstImageTransitionDuration,
-              rotationItems,
-            },
-            ...(priceBadgeForFirstImage != null && { priceBadge: priceBadgeForFirstImage }),
-          }),
-        },
+        body: patchBody,
       });
       const block = blocks.find((b: any) => (b.contents || []).some((c: any) => c.id === selectedBlockContent.id));
       if (block?.contents) {
@@ -2518,6 +2552,7 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
         if (idx >= 0) {
           const updated = {
             ...selectedBlockContent,
+            ...(effectiveFirstUrl && !selectedBlockContent.image_url ? { image_url: effectiveFirstUrl } : {}),
             title: patchTitle,
             price: patchPrice,
             style_config: {
@@ -2527,7 +2562,7 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
                 firstImageDurationSeconds,
                 firstImageTransitionType: editingFirstImageTransitionType,
                 firstImageTransitionDuration: editingFirstImageTransitionDuration,
-                rotationItems,
+                rotationItems: effectiveRotationItems,
               },
               ...(priceBadgeForFirstImage != null && { priceBadge: priceBadgeForFirstImage }),
             },
@@ -2542,10 +2577,14 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
           setSelectedBlockContent(updated);
         }
       }
+      showSuccess('✅ Resim sırası kaydedildi');
+      await loadTemplate();
       setShowImageRotationModal(false);
       setImageRotationEditMode(false);
     } catch (e) {
       setError((e as Error).message || t('editor_save_error'));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -5165,12 +5204,12 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
       {/* Ürün Adı ve Fiyat Düzenleme Modal */}
       {isEditingContent && selectedBlockContent && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl max-w-md w-full p-6">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">{t('editor_product_name_price')}</h2>
+          <div className="bg-white rounded-xl max-w-2xl w-full max-h-[85vh] overflow-y-auto p-4">
+            <h2 className="text-xl font-bold text-gray-900 mb-3">{t('editor_product_name_price')}</h2>
             
-            <div className="space-y-4 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
                   {t('editor_product_name')}
                 </label>
                 <input
@@ -5178,12 +5217,12 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
                   value={editingTitle}
                   onChange={(e) => setEditingTitle(e.target.value)}
                   placeholder={t('editor_example_pizza')}
-                  className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-gray-900"
+                  className="w-full px-2 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-gray-900"
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
                   {t('editor_price')} ($)
                 </label>
                 <input
@@ -5193,20 +5232,20 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
                   value={editingPrice}
                   onChange={(e) => setEditingPrice(e.target.value)}
                   placeholder={t('editor_example_price')}
-                  className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-gray-900"
+                  className="w-full px-2 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-gray-900"
                 />
               </div>
               
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <div className="md:col-span-2">
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
                   {t('editor_product_description')}
                 </label>
                 <textarea
                   value={editingDescription}
                   onChange={(e) => setEditingDescription(e.target.value)}
                   placeholder={t('editor_example_description')}
-                  rows={3}
-                  className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-gray-900 resize-none"
+                  rows={2}
+                  className="w-full px-2 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-gray-900 resize-none"
                 />
               </div>
               {selectedBlockContent?.content_type === 'image' && (() => {
@@ -5215,7 +5254,7 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
                 return (
                   <div>
                     {resolvedUrl && (
-                      <div className="mb-3 rounded-lg overflow-hidden bg-gray-100 aspect-video max-h-32">
+                      <div className="mb-2 rounded-lg overflow-hidden bg-gray-100 aspect-video max-h-24">
                         <img
                           src={resolvedUrl}
                           alt=""
@@ -5243,7 +5282,7 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
               })()}
               {/* Fiyat etiketi (price badge) – sadece resim için */}
               {selectedBlockContent?.content_type === 'image' && (
-                <div className="pt-2 border-t border-gray-200">
+                <div className="pt-2 border-t border-gray-200 md:col-span-2">
                   <label className="flex items-center gap-2 cursor-pointer mb-2">
                     <input
                       type="checkbox"
@@ -5328,7 +5367,7 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
               )}
               {/* Resim / içerik düzenleme: yazı ekleme, resim sırası, indirim bloğu */}
               {(selectedBlockContent?.content_type === 'image' || selectedBlockContent?.content_type === 'video') && (
-                <div className="pt-2 border-t border-gray-200">
+                <div className="pt-2 border-t border-gray-200 md:col-span-2">
                   <p className="text-sm font-semibold text-gray-700 mb-2">{t('editor_quick_edit_section')}</p>
                   <div className="flex flex-wrap gap-2">
                     <button
@@ -5623,8 +5662,8 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
             </div>
             {videoRotationEditMode && selectedBlockContent?.content_type === 'video' ? (
               <div className="flex gap-3 flex-1 min-h-0 overflow-hidden">
-                {/* Sol: Yazı + fiyat etiketi (dar araç alanı, önizleme geniş kalsın) */}
-                <div className="w-[220px] max-w-[240px] flex flex-col min-h-0 overflow-y-auto pr-2 border-r border-gray-200 shrink-0">
+                {/* Sol: Yazı + fiyat etiketi - yazı düzenlenirken genişler */}
+                <div className={`flex flex-col min-h-0 overflow-y-auto pr-2 border-r border-gray-200 transition-all ${selectedImageRotationTextLayerId ? 'flex-1 min-w-[280px] max-w-[420px]' : 'w-[220px] max-w-[240px] shrink-0'}`}>
                   <p className="text-sm font-semibold text-gray-700 mb-2">{t('editor_texts_count').replace('{count}', String(videoRotationTextLayers.length))}</p>
                   {videoRotationTextLayers.length === 0 ? (
                     <p className="text-gray-500 text-sm py-2">{t('editor_no_text_yet')}</p>
@@ -5969,24 +6008,52 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
 
       {/* Resim sırası / döngü modalı - sol: kütüphane, sağ: döngüdeki resimler */}
       {showImageRotationModal && selectedBlock && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className={`bg-white rounded-xl w-full p-6 max-h-[95vh] overflow-hidden flex flex-col min-h-[680px] w-[92vw] ${imageRotationEditMode ? 'max-w-7xl' : 'max-w-[90vw]'}`}>
-            <div className="flex items-center justify-between mb-4 shrink-0">
+        <>
+        {imageRotationModalMinimized ? (
+          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2 bg-white rounded-lg shadow-xl border border-gray-200">
+            <span className="text-sm font-semibold text-gray-700">🖼️ {t('editor_image_sequence_modal_title')}</span>
+            <button type="button" onClick={() => setImageRotationModalMinimized(false)} className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded text-sm font-medium">
+              {t('editor_expand') || 'Aç'}
+            </button>
+            <button type="button" onClick={() => { setShowImageRotationModal(false); setImageRotationModalMinimized(false); setImageRotationEditMode(false); setPriceBadgeSectionCollapsed(false); setTextsSectionCollapsed(false); setImagesPanelCollapsed(false); imageRotationPreviewIndexRef.current = undefined; }} className="p-1.5 rounded hover:bg-gray-100 text-gray-600">✕</button>
+          </div>
+        ) : (
+        <div className="fixed inset-0 z-50 flex flex-col bg-white">
+          <div className="w-full h-full p-4 overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between mb-2 shrink-0">
               <div>
                 <h2 className="text-xl font-bold text-gray-900">🖼️ {t('editor_image_sequence_modal_title')}</h2>
                 <p className="text-sm text-gray-500 mt-1">{t('editor_image_rotation_hint')}</p>
               </div>
-              <button type="button" onClick={() => { setShowImageRotationModal(false); setImageRotationEditMode(false); setImageRotationPreviewPlayOnce(false); imageRotationPreviewIndexRef.current = undefined; }} className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold">✕</button>
+              <div className="flex items-center gap-1">
+                <button type="button" onClick={() => setImageRotationModalMinimized(true)} className="p-2 rounded-lg hover:bg-gray-100 text-gray-600" title={t('editor_minimize') || 'Küçült'}>−</button>
+                <button type="button" onClick={() => { setShowImageRotationModal(false); setImageRotationEditMode(false); setImageRotationPreviewPlayOnce(false); setPriceBadgeSectionCollapsed(false); setTextsSectionCollapsed(false); setImagesPanelCollapsed(false); setImageRotationModalMinimized(false); imageRotationPreviewIndexRef.current = undefined; }} className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold">✕</button>
+              </div>
             </div>
             {imageRotationEditMode ? (
-              <div className="flex gap-3 flex-1 min-h-0 overflow-hidden">
-                {/* Sol: Yazı + fiyat etiketi (dar araç alanı, önizleme geniş kalsın) */}
-                <div className="w-[220px] max-w-[240px] flex flex-col min-h-0 overflow-y-auto pr-2 border-r border-gray-200 shrink-0">
-                  <p className="text-sm font-semibold text-gray-700 mb-2">{t('editor_texts_count').replace('{count}', String(imageRotationTextLayers.length))}</p>
+              <div className="flex gap-2 flex-1 min-h-0 overflow-hidden">
+                {/* Sol: Yazı + fiyat etiketi (yazı düzenleme açıkken veya döngü paneli kapalıyken genişler) */}
+                <div className={`flex flex-col min-h-0 overflow-y-auto pr-2 border-r border-gray-200 transition-all ${selectedImageRotationTextLayerId || imagesPanelCollapsed ? 'flex-1 min-w-[320px]' : 'w-[220px] max-w-[240px] shrink-0'}`}>
+                  <div className="flex items-center justify-between gap-2 mb-2 shrink-0">
+                    <p className="text-sm font-semibold text-gray-700">{t('editor_texts_count').replace('{count}', String(imageRotationTextLayers.length))}</p>
+                    {imageRotationTextLayers.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setTextsSectionCollapsed((c) => !c)}
+                        className="p-1 rounded hover:bg-teal-100 text-teal-700"
+                        title={textsSectionCollapsed ? (t('editor_expand') || 'Aç') : (t('editor_collapse') || 'Kapat')}
+                      >
+                        <span className="text-sm">{textsSectionCollapsed ? '▶' : '▼'}</span>
+                      </button>
+                    )}
+                  </div>
                   {imageRotationTextLayers.length === 0 ? (
-                    <p className="text-gray-500 text-sm py-2">{t('editor_no_text_yet')}</p>
-                  ) : (
-                    <div className="space-y-2 max-h-32 overflow-y-auto mb-2">
+                    <div className="flex-1 min-h-0 flex flex-col">
+                      <p className="text-gray-500 text-sm py-2 shrink-0">{t('editor_no_text_yet')}</p>
+                      <div className="flex-1 min-h-0" />
+                    </div>
+                  ) : !textsSectionCollapsed ? (
+                    <div className="space-y-2 flex-1 min-h-0 overflow-y-auto mb-2">
                       {imageRotationTextLayers.map((layer, idx) => (
                         <div
                           key={layer.id}
@@ -6000,19 +6067,21 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
                         </div>
                       ))}
                     </div>
+                  ) : (
+                    <div className="flex-1 min-h-0" />
                   )}
-                  <button type="button" onClick={() => addImageRotationTextLayer()} className="mb-3 w-full px-3 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-medium">
+                  <button type="button" onClick={() => addImageRotationTextLayer()} className="mb-3 w-full px-3 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-medium shrink-0">
                     + {t('editor_add_new_text')}
                   </button>
-                  {selectedImageRotationTextLayerId && (() => {
+                  {!textsSectionCollapsed && selectedImageRotationTextLayerId && (() => {
                     const layer = imageRotationTextLayers.find((l) => l.id === selectedImageRotationTextLayerId);
                     if (!layer) return null;
                     return (
-                      <div className="bg-gray-50 rounded-lg p-3 border border-gray-200 space-y-2 overflow-y-auto max-h-[40vh]">
+                      <div className="bg-gray-50 rounded-lg p-3 border border-gray-200 space-y-2 flex-1 min-h-0 overflow-y-auto">
                         <h3 className="text-xs font-semibold text-gray-800">{t('editor_selected_text_settings')}</h3>
                         <div>
                           <label className="block text-xs font-semibold text-gray-700 mb-0.5">{t('editor_text_content')}</label>
-                          <textarea value={layer.text} onChange={(e) => updateImageRotationTextLayer(layer.id, { text: e.target.value })} rows={2} className="w-full px-2 py-1 border border-gray-300 rounded text-sm text-gray-900" />
+                          <textarea value={layer.text} onChange={(e) => updateImageRotationTextLayer(layer.id, { text: e.target.value })} rows={5} className="w-full px-3 py-2 border border-gray-300 rounded text-sm text-gray-900 min-h-[100px] resize-y" />
                         </div>
                         <div className="grid grid-cols-2 gap-1">
                           <div>
@@ -6065,34 +6134,50 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
                       </div>
                     );
                   })()}
-                  {/* Fiyat etiketi – modal içinde düzenlenebilir */}
-                  <div className="mt-3 pt-3 border-t border-gray-200">
-                    <label className="flex items-center gap-2 cursor-pointer mb-2">
-                      <input
-                        type="checkbox"
-                        checked={editingPriceBadge?.enabled ?? false}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                          setEditingPriceBadge({
-                            enabled: true,
-                            model: 'rounded',
-                            textTop: 'ONLY',
-                            price: '9.99',
-                            textBottom: '50% OFF',
-                            color: '#E53935',
-                            textColor: '#ffffff',
-                            position: 'bottom-right',
-                            sizeScale: 1,
-                          });
-                        } else {
-                            setEditingPriceBadge((prev) => prev ? { ...prev, enabled: false } : null);
-                          }
-                        }}
-                        className="w-3.5 h-3.5 rounded text-amber-600"
-                      />
-                      <span className="text-sm font-semibold text-gray-700">{t('editor_price_label')}</span>
-                    </label>
-                    {editingPriceBadge?.enabled && (
+                  {/* Fiyat etiketi – modal içinde düzenlenebilir, açılır kapanır */}
+                  <div className="mt-3 pt-3 border-t border-gray-200 shrink-0">
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <label className="flex items-center gap-2 cursor-pointer flex-1">
+                        <input
+                          type="checkbox"
+                          checked={editingPriceBadge?.enabled ?? false}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setEditingPriceBadge({
+                                enabled: true,
+                                model: 'rounded',
+                                textTop: 'ONLY',
+                                price: '9.99',
+                                textBottom: '50% OFF',
+                                color: '#E53935',
+                                textColor: '#ffffff',
+                                position: 'bottom-right',
+                                sizeScale: 1,
+                              });
+                              setPriceBadgeSectionCollapsed(false);
+                            } else {
+                              setEditingPriceBadge((prev) => prev ? { ...prev, enabled: false } : null);
+                            }
+                          }}
+                          className="w-3.5 h-3.5 rounded text-amber-600"
+                        />
+                        <span className="text-sm font-semibold text-gray-700">{t('editor_price_label')}</span>
+                        {editingPriceBadge?.enabled && editingPriceBadge?.price && (
+                          <span className="text-xs text-amber-600 truncate">({editingPriceBadge.price})</span>
+                        )}
+                      </label>
+                      {editingPriceBadge?.enabled && (
+                        <button
+                          type="button"
+                          onClick={() => setPriceBadgeSectionCollapsed((c) => !c)}
+                          className="p-1 rounded hover:bg-amber-100 text-amber-700"
+                          title={priceBadgeSectionCollapsed ? t('editor_expand') || 'Aç' : t('editor_collapse') || 'Kapat'}
+                        >
+                          <span className="text-sm">{priceBadgeSectionCollapsed ? '▶' : '▼'}</span>
+                        </button>
+                      )}
+                    </div>
+                    {editingPriceBadge?.enabled && !priceBadgeSectionCollapsed && (
                       <div className="space-y-1.5">
                         <div className="flex flex-wrap gap-0.5">
                           {PRICE_BADGE_MODELS.map((m) => (
@@ -6130,8 +6215,29 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
                     )}
                   </div>
                 </div>
-                {/* Sağ: Üstte döngü resimleri listesi, altta büyük önizleme */}
-                <div className="flex-1 min-h-0 flex flex-col min-w-0 overflow-hidden">
+                {/* Orta: Döngüdeki resimler - açılır kapanır */}
+                <div className={`flex flex-col min-h-0 overflow-hidden border-r border-gray-200 shrink-0 transition-all ${imagesPanelCollapsed ? 'w-10 min-w-[40px]' : 'w-[320px] max-w-[360px] pr-3'}`}>
+                  <div className="flex items-center justify-between gap-1 mb-2 shrink-0">
+                    {!imagesPanelCollapsed ? (
+                      <>
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-gray-700">{t('editor_preview')}</p>
+                          <label className="flex items-center gap-1.5 cursor-pointer text-xs text-gray-600 shrink-0">
+                            <input type="checkbox" checked={imageRotationPreviewPlayOnce} onChange={(e) => setImageRotationPreviewPlayOnce(e.target.checked)} className="rounded text-teal-600" />
+                            <span>{t('editor_preview_loop_once')}</span>
+                          </label>
+                        </div>
+                        <button type="button" onClick={() => setImagesPanelCollapsed(true)} className="p-1 rounded hover:bg-gray-200 text-gray-500" title={t('editor_collapse') || 'Kapat'}>◀</button>
+                      </>
+                    ) : (
+                      <button type="button" onClick={() => setImagesPanelCollapsed(false)} className="w-full h-full min-h-[80px] flex flex-col items-center justify-center hover:bg-gray-100 rounded text-gray-500" title={t('editor_expand') || 'Aç'}>
+                        <span className="text-lg">▶</span>
+                        <span className="text-[10px] mt-1 rotate-0">{t('editor_rotation_images')}</span>
+                      </button>
+                    )}
+                  </div>
+                  {!imagesPanelCollapsed && (
+                  <div className="flex flex-col min-h-0 overflow-y-auto flex-1">
                   {selectedBlockContent?.content_type === 'image' && selectedBlockContent?.image_url && (
                     <div className="flex items-center gap-2 mb-2 shrink-0">
                       <label className="text-xs font-semibold text-gray-700">{t('editor_first_image_duration')}</label>
@@ -6139,15 +6245,12 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
                     </div>
                   )}
                   <p className="text-xs font-semibold text-gray-700 mb-1 shrink-0">{t('editor_rotation_images')}</p>
-                  <ul className="grid grid-cols-2 gap-1.5 overflow-y-auto overflow-x-hidden image-rotation-list-scroll pr-1 list-none pl-0 m-0 min-h-[80px] max-h-[140px] content-start shrink-0">
+                  <ul className="flex flex-col gap-2 flex-1 min-h-0 overflow-y-auto overflow-x-hidden image-rotation-list-scroll pr-1 list-none pl-0 m-0">
                     {selectedBlockContent?.content_type === 'image' && selectedBlockContent?.image_url && (
-                      <li onClick={() => setImageRotationPreviewIndex(-1)} className={`flex flex-wrap items-center gap-1.5 p-1.5 rounded-lg border-2 cursor-pointer transition-colors min-w-0 ${imageRotationPreviewIndex === -1 ? 'bg-teal-100 border-teal-500' : 'bg-teal-50 border-teal-200 hover:border-teal-300'}`}>
+                      <li onClick={() => setImageRotationPreviewIndex(-1)} className={`flex flex-col gap-1.5 p-1.5 rounded-lg border-2 cursor-pointer transition-colors ${imageRotationPreviewIndex === -1 ? 'bg-teal-100 border-teal-500' : 'bg-teal-50 border-teal-200 hover:border-teal-300'}`}>
+                        <div className="flex flex-wrap items-center gap-1.5">
                         <span className="text-[10px] text-teal-700 font-medium w-4 shrink-0">#1</span>
                         <div className="w-8 h-5 shrink-0 rounded overflow-hidden bg-gray-200 border border-gray-300"><img src={selectedBlockContent.image_url} alt="" className="w-full h-full object-cover" /></div>
-                        <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-                          <input type="text" placeholder={t('editor_product_name')} value={editingFirstImageTitle} onChange={(e) => setEditingFirstImageTitle(e.target.value)} className="w-full min-w-0 px-1 py-0.5 border border-gray-300 rounded text-[10px] text-gray-900" onClick={(e) => e.stopPropagation()} />
-                          <input type="text" placeholder={t('editor_price')} value={editingFirstImagePrice} onChange={(e) => setEditingFirstImagePrice(e.target.value)} className="w-full px-1 py-0.5 border border-gray-300 rounded text-[10px] text-gray-900" onClick={(e) => e.stopPropagation()} />
-                        </div>
                         <label className="shrink-0 flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
                           <span className="text-[9px] text-gray-600">sn</span>
                           <input type="number" min={1} max={120} value={editingFirstImageDuration} onChange={(e) => setEditingFirstImageDuration(Math.max(1, Math.min(120, Number(e.target.value) || 10)))} className="w-8 px-0.5 py-0.5 border border-gray-300 rounded text-[10px] text-gray-900" />
@@ -6182,18 +6285,20 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
                         </div>
                         <button type="button" onClick={(e) => { e.stopPropagation(); openImageRotationTextEditor(-1); }} className="p-0.5 text-teal-700 bg-teal-100 hover:bg-teal-200 rounded text-[10px] shrink-0" title={t('editor_edit_texts_for_image')}>✏️</button>
                         <button type="button" onClick={(e) => { e.stopPropagation(); removeFirstImageFromBlock(); }} className="p-0.5 text-red-600 hover:bg-red-50 rounded text-[10px] shrink-0">🗑️</button>
+                        </div>
+                        <div className="grid grid-cols-[1fr_auto] gap-1 w-full" onClick={(e) => e.stopPropagation()}>
+                          <input type="text" placeholder={t('editor_product_name')} value={editingFirstImageTitle} onChange={(e) => setEditingFirstImageTitle(e.target.value)} className="w-full min-w-0 px-1.5 py-1 border border-gray-300 rounded text-[11px] text-gray-900" />
+                          <input type="text" placeholder={t('editor_price')} value={editingFirstImagePrice} onChange={(e) => setEditingFirstImagePrice(e.target.value)} className="w-16 px-1.5 py-1 border border-gray-300 rounded text-[11px] text-gray-900" />
+                        </div>
                       </li>
                     )}
                     {editingImageRotationItems.map((item, i) => (
-                      <li key={item.url} onClick={() => setImageRotationPreviewIndex(i)} className={`flex flex-wrap items-center gap-1.5 p-1.5 rounded-lg border-2 cursor-pointer transition-colors min-w-0 ${imageRotationPreviewIndex === i ? 'bg-teal-100 border-teal-500' : 'bg-gray-50 border-gray-200 hover:border-teal-300'}`}>
+                      <li key={item.url} onClick={() => setImageRotationPreviewIndex(i)} className={`flex flex-col gap-1.5 p-1.5 rounded-lg border-2 cursor-pointer transition-colors ${imageRotationPreviewIndex === i ? 'bg-teal-100 border-teal-500' : 'bg-gray-50 border-gray-200 hover:border-teal-300'}`}>
+                        <div className="flex flex-wrap items-center gap-1.5">
                         <span className="text-[10px] text-gray-500 w-4 shrink-0">#{i + 2}</span>
                         <div className="w-8 h-5 shrink-0 rounded overflow-hidden bg-gray-200 border border-gray-300 relative">
                           {item.isVideo ? <video src={item.url} className="w-full h-full object-cover" muted playsInline preload="metadata" /> : <img src={item.url} alt="" className="w-full h-full object-cover" />}
                           {item.isVideo && <span className="absolute bottom-0 left-0 right-0 bg-black/70 text-white text-[6px] text-center">V</span>}
-                        </div>
-                        <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-                          <input type="text" placeholder={t('editor_product_name')} value={item.title || ''} onChange={(e) => updateImageRotationItemTitlePrice(item.url, { title: e.target.value })} className="w-full min-w-0 px-1 py-0.5 border border-gray-300 rounded text-[10px] text-gray-900" onClick={(e) => e.stopPropagation()} />
-                          <input type="text" placeholder={t('editor_price')} value={item.price || ''} onChange={(e) => updateImageRotationItemTitlePrice(item.url, { price: e.target.value })} className="w-full px-1 py-0.5 border border-gray-300 rounded text-[10px] text-gray-900" onClick={(e) => e.stopPropagation()} />
                         </div>
                         <label className="shrink-0 flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
                           <span className="text-[9px] text-gray-600">sn</span>
@@ -6229,16 +6334,19 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
                         </div>
                         <button type="button" onClick={(e) => { e.stopPropagation(); openImageRotationTextEditor(i); }} className="p-0.5 text-teal-700 bg-teal-100 hover:bg-teal-200 rounded text-[10px] shrink-0" title={t('editor_edit_texts_for_image')}>✏️</button>
                         <button type="button" onClick={(e) => { e.stopPropagation(); removeImageRotationItem(item.url); if (imageRotationPreviewIndex === i) setImageRotationPreviewIndex(Math.max(-1, i - 1)); }} className="p-0.5 text-red-600 hover:bg-red-50 rounded text-[10px] shrink-0">🗑️</button>
+                        </div>
+                        <div className="grid grid-cols-[1fr_auto] gap-1 w-full" onClick={(e) => e.stopPropagation()}>
+                          <input type="text" placeholder={t('editor_product_name')} value={item.title || ''} onChange={(e) => updateImageRotationItemTitlePrice(item.url, { title: e.target.value })} className="w-full min-w-0 px-1.5 py-1 border border-gray-300 rounded text-[11px] text-gray-900" />
+                          <input type="text" placeholder={t('editor_price')} value={item.price || ''} onChange={(e) => updateImageRotationItemTitlePrice(item.url, { price: e.target.value })} className="w-16 px-1.5 py-1 border border-gray-300 rounded text-[11px] text-gray-900" />
+                        </div>
                       </li>
                     ))}
                   </ul>
-                  <div className="flex items-center gap-2 mb-1 shrink-0">
-                    <p className="text-sm font-semibold text-gray-700">{t('editor_preview')}</p>
-                    <label className="flex items-center gap-1.5 cursor-pointer text-xs text-gray-600">
-                      <input type="checkbox" checked={imageRotationPreviewPlayOnce} onChange={(e) => setImageRotationPreviewPlayOnce(e.target.checked)} className="rounded text-teal-600" />
-                      <span>{t('editor_preview_loop_once')}</span>
-                    </label>
                   </div>
+                  )}
+                </div>
+                {/* Sağ: Önizleme - blok TV'deki gibi orantılı boyutta */}
+                <div className="flex-1 min-h-0 min-w-0 overflow-auto flex items-center justify-center bg-gray-900 p-4">
                   {(() => {
                     let sc: Record<string, unknown> = {};
                     try {
@@ -6274,26 +6382,31 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
                       transitionType: it.transitionType,
                       transitionDuration: it.transitionDuration,
                     }));
+                    const hasFirstImage = !!(selectedBlockContent?.image_url || editingImageRotationItems[0]?.url);
+                    const effectiveFirstImageUrl = selectedBlockContent?.image_url || editingImageRotationItems[0]?.url || '';
+                    const effectiveRotationItems = selectedBlockContent?.image_url
+                      ? rotationItemsForPlayer
+                      : (rotationItemsForPlayer.slice(1) as ImageRotationItem[]);
+                    const canShowPlayOnce = !!effectiveFirstImageUrl;
                     return (
-                  <div className="w-full flex-1 min-h-[380px] flex items-center justify-center bg-gray-100 rounded-lg overflow-hidden" style={{ minHeight: 380, maxHeight: '72vh' }}>
-                    <div
-                      ref={imageRotationTextPreviewRef}
-                      className="relative rounded-xl border-2 border-gray-300 bg-gray-800 overflow-hidden select-none h-full max-w-full"
-                      style={{
-                        aspectRatio: getSelectedBlockAspectRatio(),
-                        opacity: blockOpacity,
-                        overflow: blockClipCircle ? 'hidden' : undefined,
-                        borderRadius: blockClipCircle ? '50%' : undefined,
-                        minHeight: 120,
-                      }}
-                    >
+                  <div
+                    ref={imageRotationTextPreviewRef}
+                    className="relative overflow-hidden select-none bg-gray-800 shrink-0"
+                    style={{
+                      width: 'min(100%, 420px)',
+                      aspectRatio: getSelectedBlockAspectRatio(),
+                      opacity: blockOpacity,
+                      overflow: blockClipCircle ? 'hidden' : undefined,
+                      borderRadius: blockClipCircle ? '50%' : undefined,
+                    }}
+                  >
                     <div className="absolute inset-0 w-full h-full" style={{ transform: `scale(${blockScaleX}, ${blockScaleY})`, transformOrigin: blockPos }}>
-                    {imageRotationPreviewPlayOnce && selectedBlockContent?.image_url && (editingImageRotationItems.length > 0 || editingFirstImageDuration > 0) ? (
+                    {imageRotationPreviewPlayOnce && canShowPlayOnce ? (
                       <ImageRotationPlayer
                         key="play-once-preview"
-                        firstImageUrl={selectedBlockContent.image_url}
+                        firstImageUrl={effectiveFirstImageUrl}
                         firstImageDurationSeconds={editingFirstImageDuration}
-                        rotationItems={rotationItemsForPlayer as ImageRotationItem[]}
+                        rotationItems={effectiveRotationItems as ImageRotationItem[]}
                         objectFit={blockFit as 'cover' | 'contain'}
                         objectPosition={blockPos}
                         transitionType={globalTransition as any}
@@ -6301,19 +6414,21 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
                         firstImageTransitionType={editingFirstImageTransitionType as any}
                         firstImageTransitionDuration={editingFirstImageTransitionDuration}
                         playOnce={true}
+                        onPhaseChange={(phase, idx) => { setImageRotationPlayOncePhase(phase); setImageRotationPlayOnceIndex(idx); }}
                         className="absolute inset-0 w-full h-full"
                       />
                     ) : (() => {
-                      const showFirst = imageRotationPreviewIndex === -1 && selectedBlockContent?.image_url;
+                      const showFirst = imageRotationPreviewIndex === -1 && effectiveFirstImageUrl;
                       const showItem = editingImageRotationItems[imageRotationPreviewIndex];
                       const fallbackFirst = editingImageRotationItems[0];
-                      const previewUrl = showFirst ? selectedBlockContent!.image_url : showItem?.url ?? fallbackFirst?.url;
+                      const previewUrl = showFirst ? effectiveFirstImageUrl : (showItem?.url ?? fallbackFirst?.url);
                       const previewIsVideo = showItem?.isVideo ?? fallbackFirst?.isVideo;
                       if (previewUrl) {
+                        const resolvedUrl = resolveMediaUrl(previewUrl);
                         return previewIsVideo ? (
-                          <video src={previewUrl} className="absolute inset-0 w-full h-full" controls muted playsInline style={imgStyle} />
+                          <video src={resolvedUrl} className="absolute inset-0 w-full h-full" controls muted playsInline style={imgStyle} />
                         ) : (
-                          <img src={previewUrl} alt="" className="absolute inset-0 w-full h-full" draggable={false} style={imgStyle} />
+                          <img src={resolvedUrl} alt="" className="absolute inset-0 w-full h-full" draggable={false} style={imgStyle} />
                         );
                       }
                       return (
@@ -6323,19 +6438,22 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
                       );
                     })()}
                     </div>
-                    {!imageRotationPreviewPlayOnce && ((imageRotationPreviewIndex === -1 && selectedBlockContent?.image_url) || editingImageRotationItems[imageRotationPreviewIndex]) && (
+                    {((!imageRotationPreviewPlayOnce && ((imageRotationPreviewIndex === -1 && effectiveFirstImageUrl) || editingImageRotationItems[imageRotationPreviewIndex]))
+                      || (imageRotationPreviewPlayOnce && canShowPlayOnce)) && (
                       <>
+                        {!imageRotationPreviewPlayOnce && (
                         <div className="absolute inset-0 z-10 cursor-crosshair" onClick={handleImageRotationCanvasClick} aria-label={t('editor_image_text_modal_click_hint')} />
-                        {imageRotationTextLayers.map((layer) => {
+                        )}
+                        {((imageRotationPreviewPlayOnce ? (imageRotationPlayOncePhase === 'first' ? (selectedBlockContent?.image_url ? (sc.textLayers as TextLayer[] || []) : (editingImageRotationItems[0]?.textLayers || [])) : (editingImageRotationItems[imageRotationPlayOnceIndex]?.textLayers || [])) : imageRotationTextLayers) || []).map((layer) => {
                           const isDisc = !!layer.isDiscountBlock;
                           const iconB = layer.icon && layer.iconPosition !== 'after';
                           const iconA = layer.icon && layer.iconPosition === 'after';
                           return (
                             <div
                               key={layer.id}
-                              onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); handleImageRotationTextDragStart(e, layer.id); }}
-                              onClick={(e) => { e.stopPropagation(); setSelectedImageRotationTextLayerId(layer.id); }}
-                              className={`absolute z-30 cursor-grab active:cursor-grabbing ${
+                              onMouseDown={imageRotationPreviewPlayOnce ? undefined : (e) => { e.stopPropagation(); e.preventDefault(); handleImageRotationTextDragStart(e, layer.id); }}
+                              onClick={imageRotationPreviewPlayOnce ? undefined : (e) => { e.stopPropagation(); setSelectedImageRotationTextLayerId(layer.id); }}
+                              className={`absolute z-30 ${imageRotationPreviewPlayOnce ? '' : 'cursor-grab active:cursor-grabbing'} ${
                                 selectedImageRotationTextLayerId === layer.id ? 'ring-2 ring-teal-500 ring-offset-2' : ''
                               } ${draggingImageRotationLayerId === layer.id ? 'opacity-80' : ''} ${
                                 isDisc ? getDiscountBlockClasses(layer) + ' px-3 py-1.5 shadow-lg border' : ''
@@ -6344,7 +6462,7 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
                                 left: `${layer.x}%`,
                                 top: `${layer.y}%`,
                                 transform: 'translate(-50%, -50%)',
-                                pointerEvents: 'auto',
+                                pointerEvents: imageRotationPreviewPlayOnce ? 'none' : 'auto',
                                 ...(isDisc ? getDiscountBlockStyles(layer) : { color: layer.color }),
                                 fontSize: `clamp(10px, ${layer.size * 0.35}px, 72px)`,
                                 fontWeight: layer.fontWeight,
@@ -6363,13 +6481,14 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
                           );
                         })}
                         <PriceBadgePreview
-                          priceBadge={(imageRotationPreviewIndex === -1 ? (editingPriceBadge ?? sc.priceBadge) : (editingPriceBadge ?? null)) as PriceBadge}
-                          draggable
-                          onPositionChange={(x, y) => setEditingPriceBadge((p) => (p ? { ...p, positionX: x, positionY: y } : p))}
+                          priceBadge={(imageRotationPreviewPlayOnce
+                            ? (imageRotationPlayOncePhase === 'first' ? (selectedBlockContent?.image_url ? (editingPriceBadge ?? sc.priceBadge) : (editingImageRotationItems[0]?.priceBadge ?? null)) : (editingImageRotationItems[imageRotationPlayOnceIndex]?.priceBadge ?? null))
+                            : (imageRotationPreviewIndex === -1 ? (editingPriceBadge ?? sc.priceBadge) : (editingPriceBadge ?? null))) as PriceBadge}
+                          draggable={!imageRotationPreviewPlayOnce}
+                          onPositionChange={!imageRotationPreviewPlayOnce ? (x, y) => setEditingPriceBadge((p) => (p ? { ...p, positionX: x, positionY: y } : p)) : undefined}
                         />
                       </>
                     )}
-                    </div>
                   </div>
                   );
                   })()}
@@ -6521,8 +6640,8 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
               </div>
             </div>
             )}
-            <div className="flex gap-2 mt-4 pt-4 border-t border-gray-200 shrink-0">
-              <button type="button" onClick={() => { setShowImageRotationModal(false); setImageRotationEditMode(false); imageRotationPreviewIndexRef.current = undefined; }} className="flex-1 px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg font-semibold">
+            <div className="flex gap-2 mt-2 pt-3 border-t border-gray-200 shrink-0">
+              <button type="button" onClick={() => { setShowImageRotationModal(false); setImageRotationEditMode(false); setPriceBadgeSectionCollapsed(false); setTextsSectionCollapsed(false); setImagesPanelCollapsed(false); imageRotationPreviewIndexRef.current = undefined; }} className="flex-1 px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg font-semibold">
                 {t('btn_cancel')}
               </button>
               {!imageRotationEditMode ? (
@@ -6534,12 +6653,14 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
                   {t('editor_add_image_from_library')}
                 </button>
               )}
-              <button type="button" onClick={() => { persistImageRotationInlineTextLayers(); saveImageRotation(); setImageRotationEditMode(false); imageRotationPreviewIndexRef.current = undefined; }} className="flex-1 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-semibold">
-                {t('btn_save')}
+              <button type="button" disabled={saving} onClick={() => { persistImageRotationInlineTextLayers(); saveImageRotation(); setImageRotationEditMode(false); imageRotationPreviewIndexRef.current = undefined; }} className="flex-1 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-semibold disabled:opacity-60 disabled:cursor-not-allowed">
+                {saving ? (t('editor_saving') || 'Kaydediliyor...') : t('btn_save')}
               </button>
             </div>
           </div>
         </div>
+      )}
+        </>
       )}
 
       {/* Döngüdeki bir resim için yazıları düzenle (resim sırası modalı içinden açılır) - sol: menü, sağ: resim + sürükleme */}
