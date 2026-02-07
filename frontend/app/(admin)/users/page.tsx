@@ -309,9 +309,32 @@ export default function UsersPage() {
 
   const handleConfirmPlanChange = async () => {
     if (!planChangeModal || !selectedPlanId) return;
-    const selectedPlan = plans.find(p => p.id === selectedPlanId);
-    if (!selectedPlan) return;
-    if (selectedPlan.id === planChangeModal.currentPlanId) {
+    let planIdToUse = selectedPlanId;
+    if (selectedPlanId === '__zero__') {
+      let zeroPlan = plans.find((p: any) => p.max_screens === 0);
+      if (!zeroPlan) {
+        try {
+          zeroPlan = await apiClient('/plans', {
+            method: 'POST',
+            body: JSON.stringify({
+              name: 'plan_0',
+              display_name: '0 ekran (Paketi durdur)',
+              max_screens: 0,
+              price_monthly: 0,
+              price_yearly: 0,
+              is_active: true,
+            }),
+          });
+          const plansData = await apiClient('/plans');
+          setPlans(plansData);
+        } catch (planErr: any) {
+          toast.showError(planErr.message || '0 ekran planı oluşturulamadı');
+          return;
+        }
+      }
+      planIdToUse = zeroPlan.id;
+    }
+    if (planIdToUse === planChangeModal.currentPlanId) {
       toast.showWarning(t('users_plan_already_assigned'));
       return;
     }
@@ -320,7 +343,7 @@ export default function UsersPage() {
     try {
       await apiClient(`/users/${planChangeModal.userId}`, {
         method: 'PATCH',
-        body: JSON.stringify({ plan_id: selectedPlan.id, subscription_period_months: planChangePeriodMonths }),
+        body: JSON.stringify({ plan_id: planIdToUse, subscription_period_months: planChangePeriodMonths }),
       });
       loadData();
       closePlanChangeModal();
@@ -798,7 +821,20 @@ export default function UsersPage() {
               <div className="p-6 overflow-y-auto flex-1">
                 <p className="text-sm font-medium text-gray-700 mb-3">Yeni plan seçin:</p>
                 <div className="space-y-2">
+                  {/* 0 ekran - Paketi durdur (manuel) */}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPlanId('__zero__')}
+                    className={`w-full text-left px-4 py-3 rounded-xl border-2 transition-all ${
+                      selectedPlanId === '__zero__'
+                        ? 'border-blue-500 bg-blue-50 text-blue-900'
+                        : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 text-gray-900'
+                    }`}
+                  >
+                    <span className="font-medium">0 ekran (Paketi durdur)</span>
+                  </button>
                   {[...plans]
+                    .filter((p: any) => p.max_screens !== 0)
                     .sort((a, b) => {
                       const ma = a.max_screens === -1 ? 999 : a.max_screens;
                       const mb = b.max_screens === -1 ? 999 : b.max_screens;
@@ -834,7 +870,7 @@ export default function UsersPage() {
                     );
                   })}
                 </div>
-                {selectedPlanId && selectedPlanId !== planChangeModal.currentPlanId && (
+                {selectedPlanId && (selectedPlanId === '__zero__' || selectedPlanId !== planChangeModal.currentPlanId) && (
                   <div className="mt-4">
                     <label className="block text-sm font-medium text-gray-700 mb-2">Süre (başlangıç = bugün, bitiş otomatik)</label>
                     <select
@@ -873,7 +909,7 @@ export default function UsersPage() {
                 <button
                   type="button"
                   onClick={handleConfirmPlanChange}
-                  disabled={!selectedPlanId || selectedPlanId === planChangeModal.currentPlanId || planChangeSaving}
+                  disabled={!selectedPlanId || (selectedPlanId !== '__zero__' && selectedPlanId === planChangeModal.currentPlanId) || planChangeSaving}
                   className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {planChangeSaving ? 'Kaydediliyor...' : 'Tamam'}

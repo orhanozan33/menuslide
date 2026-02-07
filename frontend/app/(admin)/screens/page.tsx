@@ -220,9 +220,10 @@ export default function ScreensPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const createMissingScreens = useCallback(async (currentScreenCount: number, maxScreens: number, existingScreens?: Screen[]) => {
+  const createMissingScreens = useCallback(async (currentScreenCount: number, maxScreens: number, existingScreens?: Screen[], businessId?: string | null) => {
     setAutoCreating(true);
     const screensToCreate = maxScreens - currentScreenCount;
+    const bid = businessId ?? currentUser?.business_id;
 
     // Mevcut ekran isimlerindeki en yüksek TV numarasını bul (TV1,TV2,TV3 -> 3; yoksa 0)
     const maxNum = (existingScreens ?? []).reduce((max, s) => {
@@ -238,7 +239,7 @@ export default function ScreensPage() {
         await apiClient('/screens', {
           method: 'POST',
           body: JSON.stringify({
-            business_id: currentUser?.business_id,
+            business_id: bid,
             name: screenName,
             location: '',
             is_active: true,
@@ -282,34 +283,38 @@ export default function ScreensPage() {
   }, [currentUser, userRole, selectedUserId]);
 
   const checkAndCreateScreens = useCallback(async (currentScreens?: Screen[]) => {
-    // Sadece normal kullanıcılar için otomatik ekran oluştur (admin değilse)
-    if (!currentUser || !currentUser.business_id || (userRole === 'super_admin' || userRole === 'admin')) {
-      return;
-    }
+    if (autoCreating) return;
 
-    if (autoCreating) {
-      return; // Zaten oluşturma işlemi devam ediyorsa bekle
-    }
+    // Hangi kullanıcı için kontrol: admin seçili kullanıcıya bakıyorsa onun, değilse currentUser
+    const targetUserId = (userRole === 'super_admin' || userRole === 'admin') && selectedUserId
+      ? selectedUserId
+      : currentUser?.id;
+    const targetBusinessId = (userRole === 'super_admin' || userRole === 'admin') && selectedUserId
+      ? (screens[0]?.business_id ?? null)
+      : currentUser?.business_id;
+
+    if (!targetUserId) return;
 
     try {
-      // Önce kullanıcının plan bilgisini direkt users endpoint'inden al (daha güvenilir)
       let maxScreens = null;
+      let resolvedBusinessId = targetBusinessId;
       try {
         const users = await apiClient('/users');
-        const userData = Array.isArray(users) 
-          ? users.find((u: any) => u.id === currentUser.id) 
+        const userData = Array.isArray(users)
+          ? users.find((u: any) => u.id === targetUserId)
           : null;
-        
-        if (userData && userData.plan_max_screens) {
-          maxScreens = userData.plan_max_screens;
+        if (userData) {
+          if (userData.plan_max_screens != null) maxScreens = userData.plan_max_screens;
+          if (!resolvedBusinessId && userData.business_id) resolvedBusinessId = userData.business_id;
         }
       } catch (err) {
         console.error('Error fetching user data:', err);
       }
-      
+      if (!resolvedBusinessId) return;
+
       // Eğer user data'dan bulamadıysak subscription'dan dene (sadece aktif abonelik için)
       if (!maxScreens) {
-        const subscription = await apiClient(`/subscriptions/business/${currentUser.business_id}`).catch((err) => {
+        const subscription = await apiClient(`/subscriptions/business/${resolvedBusinessId}`).catch((err) => {
           console.error('Error fetching subscription:', err);
           return null;
         });
@@ -340,13 +345,13 @@ export default function ScreensPage() {
       // Eksik ekranları oluştur (numara mevcut en yüksek TV'den devam eder)
       if (currentScreenCount < maxScreens) {
         const existingList = currentScreens ?? screens;
-        await createMissingScreens(currentScreenCount, maxScreens, existingList);
+        await createMissingScreens(currentScreenCount, maxScreens, existingList, resolvedBusinessId);
       }
     } catch (error) {
       console.error('❌ Error checking/creating screens:', error);
       setAutoCreating(false);
     }
-  }, [currentUser, userRole, autoCreating, screens.length, createMissingScreens]);
+  }, [currentUser, userRole, selectedUserId, autoCreating, screens.length, createMissingScreens]);
 
   // Store function in ref
   checkAndCreateScreensRef.current = checkAndCreateScreens;
@@ -364,8 +369,12 @@ export default function ScreensPage() {
   }, [selectedUserId, userIdFromUrl]);
 
   useEffect(() => {
-    // currentUser güncellendiğinde ve ekranlar yüklendiyse otomatik ekran oluşturmayı kontrol et
-    if (currentUser && currentUser.business_id && screens.length >= 0 && !loading && !hasCheckedAutoCreate && !selectedUserId && (userRole !== 'super_admin' && userRole !== 'admin')) {
+    // Normal kullanıcı kendi ekranlarına baktığında VEYA admin seçili kullanıcının ekranlarına baktığında otomatik ekran oluştur
+    const isAdminViewingUser = (userRole === 'super_admin' || userRole === 'admin') && selectedUserId;
+    const isNormalUser = currentUser?.business_id && !selectedUserId && userRole !== 'super_admin' && userRole !== 'admin';
+    const shouldCheck = (isAdminViewingUser || isNormalUser) && screens.length >= 0 && !loading && !hasCheckedAutoCreate;
+
+    if (shouldCheck) {
       setHasCheckedAutoCreate(true);
       setTimeout(() => {
         if (checkAndCreateScreensRef.current) {
