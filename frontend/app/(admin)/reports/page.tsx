@@ -1065,7 +1065,7 @@ export default function ReportsPage() {
                 )}
                 <dl className="space-y-2 text-sm">
                   <div><dt className="text-slate-500">{t('invoice_number')}</dt><dd className="font-medium text-slate-800">{String(adminInvoiceModal.data.invoice_number ?? '-')}</dd></div>
-                  <div><dt className="text-slate-500">{t('invoice_date')}</dt><dd className="text-slate-800">{formatDateShort(adminInvoiceModal.data.payment_date)}</dd></div>
+                  <div><dt className="text-slate-500">{t('invoice_date')}</dt><dd className="text-slate-800">{formatDateShort(adminInvoiceModal.data.payment_date as string | null | undefined)}</dd></div>
                   <div><dt className="text-slate-500 font-medium">{t('invoice_bill_to')}</dt><dd className="text-slate-800 mt-1">{String(adminInvoiceModal.data.business_name ?? '—')}</dd></div>
                   {adminInvoiceModal.data.customer_email && <dd className="text-slate-600 text-xs">{String(adminInvoiceModal.data.customer_email)}</dd>}
                   <div><dt className="text-slate-500">{t('invoice_plan')}</dt><dd className="text-slate-800">{String(adminInvoiceModal.data.plan_name ?? '—')}</dd></div>
