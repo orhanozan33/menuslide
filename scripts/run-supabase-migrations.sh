@@ -55,7 +55,13 @@ psql -h "$SUPABASE_DB_HOST" -p 5432 -U postgres -d postgres \
 echo "  Tamamlandı."
 echo ""
 
-echo "[3/4] Import sütunları + registration_requests..."
+echo "[3/5] allow_multi_device (super admin çoklu cihaz)..."
+psql -h "$SUPABASE_DB_HOST" -p 5432 -U postgres -d postgres \
+  -f "${PROJECT_ROOT}/database/migration-add-allow-multi-device.sql" -v ON_ERROR_STOP=0
+echo "  Tamamlandı."
+echo ""
+
+echo "[4/5] Import sütunları + registration_requests..."
 psql -h "$SUPABASE_DB_HOST" -p 5432 -U postgres -d postgres \
   -f "${PROJECT_ROOT}/database/migration-add-import-columns.sql" -v ON_ERROR_STOP=0
 psql -h "$SUPABASE_DB_HOST" -p 5432 -U postgres -d postgres \
@@ -63,7 +69,7 @@ psql -h "$SUPABASE_DB_HOST" -p 5432 -U postgres -d postgres \
 echo "  Tamamlandı."
 echo ""
 
-echo "[4/4] migrations/ klasörü..."
+echo "[5/5] migrations/ klasörü..."
 for f in "${PROJECT_ROOT}/database/migrations"/*.sql; do
   [ -f "$f" ] || continue
   echo "  - $(basename "$f")"

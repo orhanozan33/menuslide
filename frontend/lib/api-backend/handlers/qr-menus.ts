@@ -6,17 +6,19 @@ import { useLocalDb, queryLocal, queryOne } from '@/lib/api-backend/db-local';
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://menuslide.com');
 
-/** GET /qr-menus/slug/:slug - Public: slug'dan business_id + token çözümle */
+/** GET /qr-menus/slug/:slug - Public: slug'dan business_id + token çözümle (case-insensitive) */
 export async function resolveBySlug(slug: string): Promise<Response> {
   try {
+    const slugNorm = String(slug ?? '').trim();
+    if (!slugNorm) return Response.json({ message: 'Slug required' }, { status: 400 });
     if (useLocalDb()) {
-      const biz = await queryOne<{ id: string }>('SELECT id FROM businesses WHERE slug = $1 AND is_active = true', [slug]);
+      const biz = await queryOne<{ id: string }>('SELECT id FROM businesses WHERE LOWER(slug) = LOWER($1) AND is_active = true', [slugNorm]);
       if (!biz) return Response.json({ message: 'Business not found' }, { status: 404 });
       const qr = await queryOne<{ token: string }>('SELECT token FROM qr_menus WHERE business_id = $1 AND is_active = true ORDER BY created_at DESC LIMIT 1', [biz.id]);
       return Response.json({ business_id: biz.id, token: qr?.token || null });
     }
     const supabase = getServerSupabase();
-    const { data: biz } = await supabase.from('businesses').select('id').eq('slug', slug).eq('is_active', true).maybeSingle();
+    const { data: biz } = await supabase.from('businesses').select('id').ilike('slug', slugNorm).eq('is_active', true).maybeSingle();
     if (!biz) return Response.json({ message: 'Business not found' }, { status: 404 });
     const { data: qr } = await supabase.from('qr_menus').select('token').eq('business_id', biz.id).eq('is_active', true).order('created_at', { ascending: false }).limit(1).maybeSingle();
     return Response.json({ business_id: biz.id, token: (qr as { token?: string } | null)?.token || null });

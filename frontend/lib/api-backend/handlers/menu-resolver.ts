@@ -19,7 +19,7 @@ export async function getBusinessMenus(
 
     if (useLocalDb()) {
       if (!UUID_REGEX.test(businessIdOrSlug)) {
-        const slugRow = await queryOne<{ id: string }>('SELECT id FROM businesses WHERE slug = $1 AND is_active = true', [businessIdOrSlug]);
+        const slugRow = await queryOne<{ id: string }>('SELECT id FROM businesses WHERE LOWER(slug) = LOWER($1) AND is_active = true', [businessIdOrSlug]);
         if (slugRow) businessId = slugRow.id;
       }
       const biz = await queryOne<{ name: string; qr_background_image_url: string | null; qr_background_color: string | null }>(
@@ -58,7 +58,7 @@ export async function getBusinessMenus(
     } else {
       const supabase = getServerSupabase();
       if (!UUID_REGEX.test(businessIdOrSlug)) {
-        const { data: slugRow } = await supabase.from('businesses').select('id').eq('slug', businessIdOrSlug).eq('is_active', true).maybeSingle();
+        const { data: slugRow } = await supabase.from('businesses').select('id').ilike('slug', businessIdOrSlug).eq('is_active', true).maybeSingle();
         if (slugRow) businessId = (slugRow as { id: string }).id;
       }
       const { data: biz } = await supabase.from('businesses').select('name, qr_background_image_url, qr_background_color').eq('id', businessId).eq('is_active', true).maybeSingle();
@@ -175,7 +175,7 @@ export async function getMenuLanguages(businessIdOrSlug: string): Promise<Respon
     let businessId = businessIdOrSlug;
     if (useLocalDb()) {
       if (!UUID_REGEX.test(businessIdOrSlug)) {
-        const slugRow = await queryOne<{ id: string }>('SELECT id FROM businesses WHERE slug = $1 AND is_active = true', [businessIdOrSlug]);
+        const slugRow = await queryOne<{ id: string }>('SELECT id FROM businesses WHERE LOWER(slug) = LOWER($1) AND is_active = true', [businessIdOrSlug]);
         if (slugRow) businessId = slugRow.id;
       }
       const rows = await queryLocal<{ code: string; name: string; is_default: boolean }>(
@@ -199,7 +199,7 @@ export async function getMenuLanguages(businessIdOrSlug: string): Promise<Respon
     }
     const supabase = getServerSupabase();
     if (!UUID_REGEX.test(businessIdOrSlug)) {
-      const { data: slugRow } = await supabase.from('businesses').select('id').eq('slug', businessIdOrSlug).eq('is_active', true).maybeSingle();
+      const { data: slugRow } = await supabase.from('businesses').select('id').ilike('slug', businessIdOrSlug).eq('is_active', true).maybeSingle();
       if (slugRow) businessId = (slugRow as { id: string }).id;
     }
     const { data: allMenusLang } = await supabase.from('menus').select('id, name, description').eq('business_id', businessId).eq('is_active', true);

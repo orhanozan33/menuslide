@@ -705,28 +705,9 @@ export default function EditUserPage() {
                 <label className="block text-sm font-semibold text-gray-800 mb-2">
                   İşletme
                 </label>
-                <select
-                  value={formData.business_id || ''}
-                  onChange={(e) => {
-                    const newBusinessId = e.target.value;
-                    const selectedBusiness = businesses.find(b => b.id === newBusinessId);
-                    setFormData({
-                      ...formData,
-                      business_id: newBusinessId,
-                      business_name: selectedBusiness?.name || '',
-                      plan_id: newBusinessId ? formData.plan_id : '',
-                    });
-                  }}
-                  disabled={!canEditUser}
-                  className="w-full px-3 sm:px-4 py-2.5 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 bg-white text-sm sm:text-base disabled:opacity-60 disabled:bg-gray-50"
-                >
-                  <option value="">İşletme seçin (opsiyonel)</option>
-                  {businesses.map((business) => (
-                    <option key={business.id} value={business.id}>
-                      {business.name}
-                    </option>
-                  ))}
-                </select>
+                <div className="px-3 sm:px-4 py-2.5 rounded-lg bg-gray-50 border border-gray-200 text-gray-900 text-sm sm:text-base">
+                  {formData.business_name || businesses.find(b => b.id === formData.business_id)?.name || 'İşletme atanmamış'}
+                </div>
               </div>
 
               {formData.business_id && (
@@ -745,34 +726,39 @@ export default function EditUserPage() {
                 </div>
               )}
 
-              <div>
-                <label className="block text-sm font-semibold text-gray-800 mb-2">
-                  Ekran Sayısı
-                </label>
-                <select
-                  value={formData.max_screens || ''}
-                  onChange={(e) => setFormData({ ...formData, max_screens: e.target.value })}
-                  className={`w-full px-3 sm:px-4 py-2.5 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 bg-white text-sm sm:text-base disabled:opacity-60 disabled:bg-gray-50 ${
-                    !formData.business_id ? 'opacity-50 cursor-not-allowed bg-gray-50' : ''
-                  }`}
-                  disabled={!formData.business_id || !canEditUser}
-                >
-                  <option value="">Ekran sayısı seçin (opsiyonel)</option>
-                  <option value="0">0 Ekran</option>
-                  {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
-                    <option key={num} value={num.toString()}>
-                      {num} Ekran
-                    </option>
-                  ))}
-                  <option value="unlimited">Sınırsız</option>
-                </select>
-                {!formData.business_id && (
-                  <p className="text-xs text-yellow-600 mt-1.5 font-medium">⚠️ Ekran sayısı seçmek için önce işletme seçin.</p>
-                )}
-                {formData.business_id && (
-                  <p className="text-xs text-gray-500 mt-1.5">1-9 ekran veya sınırsız seçebilirsiniz</p>
-                )}
-              </div>
+              {formData.business_id && (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-800 mb-2">
+                    Ekran Sayısı
+                  </label>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <input
+                      type="number"
+                      min={0}
+                      max={99}
+                      value={formData.max_screens === 'unlimited' ? '' : (formData.max_screens || '')}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setFormData({ ...formData, max_screens: v || '' });
+                      }}
+                      placeholder="0-99"
+                      disabled={!canEditUser}
+                      className="w-24 px-3 py-2.5 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 bg-white text-sm sm:text-base disabled:opacity-60 disabled:bg-gray-50"
+                    />
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={formData.max_screens === 'unlimited'}
+                        onChange={(e) => setFormData({ ...formData, max_screens: e.target.checked ? 'unlimited' : '' })}
+                        disabled={!canEditUser}
+                        className="rounded"
+                      />
+                      <span className="text-sm text-gray-700">Sınırsız</span>
+                    </label>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1.5">0-99 ekran girin veya sınırsız işaretleyin</p>
+                </div>
+              )}
             </div>
 
             {formData.business_id && (

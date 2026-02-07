@@ -209,6 +209,7 @@ export async function handleLocal(
     const userId = id || (sub && /^[0-9a-f-]{36}$/i.test(sub) ? sub : undefined);
     if (method === 'POST' && !id) return crudMutations.createUser(request, user);
     if (method === 'PATCH' && userId) return crudMutations.updateUser(userId, request, user);
+    if (method === 'DELETE' && userId) return crudMutations.deleteUser(userId, user);
   }
   if (resource === 'plans' && user) {
     if (method === 'POST' && !id) return crudMutations.createPlan(request, user);

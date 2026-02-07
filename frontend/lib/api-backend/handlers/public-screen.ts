@@ -280,13 +280,17 @@ export async function recordViewerHeartbeat(token: string, request: NextRequest)
   }
   if (sessionId.length > 64) sessionId = sessionId.slice(0, 64);
 
-  const { data: bySlug } = await supabase.from('screens').select('id').eq('public_slug', token).eq('is_active', true).limit(1).maybeSingle();
-  let screenId: string | null = bySlug?.id ?? null;
-  if (!screenId) {
-    const { data: byToken } = await supabase.from('screens').select('id').eq('public_token', token).eq('is_active', true).limit(1).maybeSingle();
-    screenId = byToken?.id ?? null;
+  const { data: bySlug } = await supabase.from('screens').select('id, allow_multi_device').eq('public_slug', token).eq('is_active', true).limit(1).maybeSingle();
+  let screenRow = bySlug;
+  if (!screenRow) {
+    const { data: byToken } = await supabase.from('screens').select('id, allow_multi_device').eq('public_token', token).eq('is_active', true).limit(1).maybeSingle();
+    screenRow = byToken;
   }
+  const screenId = screenRow?.id ?? null;
   if (!screenId) return Response.json({ ok: false, allowed: false });
+
+  const allowMultiDevice = !!(screenRow as { allow_multi_device?: boolean })?.allow_multi_device;
+  if (allowMultiDevice) return Response.json({ ok: true, allowed: true });
 
   const now = new Date().toISOString();
   const stale = new Date(Date.now() - VIEWER_STALE_MS).toISOString();

@@ -141,6 +141,7 @@ export async function create(request: NextRequest, user: JwtPayload): Promise<Re
     const businessName = biz?.name || 'business';
     const name = body.name || 'TV1';
     const publicSlug = await uniqueSlugLocal(slugify(`${businessName} ${name}`));
+    const allowMultiDevice = user.role === 'super_admin';
     const data = await insertLocal('screens', {
       business_id: businessId,
       name,
@@ -151,6 +152,7 @@ export async function create(request: NextRequest, user: JwtPayload): Promise<Re
       animation_type: 'fade',
       animation_duration: 500,
       template_id: body.template_id ?? null,
+      allow_multi_device: allowMultiDevice,
     });
     await mirrorToSupabase('screens', 'insert', { row: data });
     return Response.json(data);
@@ -166,6 +168,7 @@ export async function create(request: NextRequest, user: JwtPayload): Promise<Re
   const name = body.name || 'TV1';
   const combined = `${businessName} ${name}`;
   const publicSlug = await uniqueSlug(supabase, slugify(combined));
+  const allowMultiDevice = user.role === 'super_admin';
   const { data, error } = await supabase.from('screens').insert({
     business_id: businessId,
     name,
@@ -176,6 +179,7 @@ export async function create(request: NextRequest, user: JwtPayload): Promise<Re
     animation_type: 'fade',
     animation_duration: 500,
     template_id: body.template_id ?? null,
+    allow_multi_device: allowMultiDevice,
   }).select().single();
   if (error) return Response.json({ message: error.message }, { status: 500 });
   return Response.json(data);
@@ -189,7 +193,7 @@ export async function update(id: string, request: NextRequest, user: JwtPayload)
   } catch {
     return Response.json({ message: 'Invalid JSON' }, { status: 400 });
   }
-  const allowed = ['name', 'location', 'is_active', 'animation_type', 'animation_duration', 'language_code', 'font_family', 'primary_color', 'background_style', 'background_color', 'background_image_url', 'logo_url', 'template_id', 'frame_type', 'ticker_text', 'ticker_style'];
+  const allowed = ['name', 'location', 'is_active', 'animation_type', 'animation_duration', 'language_code', 'font_family', 'primary_color', 'background_style', 'background_color', 'background_image_url', 'logo_url', 'template_id', 'frame_type', 'ticker_text', 'ticker_style', 'allow_multi_device'];
   const updates: Record<string, unknown> = {};
   for (const k of allowed) if (body[k] !== undefined) updates[k] = body[k];
 

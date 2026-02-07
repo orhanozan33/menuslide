@@ -161,6 +161,20 @@ export async function getUserDetailReport(userId: string, currentUserId: string,
   const supabase = getServerSupabase();
   const { data: u } = await supabase.from('users').select('*').eq('id', userId).single();
   if (!u) return Response.json({ message: 'User not found' }, { status: 404 });
+  const userEmail = (u as { email?: string }).email;
+  let phone: string | null = null;
+  let address: string | null = null;
+  try {
+    const { data: regList } = await supabase.from('registration_requests').select('phone, address').eq('email', userEmail).order('created_at', { ascending: false }).limit(1);
+    const reg = regList?.[0] as { phone?: string; address?: string } | undefined;
+    if (reg) {
+      phone = (reg.phone ?? '').trim() || null;
+      address = (reg.address ?? '').trim() || null;
+    }
+  } catch {
+    // ignore if registration_requests not available
+  }
+  const userWithContact = { ...u, phone: phone ?? undefined, address: address ?? undefined };
   const { data: business } = u.business_id ? await supabase.from('businesses').select('*').eq('id', (u as { business_id: string }).business_id).single() : { data: null };
   const { data: sub } = (u as { business_id?: string }).business_id
     ? await supabase.from('subscriptions').select('*').eq('business_id', (u as { business_id: string }).business_id).order('created_at', { ascending: false }).limit(1).maybeSingle()
@@ -184,7 +198,7 @@ export async function getUserDetailReport(userId: string, currentUserId: string,
   const screensActive = 0;
   const screensInactive = 0;
   return Response.json({
-    user: u,
+    user: userWithContact,
     business: business ?? null,
     subscription: sub ?? null,
     screens_count: screensCount,

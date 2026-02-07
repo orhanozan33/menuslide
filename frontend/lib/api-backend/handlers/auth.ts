@@ -139,6 +139,22 @@ export async function postRegister(req: NextRequest): Promise<Response> {
     return Response.json({ message: userErr?.message || 'Failed to create user' }, { status: 500 });
   }
 
+  // Bildirimlere kaydet (admin Bildirim Raporları sayfasında görsün)
+  try {
+    await supabase.from('registration_requests').insert({
+      business_name: businessName,
+      email,
+      phone: body.phone ? String(body.phone).trim() || null : null,
+      address: body.address ? String(body.address).trim() || null : null,
+      province: body.province ? String(body.province).trim() || null : null,
+      city: body.city ? String(body.city).trim() || null : null,
+      reference_number: body.reference_number ? String(body.reference_number).trim() || null : null,
+      status: 'registered',
+    });
+  } catch (_) {
+    // Tablo yoksa veya hata olursa kayıt işlemi başarısız sayılmaz
+  }
+
   const token = await signToken({
     userId: user.id,
     email: user.email,

@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { getServerSupabase } from '@/lib/supabase-server';
 import type { JwtPayload } from '@/lib/auth-server';
-import { useLocalDb, insertLocal, updateLocal, mirrorToSupabase, queryOne } from '@/lib/api-backend/db-local';
+import { useLocalDb, insertLocal, updateLocal, deleteLocal, mirrorToSupabase, queryOne, runLocal } from '@/lib/api-backend/db-local';
 
 /** POST /businesses */
 export async function createBusiness(request: NextRequest, user: JwtPayload): Promise<Response> {
@@ -149,6 +149,31 @@ export async function updateUser(id: string, request: NextRequest, user: JwtPayl
   await applyAdminPermissions('supabase');
   const { data: updated } = await supabase.from('users').select('*').eq('id', id).single();
   return Response.json(updated ?? { message: 'Not found' }, { status: updated ? 200 : 404 });
+}
+
+/** DELETE /users/:id */
+export async function deleteUser(id: string, user: JwtPayload): Promise<Response> {
+  if (user.role !== 'super_admin' && user.role !== 'admin') {
+    return Response.json({ message: 'Admin required' }, { status: 403 });
+  }
+  const target = useLocalDb()
+    ? await queryOne<{ role: string }>('SELECT role FROM users WHERE id = $1', [id])
+    : (await getServerSupabase().from('users').select('role').eq('id', id).maybeSingle()).data as { role: string } | null;
+  if (!target) return Response.json({ message: 'Not found' }, { status: 404 });
+  if (target.role === 'super_admin') {
+    return Response.json({ message: 'Super admin cannot be deleted' }, { status: 403 });
+  }
+  if (useLocalDb()) {
+    await runLocal('DELETE FROM admin_permissions WHERE user_id = $1', [id]);
+    await deleteLocal('users', id);
+    await mirrorToSupabase('users', 'delete', { id });
+    return Response.json({ success: true });
+  }
+  const supabase = getServerSupabase();
+  await supabase.from('admin_permissions').delete().eq('user_id', id);
+  const { error } = await supabase.from('users').delete().eq('id', id);
+  if (error) return Response.json({ message: error.message }, { status: 500 });
+  return Response.json({ success: true });
 }
 
 /** POST /plans */
