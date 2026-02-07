@@ -282,21 +282,37 @@ export async function getActivityLog(request: NextRequest, user: JwtPayload): Pr
   if (useLocalDb()) {
     const conditions: string[] = [];
     const params: unknown[] = [];
-    if (from) { params.push(from); conditions.push(`created_at >= $${params.length}`); }
-    if (to) { params.push(to); conditions.push(`created_at <= $${params.length}`); }
-    if (userId) { params.push(userId); conditions.push(`user_id = $${params.length}`); }
+    if (from) { params.push(from); conditions.push(`a.created_at >= $${params.length}`); }
+    if (to) {
+      const toVal = /^\d{4}-\d{2}-\d{2}$/.test(to) ? `${to}T23:59:59.999Z` : to;
+      params.push(toVal);
+      conditions.push(`a.created_at <= $${params.length}`);
+    }
+    if (userId) { params.push(userId); conditions.push(`a.user_id = $${params.length}`); }
     const where = conditions.length ? ` WHERE ${conditions.join(' AND ')}` : '';
-    const rows = await queryLocal(`SELECT * FROM admin_activity_log${where} ORDER BY created_at DESC LIMIT 200`, params);
+    const rows = await queryLocal(`SELECT a.*, u.email as user_email FROM admin_activity_log a LEFT JOIN users u ON a.user_id = u.id${where} ORDER BY a.created_at DESC LIMIT 200`, params);
     return Response.json(rows ?? []);
   }
   const supabase = getServerSupabase();
-  let q = supabase.from('admin_activity_log').select('*').order('created_at', { ascending: false }).limit(200);
+  let q = supabase.from('admin_activity_log').select('*, users(email)').order('created_at', { ascending: false }).limit(200);
   if (from) q = q.gte('created_at', from);
-  if (to) q = q.lte('created_at', to);
+  if (to) {
+    // to=YYYY-MM-DD isteğe end-of-day ekle, bugünkü kayıtlar dahil olsun
+    const toVal = /^\d{4}-\d{2}-\d{2}$/.test(to) ? `${to}T23:59:59.999Z` : to;
+    q = q.lte('created_at', toVal);
+  }
   if (userId) q = q.eq('user_id', userId);
   const { data, error } = await q;
   if (error) return Response.json({ message: error.message }, { status: 500 });
-  return Response.json(data ?? []);
+  // Supabase join returns users: { email } or users: null; flatten to user_email
+  const rows = (data ?? []).map((r: Record<string, unknown>) => {
+    const u = r.users as { email?: string } | { email?: string }[] | null;
+    const email = Array.isArray(u) ? u[0]?.email : u?.email;
+    const out = { ...r, user_email: email ?? null };
+    delete (out as Record<string, unknown>).users;
+    return out;
+  });
+  return Response.json(rows);
 }
 
 /** POST /reports/activity (admin) */
@@ -317,6 +333,21 @@ export async function logActivity(request: NextRequest, user: JwtPayload): Promi
     details: body.details ?? undefined,
   });
   return Response.json({ success: true });
+}
+
+/** DELETE /reports/activity - tüm logları temizle (sadece super_admin) */
+export async function clearActivityLog(user: JwtPayload): Promise<Response> {
+  if (user.role !== 'super_admin') return Response.json({ message: 'Super admin only' }, { status: 403 });
+  if (useLocalDb()) {
+    const { getLocalPg } = await import('@/lib/api-backend/db-local');
+    const client = await getLocalPg();
+    await client.query('DELETE FROM admin_activity_log');
+    return Response.json({ message: 'Tüm loglar silindi', deleted: true });
+  }
+  const supabase = getServerSupabase();
+  const { error } = await supabase.from('admin_activity_log').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+  if (error) return Response.json({ message: error.message }, { status: 500 });
+  return Response.json({ message: 'Tüm loglar silindi', deleted: true });
 }
 
 /** GET /reports/activity-users (admin) */

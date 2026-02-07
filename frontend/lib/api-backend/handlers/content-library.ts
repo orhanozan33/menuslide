@@ -177,23 +177,26 @@ export async function update(id: string, request: NextRequest, user: JwtPayload)
 
 /** DELETE /content-library/:id */
 export async function remove(id: string, user: JwtPayload): Promise<Response> {
+  let itemName = '';
   if (useLocalDb()) {
-    const row = await queryOne<{ uploaded_by: string | null }>('SELECT uploaded_by FROM content_library WHERE id = $1', [id]);
+    const row = await queryOne<{ uploaded_by: string | null; name?: string }>('SELECT uploaded_by, name FROM content_library WHERE id = $1', [id]);
     if (!row) return Response.json({ message: 'Not found' }, { status: 404 });
+    itemName = String(row.name ?? '');
     if (user.role !== 'super_admin' && user.role !== 'admin' && row.uploaded_by !== user.userId)
       return Response.json({ message: 'Access denied' }, { status: 403 });
     await deleteLocal('content_library', id);
     await mirrorToSupabase('content_library', 'delete', { id });
-    await insertAdminActivityLog(user, { action_type: 'library_delete', page_key: 'library', resource_type: 'content_library', resource_id: id, details: {} });
+    await insertAdminActivityLog(user, { action_type: 'library_delete', page_key: 'library', resource_type: 'content_library', resource_id: id, details: { name: itemName } });
     return Response.json({ success: true });
   }
   const supabase = getServerSupabase();
-  const { data: row } = await supabase.from('content_library').select('uploaded_by').eq('id', id).single();
+  const { data: row } = await supabase.from('content_library').select('uploaded_by, name').eq('id', id).single();
   if (!row) return Response.json({ message: 'Not found' }, { status: 404 });
+  itemName = String((row as { name?: string }).name ?? '');
   if (user.role !== 'super_admin' && user.role !== 'admin' && (row as { uploaded_by: string | null }).uploaded_by !== user.userId)
     return Response.json({ message: 'Access denied' }, { status: 403 });
   const { error } = await supabase.from('content_library').delete().eq('id', id);
   if (error) return Response.json({ message: error.message }, { status: 500 });
-  await insertAdminActivityLog(user, { action_type: 'library_delete', page_key: 'library', resource_type: 'content_library', resource_id: id, details: {} });
+  await insertAdminActivityLog(user, { action_type: 'library_delete', page_key: 'library', resource_type: 'content_library', resource_id: id, details: { name: itemName } });
   return Response.json({ success: true });
 }

@@ -34,9 +34,18 @@ export async function insertAdminActivityLog(user: JwtPayload, payload: AdminAct
       }
     } else {
       const supabase = getServerSupabase();
-      await supabase.from('admin_activity_log').insert(row);
+      const { error } = await supabase.from('admin_activity_log').insert(row);
+      if (error) {
+        if (process.env.NODE_ENV === 'development') {
+          console.error('[admin-activity-log] Supabase insert failed:', error.message);
+        }
+        throw error;
+      }
     }
-  } catch {
-    // Sessizce yoksay
+  } catch (e) {
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[admin-activity-log] Insert failed:', e instanceof Error ? e.message : e);
+    }
+    // Sessizce yoksay (ana işlemi bozma)
   }
 }

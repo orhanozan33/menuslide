@@ -149,6 +149,7 @@ export async function handleLocal(
     if (sub === 'activity') return reportsHandlers.logActivity(request, user);
     if (sub === 'subscription' && id && sub2 === 'mark-paid') return reportsHandlers.markSubscriptionPaid(id, request, user);
   }
+  if (method === 'DELETE' && user && resource === 'reports' && sub === 'activity') return reportsHandlers.clearActivityLog(user);
 
   if (resource === 'content-library' && user) {
     const contentLibraryId = sub && /^[0-9a-f-]{36}$/i.test(sub) && !['categories', 'my-uploads', 'user-uploads'].includes(sub) ? sub : id;

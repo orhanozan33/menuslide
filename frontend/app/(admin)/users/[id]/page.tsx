@@ -7,6 +7,7 @@ import { apiClient } from '@/lib/api';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 import { useAdminPagePermissions } from '@/lib/useAdminPagePermissions';
 import { useToast } from '@/lib/ToastContext';
+import { useConfirm } from '@/lib/ConfirmContext';
 
 interface User {
   id: string;
@@ -51,8 +52,10 @@ export default function EditUserPage() {
   const [showPermissionsModal, setShowPermissionsModal] = useState(false);
   const [activityLog, setActivityLog] = useState<{ id: string; action_type: string; page_key: string; resource_type?: string; resource_id?: string; details?: Record<string, unknown>; created_at: string }[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
+  const [clearLogsLoading, setClearLogsLoading] = useState(false);
 
   const { can, isSuper } = useAdminPagePermissions('users');
+  const { confirm } = useConfirm();
   const canEditUser = isSuper || (user?.role === 'business_user' && can('user_edit'));
   const canDeleteUser = isSuper || (user?.role === 'business_user' && can('user_delete'));
 
@@ -95,6 +98,21 @@ export default function EditUserPage() {
       loadActivity();
     }
   }, [userId, user?.role]);
+
+  const handleClearAllLogs = async () => {
+    const ok = await confirm({ title: 'Tüm logları sil', message: 'Tüm admin hareket logları kalıcı olarak silinecek. Emin misiniz?', variant: 'danger' });
+    if (!ok) return;
+    setClearLogsLoading(true);
+    try {
+      await apiClient('/reports/activity', { method: 'DELETE' });
+      toast.showSuccess('Tüm loglar silindi.');
+      setActivityLog([]);
+    } catch (err: any) {
+      toast.showError(err?.message || 'Loglar silinemedi.');
+    } finally {
+      setClearLogsLoading(false);
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -801,9 +819,22 @@ export default function EditUserPage() {
         {/* Admin hareketleri - admin/super_admin kullanıcı için son 30 gün */}
         {(user?.role === 'admin' || user?.role === 'super_admin') && (
           <div className="mt-6 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
-            <div className="p-5 sm:p-6 border-b border-gray-100">
-              <h3 className="text-lg font-bold text-gray-900">Admin hareketleri</h3>
-              <p className="text-sm text-gray-500 mt-1">Bu kullanıcının yaptığı işlemler (son 30 gün).</p>
+            <div className="p-5 sm:p-6 border-b border-gray-100 flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Admin hareketleri</h3>
+                <p className="text-sm text-gray-500 mt-1">Bu kullanıcının yaptığı işlemler (son 30 gün).</p>
+              </div>
+              {isSuper && (
+                <button
+                  type="button"
+                  onClick={handleClearAllLogs}
+                  disabled={clearLogsLoading}
+                  className="px-4 py-2 text-sm font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 disabled:opacity-50"
+                  title="Tüm admin loglarını sil (Supabase temizliği)"
+                >
+                  {clearLogsLoading ? 'Siliniyor...' : 'Tüm logları sil'}
+                </button>
+              )}
             </div>
             <div className="overflow-x-auto max-h-[360px] overflow-y-auto">
               {activityLoading ? (

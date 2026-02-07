@@ -6,6 +6,7 @@ import { useTranslation } from '@/lib/i18n/useTranslation';
 import { useToast } from '@/lib/ToastContext';
 import { apiClient } from '@/lib/api';
 import { useReportsPermissions } from '@/lib/AdminUserContext';
+import { useConfirm } from '@/lib/ConfirmContext';
 
 interface Stats {
   totalUsers: number;
@@ -122,6 +123,9 @@ const ACTIVITY_ACTION_LABELS: Record<string, string> = {
   screen_update: 'Ekran güncellendi',
   library_select: 'Kütüphaneden içerik seçildi',
   library_upload: 'Kütüphaneye yükleme',
+  library_update: 'Kütüphane içeriği güncellendi',
+  library_delete: 'Kütüphane içeriği silindi',
+  library_remove_duplicates: 'Aynı isimdeki tekrarlar silindi',
   user_create: 'Kullanıcı oluşturuldu',
   user_edit: 'Kullanıcı düzenlendi',
 };
@@ -171,7 +175,10 @@ export default function ReportsPage() {
     canViewPayments,
     canViewActivity,
     canViewMembers,
+    isSuper,
   } = useReportsPermissions();
+  const { confirm } = useConfirm();
+  const [clearLogsLoading, setClearLogsLoading] = useState(false);
 
   const loadActivity = useCallback(async () => {
     setActivityLoading(true);
@@ -198,6 +205,21 @@ export default function ReportsPage() {
       setActivityUsers([]);
     }
   }, []);
+
+  const handleClearAllLogs = useCallback(async () => {
+    const ok = await confirm({ title: 'Tüm logları sil', message: 'Tüm admin hareket logları kalıcı olarak silinecek. Supabase/veritabanında fazla veri birikmesini önlemek için kullanılır. Emin misiniz?', variant: 'danger' });
+    if (!ok) return;
+    setClearLogsLoading(true);
+    try {
+      await apiClient('/reports/activity', { method: 'DELETE' });
+      toast.showSuccess('Tüm loglar silindi.');
+      setActivityLog([]);
+    } catch (err: any) {
+      toast.showError(err?.message || 'Loglar silinemedi.');
+    } finally {
+      setClearLogsLoading(false);
+    }
+  }, [confirm, toast]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -615,7 +637,8 @@ export default function ReportsPage() {
         <h3 className="text-lg font-semibold text-gray-900 mb-2">Admin hareketleri</h3>
         <p className="text-sm text-gray-500 mb-4">Hangi admin kullanıcı hangi sayfada ne işlem yaptı (tarih aralığı seçerek raporlayın).</p>
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="p-4 border-b border-slate-100 flex flex-wrap items-end gap-3">
+          <div className="p-4 border-b border-slate-100 flex flex-wrap items-end justify-between gap-3">
+            <div className="flex flex-wrap items-end gap-3">
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">Başlangıç</label>
               <input
@@ -655,6 +678,18 @@ export default function ReportsPage() {
             >
               {activityLoading ? 'Yükleniyor...' : 'Hareketleri getir'}
             </button>
+            </div>
+            {isSuper && (
+              <button
+                type="button"
+                onClick={handleClearAllLogs}
+                disabled={clearLogsLoading}
+                className="px-4 py-2 text-sm font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 disabled:opacity-50"
+                title="Tüm admin loglarını sil (Supabase temizliği)"
+              >
+                {clearLogsLoading ? 'Siliniyor...' : 'Tüm logları sil'}
+              </button>
+            )}
           </div>
           <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
             {activityLog.length === 0 && !activityLoading ? (
