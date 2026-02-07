@@ -186,8 +186,8 @@ export default function Sidebar({ user, mobileOpen = false, onMobileClose }: Sid
       {/* Header */}
       <div className="p-4 border-b border-slate-700 flex items-center justify-between">
         {(!isCollapsed || (onMobileClose && !isDesktop)) && (
-          <Link href={localePath('/')} className="text-xl font-bold truncate hover:text-white/90 active:opacity-80">
-            {t('sidebar_title')}
+          <Link href={localePath('/')} className="flex items-center min-w-0 hover:opacity-90 active:opacity-80">
+            <img src="/menuslide-logo.png" alt="MenuSlide" className="h-8 w-auto object-contain max-w-full" />
           </Link>
         )}
         <div className="flex items-center gap-1">

@@ -1158,18 +1158,63 @@ export default function ReportsPage() {
                       const d = adminInvoiceModal.data!;
                       const { subtotal, tax, total } = addCanadaHST(Number(d.amount ?? 0));
                       const cur = (String(d.currency || 'cad')).toUpperCase();
+                      const curSym = cur === 'CAD' || cur === 'CA$' ? 'CA$' : cur + ' ';
                       const company = d.company as Record<string, string> | undefined;
-                      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${t('invoice_title')}</title><style>body{font-family:system-ui,sans-serif;max-width:600px;margin:40px auto;padding:20px;color:#1e293b}table{width:100%;border-collapse:collapse;margin:20px 0}th,td{padding:10px;text-align:left;border-bottom:1px solid #e2e8f0}th{background:#f1f5f9;font-weight:600}.total{font-weight:700;background:#f8fafc}.header{border-bottom:2px solid #1e293b;padding-bottom:16px;margin-bottom:16px}h1{margin:0;font-size:1.5rem}.meta{color:#64748b;font-size:0.9rem;margin-top:8px}.from,.to{background:#f8fafc;padding:12px;border-radius:8px;margin:8px 0}.label{font-size:0.75rem;text-transform:uppercase;color:#64748b;margin-bottom:4px}@media print{body{margin:0;padding:0}}</style></head><body>
-<div class="header"><h1>${t('invoice_title')}</h1><div class="meta">${t('invoice_number')}: ${String(d.invoice_number ?? '-')} | ${t('invoice_date')}: ${formatDateShort(d.payment_date as string)}</div></div>
-${company ? `<div class="from"><div class="label">${t('invoice_from')}</div><strong>${company.company_name || ''}</strong>${company.company_address ? `<br>${company.company_address}` : ''}</div>` : ''}
-<div class="to"><div class="label">${t('invoice_bill_to')}</div><strong>${String(d.business_name ?? '—')}</strong>${d.customer_email ? `<br>${d.customer_email}` : ''}</div>
-<table><thead><tr><th>${t('invoice_plan')}</th><th style="text-align:right">${t('invoice_amount')}</th></tr></thead><tbody>
-<tr><td>${String(d.plan_name ?? '—')}</td><td style="text-align:right">${Number(d.amount ?? 0).toFixed(2)} ${cur}</td></tr>
-<tr style="background:#f8fafc"><td>${t('invoice_subtotal')}</td><td style="text-align:right">${subtotal.toFixed(2)} ${cur}</td></tr>
-<tr style="background:#f8fafc"><td>${t('invoice_tax')}</td><td style="text-align:right">${tax.toFixed(2)} ${cur}</td></tr>
-<tr class="total" style="background:#f1f5f9;border-top:2px solid #cbd5e1"><td>${t('invoice_total')}</td><td style="text-align:right">${total.toFixed(2)} ${cur}</td></tr>
-</tbody></table>
-<div style="margin-top:16px;font-size:0.85rem;color:#64748b">${t('invoice_status')}: ${String(d.status ?? '—')}</div>
+                      const dateStr = formatDateShort(d.payment_date as string);
+                      const logoUrl = typeof window !== 'undefined' ? window.location.origin + '/menuslide-logo.png' : '';
+                      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${t('invoice_title')}</title><style>
+body{font-family:system-ui,sans-serif;max-width:700px;margin:0 auto;padding:32px;color:#111;background:#fff}
+.top-line{height:2px;background:#374151;margin-bottom:24px}
+.invoice-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:28px}
+.invoice-title{font-size:28px;font-weight:700;margin:0}
+.invoice-logo{height:48px;object-fit:contain}
+.details-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:24px}
+.details-block .label{font-weight:700;margin-bottom:4px}
+.details-block .value{color:#374151}
+.company-block{margin-bottom:20px}
+.company-block strong{font-size:1rem}
+.bill-to{text-align:right}
+.amount-due{font-size:1.25rem;font-weight:700;margin:20px 0}
+.table-wrap{border-top:1px solid #e5e7eb;padding-top:16px;margin-top:16px}
+table{width:100%;border-collapse:collapse}
+th,td{padding:12px 8px;border-bottom:1px solid #e5e7eb}
+th{text-align:left;font-weight:600}
+th:nth-child(2),th:nth-child(3),th:nth-child(4),td:nth-child(2),td:nth-child(3),td:nth-child(4){text-align:right}
+.summary{text-align:right;margin-top:16px;padding-top:16px}
+.summary-row{display:flex;justify-content:flex-end;gap:40px;padding:4px 0}
+.summary-row.total{font-weight:700;font-size:1.1rem;margin-top:8px}
+.footer{margin-top:32px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:0.875rem;color:#6b7280}
+@media print{body{margin:0;padding:16px}}
+</style></head><body>
+<div class="top-line"></div>
+<div class="invoice-header">
+  <h1 class="invoice-title">${t('invoice_title')}</h1>
+  ${logoUrl ? `<img src="${logoUrl}" alt="MenuSlide" class="invoice-logo" />` : ''}
+</div>
+<div class="details-grid">
+  <div>
+    <div class="details-block"><span class="label">${t('invoice_number')}</span><div class="value">${String(d.invoice_number ?? '-')}</div></div>
+    <div class="details-block"><span class="label">${t('invoice_date_issue')}</span><div class="value">${dateStr}</div></div>
+    <div class="details-block"><span class="label">${t('invoice_date_due')}</span><div class="value">${dateStr}</div></div>
+  </div>
+</div>
+<div class="details-grid">
+  <div class="company-block">${company ? `<strong>${company.company_name || 'Menu Slide'}</strong>${company.company_address ? `<br>${company.company_address}` : ''}${company.company_phone ? `<br>${company.company_phone}` : ''}` : '<strong>Menu Slide</strong><br>398 7e Avenue, 6<br>Lachine Quebec H8S 2Z4, Canada<br>+1 438-596-8566'}</div>
+  <div class="bill-to"><strong>${t('invoice_bill_to')}</strong><br>${String(d.business_name ?? '—')}${d.customer_address ? `<br>${d.customer_address}` : ''}${d.customer_email ? `<br>${d.customer_email}` : ''}</div>
+</div>
+<div class="amount-due">${curSym}${total.toFixed(2)} ${t('invoice_amount_due').toLowerCase()} ${dateStr}</div>
+<div class="table-wrap">
+  <table><thead><tr><th>${t('invoice_description')}</th><th>${t('invoice_qty')}</th><th>${t('invoice_unit_price')}</th><th>${t('invoice_amount')}</th></tr></thead><tbody>
+  <tr><td>${String(d.plan_name ?? '—')}</td><td>1</td><td>${(Number(d.amount ?? 0)).toFixed(2)} ${cur}</td><td>${(Number(d.amount ?? 0)).toFixed(2)} ${cur}</td></tr>
+  </tbody></table>
+  <div class="summary">
+    <div class="summary-row">${t('invoice_subtotal')}: ${curSym}${subtotal.toFixed(2)}</div>
+    <div class="summary-row">${t('invoice_tax')}: ${curSym}${tax.toFixed(2)}</div>
+    <div class="summary-row">${t('invoice_total')}: ${curSym}${total.toFixed(2)}</div>
+    <div class="summary-row total">${t('invoice_amount_due')}: ${curSym}${total.toFixed(2)}</div>
+  </div>
+</div>
+<div class="footer">${String(d.invoice_number ?? '-')} · ${curSym}${total.toFixed(2)} ${t('invoice_amount_due').toLowerCase()} ${dateStr}</div>
 </body></html>`;
                       const w = window.open('', '_blank');
                       if (w) { w.document.write(html); w.document.close(); w.focus(); setTimeout(() => { w.print(); w.close(); }, 250); }

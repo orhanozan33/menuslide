@@ -197,14 +197,7 @@ export function HomePage({ localePath }: HomePageProps) {
       {/* Header: logo + nav + Giriş + Kayıt + dil */}
       <header className="fixed top-0 left-0 right-0 z-50 min-h-[4rem] h-16 flex items-center justify-between px-3 sm:px-6 md:px-12 pt-[env(safe-area-inset-top)] bg-[#06090f]/98 sm:bg-[#06090f]/95 backdrop-blur-md border-b border-white/5">
         <Link href={localePath('/')} className="flex items-center gap-2 sm:gap-3 flex-shrink-0 min-w-0" onClick={() => setMobileNavOpen(false)}>
-          <div className="w-9 h-9 sm:w-9 sm:h-9 rounded-lg bg-gradient-to-br from-emerald-500 to-cyan-600 flex items-center justify-center shadow-lg shadow-emerald-500/20 flex-shrink-0">
-            <svg className="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-            </svg>
-          </div>
-          <span className="text-base sm:text-xl font-bold tracking-tight text-white truncate">
-            {t('home_brand')}
-          </span>
+          <img src="/menuslide-logo.png" alt="MenuSlide" className="h-9 sm:h-10 w-auto object-contain" />
         </Link>
         {/* Desktop nav */}
         <nav className="hidden lg:flex items-center gap-4 md:gap-8">

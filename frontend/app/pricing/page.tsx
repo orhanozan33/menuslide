@@ -192,12 +192,7 @@ function PricingPageContent() {
       <div className="min-h-screen bg-[#06090f] text-white flex flex-col overflow-x-hidden">
         <header className="h-16 flex items-center justify-between px-4 sm:px-6 md:px-12 border-b border-white/5">
           <Link href={localePath('/')} className="flex items-center gap-2 sm:gap-3">
-            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-emerald-500 to-cyan-600 flex items-center justify-center">
-              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-              </svg>
-            </div>
-            <span className="text-xl font-bold">{t('home_brand')}</span>
+            <img src="/menuslide-logo.png" alt="MenuSlide" className="h-9 sm:h-10 w-auto object-contain" />
           </Link>
           <div className="flex items-center gap-3">
             <Link href={localePath('/')} className="text-sm text-white/70 hover:text-white">
@@ -231,12 +226,7 @@ function PricingPageContent() {
     <div className="min-h-screen bg-[#06090f] text-white flex flex-col overflow-x-hidden">
       <header className="min-h-[4rem] pt-[env(safe-area-inset-top)] flex items-center justify-between px-4 sm:px-6 md:px-12 border-b border-white/5">
         <Link href={localePath('/')} className="flex items-center gap-2 sm:gap-3 min-w-0" onClick={() => setMobileNavOpen(false)}>
-          <div className="w-9 h-9 flex-shrink-0 rounded-lg bg-gradient-to-br from-emerald-500 to-cyan-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
-            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-            </svg>
-          </div>
-          <span className="text-lg sm:text-xl font-bold truncate">{t('home_brand')}</span>
+          <img src="/menuslide-logo.png" alt="MenuSlide" className="h-9 sm:h-10 w-auto object-contain" />
         </Link>
         {/* Desktop nav */}
         <nav className="hidden md:flex items-center gap-2 sm:gap-4">
@@ -321,6 +311,9 @@ function PricingPageContent() {
           <div className="text-center mb-6 md:mb-10">
             <h1 className="text-xl md:text-3xl font-bold text-white mb-2">{t('pricing_title')}</h1>
             <p className="text-sm md:text-base text-white/60">{t('pricing_subtitle')}</p>
+            <Link href={localePath('/checkout-preview')} className="inline-block mt-3 text-xs text-white/50 hover:text-emerald-400 transition-colors">
+              Checkout sol panel önizlemesi →
+            </Link>
           </div>
 
           {subscription && (

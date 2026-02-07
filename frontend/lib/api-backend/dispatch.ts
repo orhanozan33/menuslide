@@ -58,7 +58,11 @@ export async function handleLocal(
 
   // Stripe durumu (pricing sayfası için, public)
   if (method === 'GET' && resource === 'settings' && sub === 'stripe-available') {
-    const hasStripe = !!(process.env.STRIPE_SECRET_KEY || process.env.STRIPE_PUBLISHABLE_KEY);
+    const hasStripe = !!(
+      process.env.STRIPE_SECRET_KEY ||
+      process.env.STRIPE_PUBLISHABLE_KEY ||
+      process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+    );
     return Response.json({ available: !!hasStripe });
   }
 

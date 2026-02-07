@@ -195,7 +195,9 @@ export default function AdminLayoutClient({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
-            <Link href={localePath('/')} className="font-semibold text-gray-800 truncate hover:text-gray-600 active:opacity-80">{t('sidebar_title')}</Link>
+            <Link href={localePath('/')} className="flex items-center min-w-0 hover:opacity-90 active:opacity-80">
+              <img src="/menuslide-logo.png" alt="MenuSlide" className="h-7 w-auto object-contain" />
+            </Link>
           </div>
           <div className="flex-shrink-0">
             <AdminHeader user={user} localePath={localePath} mobile />

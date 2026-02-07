@@ -111,6 +111,26 @@ export async function createCheckout(req: NextRequest, user: JwtPayload): Promis
   const recurringInterval = (useYearly ? 'year' : 'month') as 'month' | 'year';
   const screensLabel = plan.max_screens === -1 ? 'Unlimited' : plan.max_screens;
 
+  // Logo URL for Stripe Checkout (sol panel ürün görseli)
+  const origin = (() => {
+    try {
+      return new URL(successUrl).origin;
+    } catch {
+      return process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://menuslide.com');
+    }
+  })();
+  const logoUrl = `${origin}/menuslide-logo.png`;
+
+  // Kurumsal, modern açıklama – Stripe Checkout sol panel
+  const productDescription = [
+    `MenuSlide - ${screensLabel} screen(s)`,
+    '',
+    '• Professional digital menu boards for restaurants and businesses',
+    '• HD templates, cloud sync, easy content management',
+    '• Trusted by businesses across Canada',
+    '• Reliable cloud infrastructure',
+  ].join('\n');
+
   const session = await stripe.checkout.sessions.create({
     customer: customerId,
     payment_method_types: ['card'],
@@ -118,11 +138,12 @@ export async function createCheckout(req: NextRequest, user: JwtPayload): Promis
       price_data: {
         currency: 'cad',
         unit_amount: unitAmount,
-        tax_behavior: 'exclusive',
+        tax_behavior: 'unspecified',
         recurring: { interval: recurringInterval },
         product_data: {
           name: plan.display_name || `Subscription (${screensLabel} screens)`,
-          description: `MenuSlide - ${screensLabel} screen(s)`,
+          description: productDescription,
+          images: [logoUrl],
           metadata: { plan_id: planId },
         },
       },
@@ -132,6 +153,11 @@ export async function createCheckout(req: NextRequest, user: JwtPayload): Promis
     success_url: successUrl,
     cancel_url: cancelUrl,
     locale: locale === 'tr' || locale === 'fr' ? locale : 'en',
+    custom_text: {
+      submit: {
+        message: 'You will be charged according to your selected plan. Cancel anytime from your account.',
+      },
+    },
     metadata: { business_id: businessId, plan_id: planId },
   });
   if (!session.url) return Response.json({ message: 'Stripe did not return URL' }, { status: 500 });
