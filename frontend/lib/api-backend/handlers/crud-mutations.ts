@@ -307,20 +307,16 @@ export async function updateUser(id: string, request: NextRequest, user: JwtPayl
         const nowStr = now.toISOString();
         const endStr = periodEnd.toISOString();
         let subId: string | undefined;
-        const stopPayload = maxScreens === 0 && stopReason ? { stop_reason: stopReason, stopped_at: new Date().toISOString() } : { stop_reason: null, stopped_at: null };
+        const updatePayload: Record<string, unknown> = { plan_id: planId, status: newStatus, current_period_start: nowStr, current_period_end: endStr };
         if (existing) {
           subId = existing.id;
-          const { error: updErr } = await supabase.from('subscriptions').update({ plan_id: planId, status: newStatus, current_period_start: nowStr, current_period_end: endStr, ...stopPayload }).eq('id', subId);
+          const { error: updErr } = await supabase.from('subscriptions').update(updatePayload).eq('id', subId);
           if (updErr) {
             console.error('[updateUser] subscription update failed:', updErr);
             throw new Error(`Paket güncellenemedi: ${updErr.message}`);
           }
         } else {
           const insertRow: Record<string, unknown> = { business_id: businessId, plan_id: planId, status: newStatus, current_period_start: nowStr, current_period_end: endStr };
-          if (maxScreens === 0 && stopReason) {
-            insertRow.stop_reason = stopReason;
-            insertRow.stopped_at = new Date().toISOString();
-          }
           const { data: ins } = await supabase.from('subscriptions').insert(insertRow).select('id').single();
           subId = (ins as { id?: string })?.id;
         }
