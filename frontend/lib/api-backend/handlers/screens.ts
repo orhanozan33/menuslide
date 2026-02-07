@@ -66,9 +66,30 @@ async function isSubscriptionActive(supabase: ReturnType<typeof getServerSupabas
   return true;
 }
 
-/** Abonelik ve ekran limiti kontrolü - check_screen_limit DB fonksiyonu. super_admin bypass. */
+const SUPER_ADMIN_MAX_SCREENS = 5;
+
+/** Abonelik ve ekran limiti kontrolü. super_admin için sabit 5 ekran limiti. */
 async function canCreateScreen(businessId: string, user: JwtPayload): Promise<{ ok: boolean; message?: string }> {
-  if (user.role === 'super_admin') return { ok: true };
+  if (user.role === 'super_admin') {
+    try {
+      let count = 0;
+      if (useLocalDb()) {
+        const row = await queryOne<{ cnt: string }>('SELECT COUNT(*)::text as cnt FROM screens WHERE business_id = $1', [businessId]);
+        count = parseInt(row?.cnt || '0', 10);
+      } else {
+        const supabase = getServerSupabase();
+        const { count: c } = await supabase.from('screens').select('*', { count: 'exact', head: true }).eq('business_id', businessId);
+        count = c ?? 0;
+      }
+      if (count >= SUPER_ADMIN_MAX_SCREENS) {
+        return { ok: false, message: `Super admin limiti: en fazla ${SUPER_ADMIN_MAX_SCREENS} ekran atanabilir.` };
+      }
+    } catch (e) {
+      console.error('[screens] super_admin limit check error:', e);
+      return { ok: false, message: 'Limit kontrolü yapılamadı.' };
+    }
+    return { ok: true };
+  }
   try {
     if (useLocalDb()) {
       const row = await queryOne<{ can_create: boolean }>('SELECT check_screen_limit($1) as can_create', [businessId]);
