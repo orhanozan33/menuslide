@@ -2757,6 +2757,7 @@ export const translations: Record<Locale, Record<string, string>> = {
     reports_section_revenue: 'Gelir',
     reports_section_revenue_desc: 'Aboneliklerden elde edilen toplam gelir',
     reports_total_members_hint: 'Tüm kayıtlı kullanıcılar',
+    reports_total_screens: 'Toplam Ekran',
     reports_users_with_sub: 'Aboneliği olan',
     reports_users_with_sub_hint: 'İşletmesinin aktif paketi olan kullanıcılar',
     reports_users_without_sub: 'Aboneliği olmayan',

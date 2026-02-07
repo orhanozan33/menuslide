@@ -795,10 +795,21 @@ export default function UsersPage() {
               <div className="p-6 overflow-y-auto flex-1">
                 <p className="text-sm font-medium text-gray-700 mb-3">Yeni plan seçin:</p>
                 <div className="space-y-2">
-                  {plans.map((plan) => {
+                  {[...plans]
+                    .sort((a, b) => {
+                      const ma = a.max_screens === -1 ? 999 : a.max_screens;
+                      const mb = b.max_screens === -1 ? 999 : b.max_screens;
+                      return ma - mb;
+                    })
+                    .map((plan) => {
                     const isSelected = selectedPlanId === plan.id;
                     const isCurrent = plan.id === planChangeModal.currentPlanId;
-                    const label = plan.max_screens === -1 ? 'Sınırsız ekran' : plan.max_screens === 0 ? '0 ekran' : `${plan.max_screens} ekran`;
+                    const max = plan.max_screens;
+                    const label =
+                      max === -1 ? 'Sınırsız ekran'
+                      : max === 0 ? '0 ekran'
+                      : max === 1 ? '1 ekran'
+                      : `1-${max} ekran`;
                     return (
                       <button
                         key={plan.id}

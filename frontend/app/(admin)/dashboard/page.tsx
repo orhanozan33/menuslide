@@ -45,6 +45,7 @@ export default function DashboardPage() {
   const { isSuper } = useAdminPagePermissions('dashboard');
   const [user, setUser] = useState<any>(null);
   const [stats, setStats] = useState({ menus: 0, screens: 0, menuItems: 0 });
+  const [reportStats, setReportStats] = useState<{ totalBusinesses: number; totalUsers: number; totalScreens: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [adminDashboard, setAdminDashboard] = useState<AdminDashboardData | null>(null);
   const [multiDeviceAlerts, setMultiDeviceAlerts] = useState<Array<{ screen_id: string; screen_name: string; business_name: string; active_viewer_count: number }>>([]);
@@ -80,17 +81,20 @@ export default function DashboardPage() {
           Array.isArray(raw) ? raw : (raw && typeof raw === 'object' && 'screens' in raw ? (raw as { screens: unknown[] }).screens : []);
 
         if (authUser.role === 'super_admin') {
-          const [allScreensRaw, menuStats, alerts] = await Promise.all([
-            apiClient('/screens'),
-            apiClient('/menus/stats/summary'),
+          const [reportData, alerts] = await Promise.all([
+            apiClient('/reports/stats').catch(() => null),
             apiClient('/screens/alerts/multi-device').catch(() => []),
           ]);
-          const allScreens = screensList(allScreensRaw);
-          setStats({
-            menus: menuStats.menus || 0,
-            screens: allScreens.length || 0,
-            menuItems: menuStats.menuItems || 0,
-          });
+          if (reportData && typeof reportData === 'object') {
+            const r = reportData as { totalBusinesses?: number; totalUsers?: number; totalScreens?: number };
+            setReportStats({
+              totalBusinesses: r.totalBusinesses ?? 0,
+              totalUsers: r.totalUsers ?? 0,
+              totalScreens: r.totalScreens ?? 0,
+            });
+          } else {
+            setReportStats(null);
+          }
           setMultiDeviceAlerts(Array.isArray(alerts) ? alerts : []);
         } else {
           const [menusResponse, screensRaw, menuStats] = await Promise.all([
@@ -273,18 +277,37 @@ export default function DashboardPage() {
       )}
 
       <div className="grid grid-cols-3 gap-2 md:gap-4 mb-4">
-        <div className="bg-white p-3 md:p-5 rounded-lg shadow-md border border-gray-100">
-          <h3 className="text-xs md:text-sm font-semibold text-gray-800 mb-1 truncate">{t('dashboard_menus')}</h3>
-          <p className="text-2xl md:text-4xl font-bold text-blue-600">{stats.menus}</p>
-        </div>
-        <div className="bg-white p-3 md:p-5 rounded-lg shadow-md border border-gray-100">
-          <h3 className="text-xs md:text-sm font-semibold text-gray-800 mb-1 truncate">{t('dashboard_screens')}</h3>
-          <p className="text-2xl md:text-4xl font-bold text-green-600">{stats.screens}</p>
-        </div>
-        <div className="bg-white p-3 md:p-5 rounded-lg shadow-md border border-gray-100">
-          <h3 className="text-xs md:text-sm font-semibold text-gray-800 mb-1 truncate">{t('dashboard_menu_items')}</h3>
-          <p className="text-2xl md:text-4xl font-bold text-purple-600">{stats.menuItems}</p>
-        </div>
+        {user?.role === 'super_admin' && reportStats ? (
+          <>
+            <div className="bg-white p-3 md:p-5 rounded-lg shadow-md border border-gray-100">
+              <h3 className="text-xs md:text-sm font-semibold text-gray-800 mb-1 truncate">{t('reports_total_businesses')}</h3>
+              <p className="text-2xl md:text-4xl font-bold text-blue-600">{reportStats.totalBusinesses}</p>
+            </div>
+            <div className="bg-white p-3 md:p-5 rounded-lg shadow-md border border-gray-100">
+              <h3 className="text-xs md:text-sm font-semibold text-gray-800 mb-1 truncate">{t('reports_total_members')}</h3>
+              <p className="text-2xl md:text-4xl font-bold text-green-600">{reportStats.totalUsers}</p>
+            </div>
+            <div className="bg-white p-3 md:p-5 rounded-lg shadow-md border border-gray-100">
+              <h3 className="text-xs md:text-sm font-semibold text-gray-800 mb-1 truncate">{t('reports_total_screens')}</h3>
+              <p className="text-2xl md:text-4xl font-bold text-purple-600">{reportStats.totalScreens}</p>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="bg-white p-3 md:p-5 rounded-lg shadow-md border border-gray-100">
+              <h3 className="text-xs md:text-sm font-semibold text-gray-800 mb-1 truncate">{t('dashboard_menus')}</h3>
+              <p className="text-2xl md:text-4xl font-bold text-blue-600">{stats.menus}</p>
+            </div>
+            <div className="bg-white p-3 md:p-5 rounded-lg shadow-md border border-gray-100">
+              <h3 className="text-xs md:text-sm font-semibold text-gray-800 mb-1 truncate">{t('dashboard_screens')}</h3>
+              <p className="text-2xl md:text-4xl font-bold text-green-600">{stats.screens}</p>
+            </div>
+            <div className="bg-white p-3 md:p-5 rounded-lg shadow-md border border-gray-100">
+              <h3 className="text-xs md:text-sm font-semibold text-gray-800 mb-1 truncate">{t('dashboard_menu_items')}</h3>
+              <p className="text-2xl md:text-4xl font-bold text-purple-600">{stats.menuItems}</p>
+            </div>
+          </>
+        )}
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-4">

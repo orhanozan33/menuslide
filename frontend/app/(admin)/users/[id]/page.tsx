@@ -735,39 +735,6 @@ export default function EditUserPage() {
                 </div>
               )}
 
-              {formData.business_id && (
-                <div>
-                  <label className="block text-sm font-semibold text-gray-800 mb-2">
-                    Ekran Sayısı (plan limiti)
-                  </label>
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <input
-                      type="number"
-                      min={0}
-                      max={99}
-                      value={formData.max_screens === 'unlimited' ? '' : (formData.max_screens || '')}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        setFormData({ ...formData, max_screens: v || '' });
-                      }}
-                      placeholder="0-99"
-                      disabled={!canEditUser}
-                      className="w-24 px-3 py-2.5 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 bg-white text-sm sm:text-base disabled:opacity-60 disabled:bg-gray-50"
-                    />
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={formData.max_screens === 'unlimited'}
-                        onChange={(e) => setFormData({ ...formData, max_screens: e.target.checked ? 'unlimited' : '' })}
-                        disabled={!canEditUser}
-                        className="rounded"
-                      />
-                      <span className="text-sm text-gray-700">Sınırsız</span>
-                    </label>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1.5">Plan limiti (0-99 veya sınırsız). Ekran atamak için <Link href={localePath(`/screens?user_id=${userId}`)} className="text-blue-600 hover:underline font-medium">Ekranlar</Link> sayfasına gidin.</p>
-                </div>
-              )}
             </div>
 
             {formData.business_id && (

@@ -589,7 +589,7 @@ export default function ScreensPage() {
             >
               <option value="">{t('screens_select_user')}</option>
               {users
-                .filter((user) => user.business_id || user.role === 'super_admin')
+                .filter((user) => user.role !== 'super_admin' && user.business_id)
                 .map((user) => (
                   <option key={user.id} value={user.id}>
                     {user.business_name ? `${user.business_name} - ${user.email}` : user.email}

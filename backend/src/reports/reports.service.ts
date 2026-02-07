@@ -56,7 +56,7 @@ export class ReportsService {
         "SELECT COUNT(*)::int as count FROM users WHERE role = 'business_user'",
         []
       ),
-      this.database.query('SELECT COUNT(*)::int as count FROM businesses', []),
+      this.database.query('SELECT COUNT(*)::int as count FROM businesses WHERE is_active = true', []),
       this.database.query('SELECT COUNT(*)::int as count FROM screens', []),
       this.database.query(
         "SELECT COUNT(*)::int as count FROM users WHERE role = 'business_user' AND created_at >= NOW() - INTERVAL '7 days'",
@@ -94,12 +94,14 @@ export class ReportsService {
       this.database.query(
         `SELECT COUNT(DISTINCT b.id)::int as count FROM businesses b
          INNER JOIN subscriptions s ON s.business_id = b.id AND s.status = 'active' AND (s.current_period_end IS NULL OR s.current_period_end >= NOW())
-         INNER JOIN plans p ON s.plan_id = p.id AND p.max_screens > 0`,
+         INNER JOIN plans p ON s.plan_id = p.id AND p.max_screens > 0
+         WHERE b.is_active = true`,
         []
       ),
       this.database.query(
         `SELECT COUNT(*)::int as count FROM businesses b
-         WHERE NOT EXISTS (
+         WHERE b.is_active = true
+         AND NOT EXISTS (
            SELECT 1 FROM subscriptions s
            INNER JOIN plans p ON s.plan_id = p.id AND p.max_screens > 0
            WHERE s.business_id = b.id AND s.status = 'active' AND (s.current_period_end IS NULL OR s.current_period_end >= NOW())
