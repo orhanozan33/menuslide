@@ -290,7 +290,7 @@ export default function ScreensPage() {
       ? selectedUserId
       : currentUser?.id;
     const targetBusinessId = (userRole === 'super_admin' || userRole === 'admin') && selectedUserId
-      ? (screens[0]?.business_id ?? null)
+      ? null // userData'dan alınacak
       : currentUser?.business_id;
 
     if (!targetUserId) return;
