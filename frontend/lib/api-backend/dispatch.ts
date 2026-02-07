@@ -132,9 +132,9 @@ export async function handleLocal(
     return menusHandlers.getStats(user);
   }
   if (resource === 'registration-requests' && user) {
-    if (method === 'GET' && !id) return registrationRequestsHandlers.findAll(user);
-    if (method === 'PATCH' && id && sub === 'status') return registrationRequestsHandlers.updateStatus(id, request, user);
-    if (method === 'DELETE' && id) return registrationRequestsHandlers.remove(id, user);
+    if (method === 'GET' && !sub) return registrationRequestsHandlers.findAll(user);
+    if (method === 'PATCH' && sub && id === 'status') return registrationRequestsHandlers.updateStatus(sub, request, user);
+    if (method === 'DELETE' && sub) return registrationRequestsHandlers.remove(sub, user);
   }
 
   if (method === 'GET' && user && resource === 'reports') {

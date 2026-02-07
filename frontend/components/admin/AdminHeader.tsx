@@ -20,12 +20,7 @@ export default function AdminHeader({ user, localePath, mobile }: AdminHeaderPro
     if (user?.role !== 'super_admin' && user?.role !== 'admin') return;
     const load = async () => {
       try {
-        const token = sessionStorage.getItem('impersonation_token') || localStorage.getItem('auth_token');
-        const res = await fetch('/api/registration-requests', {
-          cache: 'no-store',
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-        const data = await res.json().catch(() => []);
+        const data = await apiClient('/registration-requests').catch(() => []);
         const list = Array.isArray(data) ? data : [];
         setPendingCount(list.filter((r: { status: string }) => r.status === 'pending').length);
       } catch {

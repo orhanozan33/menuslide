@@ -86,10 +86,18 @@ export async function getStats(request: NextRequest, user: JwtPayload): Promise<
     supabase.from('payments').select('subscription_id').eq('status', 'succeeded'),
   ]);
   const totalUsers = totalUsersRes.count ?? 0;
-  const businessIdsFromUsers = new Set(
+  const businessIdsFromUsers = Array.from(new Set(
     ((usersWithBizRes.data ?? []) as { business_id: string }[]).map((u) => u.business_id).filter(Boolean)
-  );
-  const totalBusinesses = businessIdsFromUsers.size;
+  ));
+  // Sadece businesses tablosunda var olan VE is_active=true olan işletmeler sayılır (silinen/pasif işletmeler hariç)
+  let totalBusinesses = 0;
+  const activeBizIds = new Set<string>();
+  if (businessIdsFromUsers.length > 0) {
+    const { data: activeBiz } = await supabase.from('businesses').select('id').in('id', businessIdsFromUsers).eq('is_active', true);
+    const ids = ((activeBiz ?? []) as { id: string }[]).map((b) => b.id);
+    ids.forEach((id) => activeBizIds.add(id));
+    totalBusinesses = activeBizIds.size;
+  }
   const totalScreens = totalScreensRes.count ?? 0;
   const newUsers7d = newUsers7dRes.count ?? 0;
   const newUsers30d = newUsers30dRes.count ?? 0;
@@ -117,7 +125,7 @@ export async function getStats(request: NextRequest, user: JwtPayload): Promise<
   const { data: usersWithBiz } = await supabase.from('users').select('id, business_id').eq('role', 'business_user');
   const usersWithSubscription = (usersWithBiz ?? []).filter((u: { business_id?: string }) => u.business_id && activeBizSet.has(u.business_id)).length;
   const usersWithoutSubscription = (usersWithBiz ?? []).length - usersWithSubscription;
-  const businessesWithSubscription = activeBizSet.size;
+  const businessesWithSubscription = [...activeBizIds].filter((id) => activeBizSet.has(id)).length;
   const businessesWithoutSubscription = Math.max(0, totalBusinesses - businessesWithSubscription);
 
   return Response.json({

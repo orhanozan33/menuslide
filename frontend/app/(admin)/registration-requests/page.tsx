@@ -6,6 +6,7 @@ import { useTranslation } from '@/lib/i18n/useTranslation';
 import { useAdminPagePermissions } from '@/lib/useAdminPagePermissions';
 import { useToast } from '@/lib/ToastContext';
 import { useConfirm } from '@/lib/ConfirmContext';
+import { apiClient } from '@/lib/api';
 
 interface RegistrationRequest {
   id: string;
@@ -60,12 +61,7 @@ export default function RegistrationRequestsPage() {
   const loadRequests = async () => {
     setLoading(true);
     try {
-      const token = sessionStorage.getItem('impersonation_token') || localStorage.getItem('auth_token');
-      const res = await fetch('/api/registration-requests', {
-        cache: 'no-store',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      const data = await res.json().catch(() => []);
+      const data = await apiClient('/registration-requests');
       setRequests(Array.isArray(data) ? data : []);
     } catch (e) {
       console.error(e);
@@ -78,16 +74,10 @@ export default function RegistrationRequestsPage() {
   const updateRequestStatus = async (id: string, status: string) => {
     setRequestUpdating(id);
     try {
-      const token = sessionStorage.getItem('impersonation_token') || localStorage.getItem('auth_token');
-      const res = await fetch(`/api/registration-requests/${id}/status`, {
+      await apiClient(`/registration-requests/${id}/status`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token && { Authorization: `Bearer ${token}` }),
-        },
-        body: JSON.stringify({ status }),
+        body: { status },
       });
-      if (!res.ok) throw new Error(t('registration_update_failed'));
       await loadRequests();
     } catch (e: any) {
       toast.showError(e?.message || t('settings_save_failed'));
@@ -101,15 +91,7 @@ export default function RegistrationRequestsPage() {
     if (!ok) return;
     setRequestDeleting(id);
     try {
-      const token = sessionStorage.getItem('impersonation_token') || localStorage.getItem('auth_token');
-      const res = await fetch(`/api/registration-requests/${id}`, {
-        method: 'DELETE',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data?.message || t('reg_requests_delete_failed'));
-      }
+      await apiClient(`/registration-requests/${id}`, { method: 'DELETE' });
       await loadRequests();
     } catch (e: any) {
       toast.showError(e?.message || t('settings_save_failed'));

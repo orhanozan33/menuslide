@@ -232,14 +232,14 @@ export async function handleGet(
   // Users list: zenginleştir (business_name, plan_name, plan_max_screens, subscription_status)
   if (actualTable === 'users') {
     const users = list as { id: string; business_id: string | null; [k: string]: unknown }[];
-    const businessIds = [...new Set(users.map((u) => u.business_id).filter(Boolean))] as string[];
+    const businessIds = Array.from(new Set(users.map((u) => u.business_id).filter(Boolean))) as string[];
     let bizMap: Record<string, { name: string; is_active: boolean }> = {};
     let subPlanMap: Record<string, { plan_name: string; plan_max_screens: number }> = {};
     if (businessIds.length > 0) {
       const { data: bizList } = await supabase.from('businesses').select('id, name, is_active').in('id', businessIds);
       bizMap = Object.fromEntries((bizList ?? []).map((b: { id: string; name: string; is_active: boolean }) => [b.id, { name: b.name, is_active: b.is_active }]));
       const { data: subs } = await supabase.from('subscriptions').select('business_id, plan_id, status').in('business_id', businessIds).order('created_at', { ascending: false });
-      const planIds = [...new Set((subs ?? []).map((s: { plan_id: string }) => s.plan_id).filter(Boolean))];
+      const planIds = Array.from(new Set((subs ?? []).map((s: { plan_id: string }) => s.plan_id).filter(Boolean)));
       let planMap: Record<string, { display_name: string; max_screens: number }> = {};
       if (planIds.length > 0) {
         const { data: planList } = await supabase.from('plans').select('id, display_name, max_screens').in('id', planIds);

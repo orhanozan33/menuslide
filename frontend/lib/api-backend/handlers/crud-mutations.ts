@@ -1,7 +1,46 @@
 import { NextRequest } from 'next/server';
+import { randomBytes } from 'crypto';
 import { getServerSupabase } from '@/lib/supabase-server';
 import type { JwtPayload } from '@/lib/auth-server';
 import { useLocalDb, insertLocal, updateLocal, deleteLocal, mirrorToSupabase, queryOne, runLocal, getLocalPg, isSupabaseConfigured } from '@/lib/api-backend/db-local';
+
+/** Create screens for business up to maxScreens (used when plan assigned by admin) */
+async function createScreensForBusiness(businessId: string, maxScreens: number): Promise<void> {
+  if (maxScreens < 1 || maxScreens === -1) return;
+  if (useLocalDb()) {
+    const client = await getLocalPg();
+    const { rows: countRows } = await client.query('SELECT COUNT(*)::int as cnt FROM screens WHERE business_id = $1', [businessId]);
+    const currentCount = countRows[0]?.cnt ?? 0;
+    const toCreate = maxScreens - currentCount;
+    if (toCreate <= 0) return;
+    const { rows: bizRows } = await client.query('SELECT name FROM businesses WHERE id = $1', [businessId]);
+    const businessName = bizRows[0]?.name || 'business';
+    for (let i = 0; i < toCreate; i++) {
+      const name = `TV${currentCount + i + 1}`;
+      const publicToken = randomBytes(32).toString('hex');
+      const publicSlug = `${businessName}-${name}-${Date.now().toString(36)}`.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-');
+      await client.query(
+        `INSERT INTO screens (business_id, name, public_token, public_slug, is_active, animation_type, animation_duration)
+         VALUES ($1, $2, $3, $4, true, 'fade', 500)`,
+        [businessId, name, publicToken, publicSlug]
+      );
+    }
+  } else {
+    const supabase = getServerSupabase();
+    const { count } = await supabase.from('screens').select('*', { count: 'exact', head: true }).eq('business_id', businessId);
+    const currentCount = count ?? 0;
+    const toCreate = maxScreens - currentCount;
+    if (toCreate <= 0) return;
+    const { data: biz } = await supabase.from('businesses').select('name').eq('id', businessId).single();
+    const businessName = (biz as { name?: string })?.name || 'business';
+    for (let i = 0; i < toCreate; i++) {
+      const name = `TV${currentCount + i + 1}`;
+      const publicToken = randomBytes(32).toString('hex');
+      const publicSlug = `${businessName}-${name}-${Date.now().toString(36)}`.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-');
+      await supabase.from('screens').insert({ business_id: businessId, name, public_token: publicToken, public_slug: publicSlug, is_active: true, animation_type: 'fade', animation_duration: 500 });
+    }
+  }
+}
 
 /** POST /businesses */
 export async function createBusiness(request: NextRequest, user: JwtPayload): Promise<Response> {
@@ -66,14 +105,50 @@ export async function createUser(request: NextRequest, user: JwtPayload): Promis
   } catch {
     return Response.json({ message: 'Invalid JSON' }, { status: 400 });
   }
+  const planId = body.plan_id as string | undefined;
+  const bodyWithoutPlan = { ...body };
+  delete bodyWithoutPlan.plan_id;
+
   if (useLocalDb()) {
-    const data = await insertLocal('users', body);
+    const data = await insertLocal('users', bodyWithoutPlan);
     await mirrorToSupabase('users', 'insert', { row: data });
+    if (planId && data.business_id) {
+      const businessId = data.business_id as string;
+      const client = await getLocalPg();
+      const now = new Date();
+      const periodEnd = new Date(now);
+      periodEnd.setMonth(periodEnd.getMonth() + 1);
+      const nowStr = now.toISOString();
+      const endStr = periodEnd.toISOString();
+      await client.query(
+        'INSERT INTO subscriptions (business_id, plan_id, status, current_period_start, current_period_end) VALUES ($1, $2, $3, $4, $5)',
+        [businessId, planId, 'active', nowStr, endStr]
+      );
+      if (isSupabaseConfigured()) {
+        const supabase = getServerSupabase();
+        await supabase.from('subscriptions').insert({ business_id: businessId, plan_id: planId, status: 'active', current_period_start: nowStr, current_period_end: endStr });
+      }
+      const planRow = await queryOne<{ max_screens: number }>('SELECT max_screens FROM plans WHERE id = $1', [planId]);
+      const maxScreens = planRow?.max_screens ?? 0;
+      if (maxScreens > 0 && maxScreens !== -1) await createScreensForBusiness(businessId, maxScreens);
+    }
     return Response.json(data);
   }
   const supabase = getServerSupabase();
-  const { data, error } = await supabase.from('users').insert(body).select().single();
+  const { data, error } = await supabase.from('users').insert(bodyWithoutPlan).select().single();
   if (error) return Response.json({ message: error.message }, { status: 500 });
+  if (planId && data?.business_id) {
+    const businessId = data.business_id as string;
+    const now = new Date();
+    const periodEnd = new Date(now);
+    periodEnd.setMonth(periodEnd.getMonth() + 1);
+    const nowStr = now.toISOString();
+    const endStr = periodEnd.toISOString();
+    await supabase.from('subscriptions').insert({ business_id: businessId, plan_id: planId, status: 'active', current_period_start: nowStr, current_period_end: endStr });
+    const { data: planData } = await supabase.from('plans').select('max_screens').eq('id', planId).maybeSingle();
+    const maxScreens = (planData as { max_screens?: number })?.max_screens ?? 0;
+    if (maxScreens > 0 && maxScreens !== -1) await createScreensForBusiness(businessId, maxScreens);
+  }
   return Response.json(data);
 }
 
@@ -147,6 +222,9 @@ export async function updateUser(id: string, request: NextRequest, user: JwtPayl
             await supabase.from('subscriptions').insert({ business_id: businessId, plan_id: planId, status: 'active', current_period_start: nowStr, current_period_end: endStr });
           }
         }
+        const planRow = await queryOne<{ max_screens: number }>('SELECT max_screens FROM plans WHERE id = $1', [planId]);
+        const maxScreens = planRow?.max_screens ?? 0;
+        if (maxScreens > 0 && maxScreens !== -1) await createScreensForBusiness(businessId, maxScreens);
       }
     } else {
       const supabase = getServerSupabase();
@@ -168,6 +246,9 @@ export async function updateUser(id: string, request: NextRequest, user: JwtPayl
         } else {
           await supabase.from('subscriptions').insert({ business_id: businessId, plan_id: planId, status: 'active', current_period_start: nowStr, current_period_end: endStr });
         }
+        const { data: planData } = await supabase.from('plans').select('max_screens').eq('id', planId).maybeSingle();
+        const maxScreens = (planData as { max_screens?: number })?.max_screens ?? 0;
+        if (maxScreens > 0 && maxScreens !== -1) await createScreensForBusiness(businessId, maxScreens);
       }
     }
   };
