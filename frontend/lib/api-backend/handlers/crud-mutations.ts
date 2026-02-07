@@ -199,6 +199,9 @@ export async function updateUser(id: string, request: NextRequest, user: JwtPayl
       }
       if (planId) {
         const client = await getLocalPg();
+        const planRow = await queryOne<{ max_screens: number }>('SELECT max_screens FROM plans WHERE id = $1', [planId]);
+        const maxScreens = planRow?.max_screens ?? 0;
+        const newStatus = maxScreens === 0 ? 'canceled' : 'active';
         const { rows } = await client.query('SELECT id FROM subscriptions WHERE business_id = $1 ORDER BY created_at DESC LIMIT 1', [businessId]);
         const now = new Date();
         const periodEnd = new Date(now);
@@ -206,25 +209,28 @@ export async function updateUser(id: string, request: NextRequest, user: JwtPayl
         const nowStr = now.toISOString();
         const endStr = periodEnd.toISOString();
         if (rows.length > 0) {
-          await client.query('UPDATE subscriptions SET plan_id = $1, current_period_start = $2, current_period_end = $3, updated_at = NOW() WHERE id = $4', [planId, nowStr, endStr, rows[0].id]);
+          await client.query('UPDATE subscriptions SET plan_id = $1, status = $2, current_period_start = $3, current_period_end = $4, updated_at = NOW() WHERE id = $5', [planId, newStatus, nowStr, endStr, rows[0].id]);
         } else {
           await client.query(
             'INSERT INTO subscriptions (business_id, plan_id, status, current_period_start, current_period_end) VALUES ($1, $2, $3, $4, $5)',
-            [businessId, planId, 'active', nowStr, endStr]
+            [businessId, planId, newStatus, nowStr, endStr]
           );
         }
         if (isSupabaseConfigured()) {
           const supabase = getServerSupabase();
           const { data: existing } = await supabase.from('subscriptions').select('id').eq('business_id', businessId).order('created_at', { ascending: false }).limit(1).maybeSingle();
           if (existing) {
-            await supabase.from('subscriptions').update({ plan_id: planId, current_period_start: nowStr, current_period_end: endStr }).eq('id', existing.id);
+            await supabase.from('subscriptions').update({ plan_id: planId, status: newStatus, current_period_start: nowStr, current_period_end: endStr }).eq('id', existing.id);
           } else {
-            await supabase.from('subscriptions').insert({ business_id: businessId, plan_id: planId, status: 'active', current_period_start: nowStr, current_period_end: endStr });
+            await supabase.from('subscriptions').insert({ business_id: businessId, plan_id: planId, status: newStatus, current_period_start: nowStr, current_period_end: endStr });
           }
         }
-        const planRow = await queryOne<{ max_screens: number }>('SELECT max_screens FROM plans WHERE id = $1', [planId]);
-        const maxScreens = planRow?.max_screens ?? 0;
-        if (maxScreens > 0 && maxScreens !== -1) await createScreensForBusiness(businessId, maxScreens);
+        if (maxScreens === 0) {
+          await stopAllScreensForBusiness(businessId);
+        } else {
+          await reactivateScreensForBusiness(businessId);
+          if (maxScreens !== -1) await createScreensForBusiness(businessId, maxScreens);
+        }
       }
     } else {
       const supabase = getServerSupabase();
@@ -235,6 +241,9 @@ export async function updateUser(id: string, request: NextRequest, user: JwtPayl
         await supabase.from('businesses').update({ name: businessName, updated_at: new Date().toISOString() }).eq('id', businessId);
       }
       if (planId) {
+        const { data: planData } = await supabase.from('plans').select('max_screens').eq('id', planId).maybeSingle();
+        const maxScreens = (planData as { max_screens?: number })?.max_screens ?? 0;
+        const newStatus = maxScreens === 0 ? 'canceled' : 'active';
         const { data: existing } = await supabase.from('subscriptions').select('id').eq('business_id', businessId).order('created_at', { ascending: false }).limit(1).maybeSingle();
         const now = new Date();
         const periodEnd = new Date(now);
@@ -242,13 +251,16 @@ export async function updateUser(id: string, request: NextRequest, user: JwtPayl
         const nowStr = now.toISOString();
         const endStr = periodEnd.toISOString();
         if (existing) {
-          await supabase.from('subscriptions').update({ plan_id: planId, current_period_start: nowStr, current_period_end: endStr }).eq('id', existing.id);
+          await supabase.from('subscriptions').update({ plan_id: planId, status: newStatus, current_period_start: nowStr, current_period_end: endStr }).eq('id', existing.id);
         } else {
-          await supabase.from('subscriptions').insert({ business_id: businessId, plan_id: planId, status: 'active', current_period_start: nowStr, current_period_end: endStr });
+          await supabase.from('subscriptions').insert({ business_id: businessId, plan_id: planId, status: newStatus, current_period_start: nowStr, current_period_end: endStr });
         }
-        const { data: planData } = await supabase.from('plans').select('max_screens').eq('id', planId).maybeSingle();
-        const maxScreens = (planData as { max_screens?: number })?.max_screens ?? 0;
-        if (maxScreens > 0 && maxScreens !== -1) await createScreensForBusiness(businessId, maxScreens);
+        if (maxScreens === 0) {
+          await stopAllScreensForBusiness(businessId);
+        } else {
+          await reactivateScreensForBusiness(businessId);
+          if (maxScreens > 0 && maxScreens !== -1) await createScreensForBusiness(businessId, maxScreens);
+        }
       }
     }
   };
@@ -358,6 +370,49 @@ export async function deleteUser(id: string, user: JwtPayload): Promise<Response
   return Response.json({ success: true });
 }
 
+/** Stop all screens for business (set is_active=false, rotations inactive). Used when subscription stopped. */
+async function stopAllScreensForBusiness(businessId: string): Promise<void> {
+  if (useLocalDb()) {
+    const client = await getLocalPg();
+    await client.query('UPDATE screens SET is_active = false WHERE business_id = $1', [businessId]);
+    await client.query(
+      `UPDATE screen_template_rotations str SET is_active = false
+       FROM screens s WHERE s.business_id = $1 AND str.screen_id = s.id`,
+      [businessId]
+    );
+  } else {
+    const supabase = getServerSupabase();
+    const { data: screens } = await supabase.from('screens').select('id').eq('business_id', businessId);
+    if (screens?.length) {
+      await supabase.from('screens').update({ is_active: false }).eq('business_id', businessId);
+      for (const s of screens) {
+        await supabase.from('screen_template_rotations').update({ is_active: false }).eq('screen_id', s.id);
+      }
+    }
+  }
+}
+
+/** Reactivate screens and their rotations. Used when subscription renewed. */
+async function reactivateScreensForBusiness(businessId: string): Promise<void> {
+  if (useLocalDb()) {
+    const client = await getLocalPg();
+    await client.query('UPDATE screens SET is_active = true WHERE business_id = $1', [businessId]);
+    const { rows } = await client.query('SELECT id FROM screens WHERE business_id = $1', [businessId]);
+    for (const r of rows ?? []) {
+      await client.query('UPDATE screen_template_rotations SET is_active = true WHERE screen_id = $1', [r.id]);
+    }
+  } else {
+    const supabase = getServerSupabase();
+    await supabase.from('screens').update({ is_active: true }).eq('business_id', businessId);
+    const { data: screens } = await supabase.from('screens').select('id').eq('business_id', businessId);
+    if (screens?.length) {
+      for (const s of screens) {
+        await supabase.from('screen_template_rotations').update({ is_active: true }).eq('screen_id', s.id);
+      }
+    }
+  }
+}
+
 /** POST /plans */
 export async function createPlan(request: NextRequest, user: JwtPayload): Promise<Response> {
   if (user.role !== 'super_admin' && user.role !== 'admin') return Response.json({ message: 'Admin required' }, { status: 403 });
@@ -367,14 +422,45 @@ export async function createPlan(request: NextRequest, user: JwtPayload): Promis
   } catch {
     return Response.json({ message: 'Invalid JSON' }, { status: 400 });
   }
+  const maxScreens = typeof body.max_screens === 'number' ? body.max_screens : null;
+  const name = typeof body.name === 'string' ? body.name : '';
+  const isZeroPlan = maxScreens === 0 || name === 'plan_0' || name === 'package-stopped';
+  if (isZeroPlan) {
+    if (useLocalDb()) {
+      const existing = await queryOne<{ id: string; name: string }>('SELECT id, name FROM plans WHERE max_screens = 0 LIMIT 1');
+      if (existing) {
+        const full = await queryOne('SELECT * FROM plans WHERE id = $1', [existing.id]);
+        return Response.json(full ?? existing);
+      }
+    } else {
+      const supabase = getServerSupabase();
+      const { data: existing } = await supabase.from('plans').select('*').eq('max_screens', 0).limit(1).maybeSingle();
+      if (existing) return Response.json(existing);
+    }
+  }
   if (useLocalDb()) {
-    const data = await insertLocal('plans', body);
-    await mirrorToSupabase('plans', 'insert', { row: data });
-    return Response.json(data);
+    try {
+      const data = await insertLocal('plans', body);
+      await mirrorToSupabase('plans', 'insert', { row: data });
+      return Response.json(data);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (/duplicate|unique|plans_name_key/i.test(msg)) {
+        const existing = await queryOne('SELECT * FROM plans WHERE max_screens = 0 LIMIT 1');
+        if (existing) return Response.json(existing);
+      }
+      throw err;
+    }
   }
   const supabase = getServerSupabase();
   const { data, error } = await supabase.from('plans').insert(body).select().single();
-  if (error) return Response.json({ message: error.message }, { status: 500 });
+  if (error) {
+    if (/duplicate|unique|plans_name_key/i.test(error.message)) {
+      const { data: existing } = await supabase.from('plans').select('*').eq('max_screens', 0).limit(1).maybeSingle();
+      if (existing) return Response.json(existing);
+    }
+    return Response.json({ message: error.message }, { status: 500 });
+  }
   return Response.json(data);
 }
 
