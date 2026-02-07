@@ -241,22 +241,39 @@ export async function deleteUser(id: string, user: JwtPayload): Promise<Response
     return Response.json({ message: 'Admin required' }, { status: 403 });
   }
   const target = useLocalDb()
-    ? await queryOne<{ role: string }>('SELECT role FROM users WHERE id = $1', [id])
-    : (await getServerSupabase().from('users').select('role').eq('id', id).maybeSingle()).data as { role: string } | null;
+    ? await queryOne<{ role: string; business_id: string | null }>('SELECT role, business_id FROM users WHERE id = $1', [id])
+    : (await getServerSupabase().from('users').select('role, business_id').eq('id', id).maybeSingle()).data as { role: string; business_id: string | null } | null;
   if (!target) return Response.json({ message: 'Not found' }, { status: 404 });
   if (target.role === 'super_admin') {
     return Response.json({ message: 'Super admin cannot be deleted' }, { status: 403 });
   }
+  const businessId = target.business_id ?? null;
+
   if (useLocalDb()) {
     await runLocal('DELETE FROM admin_permissions WHERE user_id = $1', [id]);
     await deleteLocal('users', id);
     await mirrorToSupabase('users', 'delete', { id });
+    if (businessId) {
+      const other = await queryOne<{ id: string }>('SELECT id FROM users WHERE business_id = $1 AND id != $2 LIMIT 1', [businessId, id]);
+      if (!other) {
+        await runLocal('UPDATE businesses SET is_active = false, updated_at = NOW() WHERE id = $1', [businessId]);
+        if (isSupabaseConfigured()) {
+          await getServerSupabase().from('businesses').update({ is_active: false, updated_at: new Date().toISOString() }).eq('id', businessId);
+        }
+      }
+    }
     return Response.json({ success: true });
   }
   const supabase = getServerSupabase();
   await supabase.from('admin_permissions').delete().eq('user_id', id);
   const { error } = await supabase.from('users').delete().eq('id', id);
   if (error) return Response.json({ message: error.message }, { status: 500 });
+  if (businessId) {
+    const { data: other } = await supabase.from('users').select('id').eq('business_id', businessId).limit(1).maybeSingle();
+    if (!other) {
+      await supabase.from('businesses').update({ is_active: false, updated_at: new Date().toISOString() }).eq('id', businessId);
+    }
+  }
   return Response.json({ success: true });
 }
 

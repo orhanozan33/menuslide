@@ -339,6 +339,7 @@ export default function EditUserPage() {
 
       toast.showSuccess(t('users_delete_success'));
       setShowDeleteModal(false);
+      router.refresh();
       router.push(localePath('/users'));
     } catch (err: any) {
       console.error('Delete user error:', err);

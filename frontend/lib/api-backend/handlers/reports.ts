@@ -62,7 +62,7 @@ export async function getStats(request: NextRequest, user: JwtPayload): Promise<
   const now = new Date().toISOString();
   const [
     totalUsersRes,
-    totalBusinessesRes,
+    usersWithBizRes,
     totalScreensRes,
     newUsers7dRes,
     newUsers30dRes,
@@ -74,7 +74,7 @@ export async function getStats(request: NextRequest, user: JwtPayload): Promise<
     paidSubIdsRes,
   ] = await Promise.all([
     supabase.from('users').select('*', { count: 'exact', head: true }).eq('role', 'business_user'),
-    supabase.from('businesses').select('*', { count: 'exact', head: true }).eq('is_active', true),
+    supabase.from('users').select('business_id').eq('role', 'business_user').not('business_id', 'is', null),
     supabase.from('screens').select('*', { count: 'exact', head: true }),
     supabase.from('users').select('*', { count: 'exact', head: true }).eq('role', 'business_user').gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()),
     supabase.from('users').select('*', { count: 'exact', head: true }).eq('role', 'business_user').gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()),
@@ -86,7 +86,10 @@ export async function getStats(request: NextRequest, user: JwtPayload): Promise<
     supabase.from('payments').select('subscription_id').eq('status', 'succeeded'),
   ]);
   const totalUsers = totalUsersRes.count ?? 0;
-  const totalBusinesses = totalBusinessesRes.count ?? 0;
+  const businessIdsFromUsers = new Set(
+    ((usersWithBizRes.data ?? []) as { business_id: string }[]).map((u) => u.business_id).filter(Boolean)
+  );
+  const totalBusinesses = businessIdsFromUsers.size;
   const totalScreens = totalScreensRes.count ?? 0;
   const newUsers7d = newUsers7dRes.count ?? 0;
   const newUsers30d = newUsers30dRes.count ?? 0;

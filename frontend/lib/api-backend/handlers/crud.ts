@@ -119,6 +119,36 @@ export async function handleGet(
       const screens = subActive ? (list as { id: string }[]).map((s) => ({ ...s, active_viewer_count: 0 })) : [];
       return Response.json({ screens, subscription_active: subActive });
     }
+    if (actualTable === 'users') {
+      const users = list as { id: string; business_id: string | null }[];
+      const enriched = await Promise.all(
+        users.map(async (u) => {
+          let business_name: string | null = null;
+          let business_is_active: boolean | undefined;
+          let plan_name: string | null = null;
+          let plan_max_screens: number | null = null;
+          let subscription_status: string | null = null;
+          if (u.business_id) {
+            const biz = await queryOne<{ name: string; is_active: boolean }>('SELECT name, is_active FROM businesses WHERE id = $1', [u.business_id]);
+            if (biz) {
+              business_name = biz.name;
+              business_is_active = biz.is_active;
+            }
+            const sub = await queryOne<{ plan_id: string }>('SELECT plan_id FROM subscriptions WHERE business_id = $1 AND status = $2 ORDER BY created_at DESC LIMIT 1', [u.business_id, 'active']);
+            if (sub?.plan_id) {
+              const plan = await queryOne<{ display_name: string; max_screens: number }>('SELECT display_name, max_screens FROM plans WHERE id = $1', [sub.plan_id]);
+              if (plan) {
+                plan_name = plan.display_name;
+                plan_max_screens = plan.max_screens;
+                subscription_status = 'active';
+              }
+            } else if (biz && !business_is_active) subscription_status = 'inactive';
+          }
+          return { ...u, business_name, business_is_active, plan_name, plan_max_screens, subscription_status };
+        })
+      );
+      return Response.json(enriched);
+    }
     return Response.json(list);
   }
 
@@ -197,6 +227,44 @@ export async function handleGet(
     }
     const screens = screensRaw.map((s) => ({ ...s, active_viewer_count: viewerCounts[s.id] ?? 0 }));
     return Response.json({ screens, subscription_active: subActive });
+  }
+
+  // Users list: zenginleştir (business_name, plan_name, plan_max_screens, subscription_status)
+  if (actualTable === 'users') {
+    const users = list as { id: string; business_id: string | null; [k: string]: unknown }[];
+    const businessIds = [...new Set(users.map((u) => u.business_id).filter(Boolean))] as string[];
+    let bizMap: Record<string, { name: string; is_active: boolean }> = {};
+    let subPlanMap: Record<string, { plan_name: string; plan_max_screens: number }> = {};
+    if (businessIds.length > 0) {
+      const { data: bizList } = await supabase.from('businesses').select('id, name, is_active').in('id', businessIds);
+      bizMap = Object.fromEntries((bizList ?? []).map((b: { id: string; name: string; is_active: boolean }) => [b.id, { name: b.name, is_active: b.is_active }]));
+      const { data: subs } = await supabase.from('subscriptions').select('business_id, plan_id, status').in('business_id', businessIds).order('created_at', { ascending: false });
+      const planIds = [...new Set((subs ?? []).map((s: { plan_id: string }) => s.plan_id).filter(Boolean))];
+      let planMap: Record<string, { display_name: string; max_screens: number }> = {};
+      if (planIds.length > 0) {
+        const { data: planList } = await supabase.from('plans').select('id, display_name, max_screens').in('id', planIds);
+        planMap = Object.fromEntries((planList ?? []).map((p: { id: string; display_name: string; max_screens: number }) => [p.id, { display_name: p.display_name, max_screens: p.max_screens }]));
+      }
+      for (const s of (subs ?? []) as { business_id: string; plan_id: string; status: string }[]) {
+        if (s.status === 'active' && !subPlanMap[s.business_id]) {
+          const plan = planMap[s.plan_id];
+          subPlanMap[s.business_id] = { plan_name: plan?.display_name ?? '', plan_max_screens: plan?.max_screens ?? 0 };
+        }
+      }
+    }
+    const enriched = users.map((u) => {
+      const biz = u.business_id ? bizMap[u.business_id] : null;
+      const subPlan = u.business_id ? subPlanMap[u.business_id] : null;
+      return {
+        ...u,
+        business_name: biz?.name ?? null,
+        business_is_active: biz?.is_active ?? undefined,
+        subscription_status: subPlan ? 'active' : (biz && !biz.is_active ? 'inactive' : null),
+        plan_name: subPlan?.plan_name ?? null,
+        plan_max_screens: subPlan?.plan_max_screens ?? null,
+      };
+    });
+    return Response.json(enriched);
   }
 
   return Response.json(list);
