@@ -201,6 +201,7 @@ export async function updateUser(id: string, request: NextRequest, user: JwtPayl
   }
   const adminPerms = body.admin_permissions as Record<string, Record<string, boolean>> | undefined;
   const planId = body.plan_id as string | undefined;
+  const stopReason = typeof body.stop_reason === 'string' && body.stop_reason ? body.stop_reason : null;
   const subscriptionPeriodMonths = (typeof body.subscription_period_months === 'number' && body.subscription_period_months >= 1)
     ? Math.min(body.subscription_period_months, 120) // max 10 yıl
     : 1;
@@ -210,6 +211,7 @@ export async function updateUser(id: string, request: NextRequest, user: JwtPayl
   delete bodyWithoutPerms.admin_permissions;
   delete bodyWithoutPerms.plan_id;
   delete bodyWithoutPerms.subscription_period_months;
+  delete bodyWithoutPerms.stop_reason;
   delete bodyWithoutPerms.is_active;
   delete bodyWithoutPerms.business_name;
 
@@ -250,12 +252,23 @@ export async function updateUser(id: string, request: NextRequest, user: JwtPayl
         let subRow: Record<string, unknown> | null = null;
         if (rows.length > 0) {
           subId = rows[0].id;
-          await client.query('UPDATE subscriptions SET plan_id = $1, status = $2, current_period_start = $3, current_period_end = $4, updated_at = NOW() WHERE id = $5', [planId, newStatus, nowStr, endStr, subId]);
+          if (maxScreens === 0 && stopReason) {
+            await client.query(
+              'UPDATE subscriptions SET plan_id = $1, status = $2, current_period_start = $3, current_period_end = $4, stop_reason = $5, stopped_at = NOW(), updated_at = NOW() WHERE id = $6',
+              [planId, newStatus, nowStr, endStr, stopReason, subId]
+            );
+          } else {
+            await client.query(
+              'UPDATE subscriptions SET plan_id = $1, status = $2, current_period_start = $3, current_period_end = $4, stop_reason = NULL, stopped_at = NULL, updated_at = NOW() WHERE id = $5',
+              [planId, newStatus, nowStr, endStr, subId]
+            );
+          }
           subRow = await queryOne('SELECT * FROM subscriptions WHERE id = $1', [subId]) as Record<string, unknown>;
         } else {
+          const stopReasonVal = maxScreens === 0 && stopReason ? stopReason : null;
           const { rows: insRows } = await client.query(
-            'INSERT INTO subscriptions (business_id, plan_id, status, current_period_start, current_period_end) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-            [businessId, planId, newStatus, nowStr, endStr]
+            'INSERT INTO subscriptions (business_id, plan_id, status, current_period_start, current_period_end, stop_reason, stopped_at) VALUES ($1, $2, $3, $4, $5, $6, CASE WHEN $6 IS NOT NULL THEN NOW() ELSE NULL END) RETURNING *',
+            [businessId, planId, newStatus, nowStr, endStr, stopReasonVal]
           );
           subRow = insRows[0] as Record<string, unknown>;
           subId = subRow?.id as string;
@@ -294,11 +307,17 @@ export async function updateUser(id: string, request: NextRequest, user: JwtPayl
         const nowStr = now.toISOString();
         const endStr = periodEnd.toISOString();
         let subId: string | undefined;
+        const stopPayload = maxScreens === 0 && stopReason ? { stop_reason: stopReason, stopped_at: new Date().toISOString() } : { stop_reason: null, stopped_at: null };
         if (existing) {
           subId = existing.id;
-          await supabase.from('subscriptions').update({ plan_id: planId, status: newStatus, current_period_start: nowStr, current_period_end: endStr }).eq('id', subId);
+          await supabase.from('subscriptions').update({ plan_id: planId, status: newStatus, current_period_start: nowStr, current_period_end: endStr, ...stopPayload }).eq('id', subId);
         } else {
-          const { data: ins } = await supabase.from('subscriptions').insert({ business_id: businessId, plan_id: planId, status: newStatus, current_period_start: nowStr, current_period_end: endStr }).select('id').single();
+          const insertRow: Record<string, unknown> = { business_id: businessId, plan_id: planId, status: newStatus, current_period_start: nowStr, current_period_end: endStr };
+          if (maxScreens === 0 && stopReason) {
+            insertRow.stop_reason = stopReason;
+            insertRow.stopped_at = new Date().toISOString();
+          }
+          const { data: ins } = await supabase.from('subscriptions').insert(insertRow).select('id').single();
           subId = (ins as { id?: string })?.id;
         }
         if (subId && newStatus === 'active') await createPaymentForSubscription(subId, planId, subscriptionPeriodMonths);

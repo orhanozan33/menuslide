@@ -8,6 +8,7 @@ import { apiClient } from '@/lib/api';
 import { ACTIVITY_PAGE_LABELS, ACTIVITY_ACTION_LABELS, formatActivityDetail } from '@/lib/admin-activity-labels';
 import { useReportsPermissions } from '@/lib/AdminUserContext';
 import { useConfirm } from '@/lib/ConfirmContext';
+import { addCanadaHST } from '@/lib/canada-tax';
 
 interface Stats {
   totalUsers: number;
@@ -35,8 +36,9 @@ interface ReportUser {
   created_at: string;
   business_id: string | null;
   business_name: string | null;
-  subscription_status: 'active' | 'none';
+  subscription_status: 'active' | 'stopped' | 'none';
   plan_name: string | null;
+  stop_reason?: string | null;
   plan_max_screens: number | null;
 }
 
@@ -77,6 +79,8 @@ interface UserDetailReport {
     cancel_at_period_end?: boolean;
     price_monthly?: number | null;
     price_yearly?: number | null;
+    stop_reason?: string | null;
+    stopped_at?: string | null;
   } | null;
   payments: { id: string; amount: number; currency: string; payment_date: string; status: string; invoice_number?: string }[];
   payment_failures: { id: string; amount: number; currency: string; failure_reason: string | null; attempted_at: string }[];
@@ -757,9 +761,11 @@ export default function ReportsPage() {
                         <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
                           u.subscription_status === 'active'
                             ? 'bg-emerald-100 text-emerald-800'
+                            : u.subscription_status === 'stopped'
+                            ? 'bg-red-100 text-red-800'
                             : 'bg-amber-100 text-amber-800'
                         }`}>
-                          {u.subscription_status === 'active' ? t('reports_has_subscription') : t('reports_no_subscription')}
+                          {u.subscription_status === 'active' ? t('reports_has_subscription') : u.subscription_status === 'stopped' ? (t('reports_subscription_stopped') || 'Durduruldu') : t('reports_no_subscription')}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-700">
@@ -767,6 +773,8 @@ export default function ReportsPage() {
                           ? u.plan_max_screens != null && u.plan_max_screens >= 0
                             ? `${u.plan_name} (${u.plan_max_screens} ${t('pricing_screen')})`
                             : u.plan_name
+                          : u.subscription_status === 'stopped'
+                          ? `${t('reports_subscription_stopped') || 'Durduruldu'}${u.stop_reason ? ` • ${u.stop_reason === 'payment_not_received' ? (t('reports_stop_reason_payment') || 'Ödeme alınamadı') : u.stop_reason === 'membership_termination' ? (t('reports_stop_reason_membership') || 'Üyelik sonlandırma') : u.stop_reason}` : ''}`
                           : '-'}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-500">
@@ -793,13 +801,15 @@ export default function ReportsPage() {
                     <span className={`shrink-0 inline-flex px-2 py-1 rounded-full text-xs font-medium ${
                       u.subscription_status === 'active'
                         ? 'bg-emerald-100 text-emerald-800'
+                        : u.subscription_status === 'stopped'
+                        ? 'bg-red-100 text-red-800'
                         : 'bg-amber-100 text-amber-800'
                     }`}>
-                      {u.subscription_status === 'active' ? t('reports_has_subscription') : t('reports_no_subscription')}
+                      {u.subscription_status === 'active' ? t('reports_has_subscription') : u.subscription_status === 'stopped' ? (t('reports_subscription_stopped') || 'Durduruldu') : t('reports_no_subscription')}
                     </span>
                   </div>
                   <div className="mt-2 flex justify-between text-xs text-gray-500">
-                    <span>{u.subscription_status === 'active' && u.plan_name ? (u.plan_max_screens != null && u.plan_max_screens >= 0 ? `${u.plan_name} (${u.plan_max_screens} ${t('pricing_screen')})` : u.plan_name) : '-'}</span>
+                    <span>{u.subscription_status === 'active' && u.plan_name ? (u.plan_max_screens != null && u.plan_max_screens >= 0 ? `${u.plan_name} (${u.plan_max_screens} ${t('pricing_screen')})` : u.plan_name) : u.subscription_status === 'stopped' ? (t('reports_subscription_stopped') || 'Durduruldu') : '-'}</span>
                     <span>{formatDateShort(u.created_at)}</span>
                   </div>
                 </div>
@@ -948,26 +958,43 @@ export default function ReportsPage() {
                       <p className="text-xs text-slate-600 mt-2">{t('reports_tv_screens_hint')}</p>
                     </div>
                     {/* Abonelik Durumu */}
-                    <div className={`rounded-xl p-5 border ${userDetailModal.data.subscription ? 'bg-emerald-50 border-emerald-100' : 'bg-amber-50 border-amber-100'}`}>
-                      <h4 className="text-sm font-semibold text-slate-600 uppercase tracking-wider mb-3 flex items-center gap-2">
-                        <span className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm ${userDetailModal.data.subscription ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>📦</span>
-                        {t('reports_subscription_status_label')}
-                      </h4>
-                      {userDetailModal.data.subscription ? (
-                        <div className="space-y-2 text-sm">
-                          <div><span className="text-slate-600">{t('reports_current_package')}:</span> <span className="font-medium text-slate-900">{userDetailModal.data.subscription.plan_name} ({userDetailModal.data.subscription.plan_max_screens === -1 ? t('settings_unlimited') : userDetailModal.data.subscription.plan_max_screens} {t('pricing_screen')})</span></div>
-                          <div><span className="text-slate-600">{t('reports_billing_interval')}:</span> <span className="font-medium text-slate-900">{userDetailModal.data.subscription.billing_interval === 'yearly' ? t('reports_yearly') : userDetailModal.data.subscription.billing_interval === 'monthly' ? t('reports_monthly') : '-'}</span></div>
-                          <div><span className="text-slate-600">{t('reports_plan_price')}:</span> <span className="text-slate-900">{userDetailModal.data.subscription.billing_interval === 'yearly' && userDetailModal.data.subscription.price_yearly != null ? `${formatCurrency(userDetailModal.data.subscription.price_yearly)} ${t('reports_per_year')}` : userDetailModal.data.subscription.price_monthly != null ? `${formatCurrency(userDetailModal.data.subscription.price_monthly)} ${t('reports_per_month')}` : '-'}</span></div>
-                          <div><span className="text-slate-600">{t('reports_period_start')}:</span> <span className="text-slate-900">{formatDateShort(userDetailModal.data.subscription.current_period_start)}</span></div>
-                          <div><span className="text-slate-600">{t('reports_renewal_date')}:</span> <span className="text-slate-900">{formatDateShort(userDetailModal.data.subscription.current_period_end)}</span></div>
-                          <div><span className="text-slate-600">{t('reports_package_expiry')}:</span> <span className="text-slate-900">{formatDateShort(userDetailModal.data.subscription.current_period_end)}</span></div>
-                          <div><span className="text-slate-600">{t('reports_status')}:</span> <span className="font-medium text-slate-900">{userDetailModal.data.subscription.status}</span></div>
-                          {userDetailModal.data.subscription.cancel_at_period_end && <div className="pt-1"><span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800">{t('reports_cancel_at_period_end')}</span></div>}
+                    {(() => {
+                      const sub = userDetailModal.data.subscription;
+                      const isStopped = sub?.status === 'canceled' && sub?.stop_reason;
+                      const bgClass = isStopped ? 'bg-red-50 border-red-100' : sub ? 'bg-emerald-50 border-emerald-100' : 'bg-amber-50 border-amber-100';
+                      const iconClass = isStopped ? 'bg-red-100 text-red-600' : sub ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600';
+                      const stopReasonLabel = sub?.stop_reason === 'payment_not_received' ? (t('reports_stop_reason_payment') || 'Ödeme alınamadı') : sub?.stop_reason === 'membership_termination' ? (t('reports_stop_reason_membership') || 'Üyelik sonlandırma') : sub?.stop_reason || '';
+                      return (
+                        <div className={`rounded-xl p-5 border ${bgClass}`}>
+                          <h4 className="text-sm font-semibold text-slate-600 uppercase tracking-wider mb-3 flex items-center gap-2">
+                            <span className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm ${iconClass}`}>📦</span>
+                            {t('reports_subscription_status_label')}
+                          </h4>
+                          {sub ? (
+                            isStopped ? (
+                              <div className="space-y-2 text-sm">
+                                <div><span className="text-slate-600">{t('reports_status')}:</span> <span className="font-medium text-red-700">{t('reports_subscription_stopped') || 'Durduruldu'}</span></div>
+                                <div><span className="text-slate-600">{t('reports_stop_reason_label') || 'Durdurma nedeni'}:</span> <span className="font-medium text-slate-900">{stopReasonLabel}</span></div>
+                                {sub.stopped_at && <div><span className="text-slate-600">{t('reports_stopped_at') || 'Durdurulma tarihi'}:</span> <span className="text-slate-900">{formatDateShort(sub.stopped_at)}</span></div>}
+                                <div><span className="text-slate-600">{t('reports_previous_package') || 'Önceki paket'}:</span> <span className="text-slate-900">{sub.plan_name} ({sub.plan_max_screens === -1 ? t('settings_unlimited') : sub.plan_max_screens} {t('pricing_screen')})</span></div>
+                              </div>
+                            ) : (
+                              <div className="space-y-2 text-sm">
+                                <div><span className="text-slate-600">{t('reports_current_package')}:</span> <span className="font-medium text-slate-900">{sub.plan_name} ({sub.plan_max_screens === -1 ? t('settings_unlimited') : sub.plan_max_screens} {t('pricing_screen')})</span></div>
+                                <div><span className="text-slate-600">{t('reports_billing_interval')}:</span> <span className="font-medium text-slate-900">{sub.billing_interval === 'yearly' ? t('reports_yearly') : sub.billing_interval === 'monthly' ? t('reports_monthly') : '-'}</span></div>
+                                <div><span className="text-slate-600">{t('reports_plan_price')}:</span> <span className="text-slate-900">{sub.billing_interval === 'yearly' && sub.price_yearly != null ? `${formatCurrency(sub.price_yearly)} ${t('reports_per_year')}` : sub.price_monthly != null ? `${formatCurrency(sub.price_monthly)} ${t('reports_per_month')}` : '-'}</span></div>
+                                <div><span className="text-slate-600">{t('reports_period_start')}:</span> <span className="text-slate-900">{formatDateShort(sub.current_period_start)}</span></div>
+                                <div><span className="text-slate-600">{t('reports_renewal_date')}:</span> <span className="text-slate-900">{formatDateShort(sub.current_period_end)}</span></div>
+                                <div><span className="text-slate-600">{t('reports_status')}:</span> <span className="font-medium text-slate-900">{sub.status}</span></div>
+                                {sub.cancel_at_period_end && <div className="pt-1"><span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800">{t('reports_cancel_at_period_end')}</span></div>}
+                              </div>
+                            )
+                          ) : (
+                            <p className="text-amber-800 font-medium">{t('reports_no_subscription_info')}</p>
+                          )}
                         </div>
-                      ) : (
-                        <p className="text-amber-800 font-medium">{t('reports_no_subscription_info')}</p>
-                      )}
-                    </div>
+                      );
+                    })()}
                   </div>
 
                   {/* Ödeme Geçmişi - 2 sütun */}
@@ -984,11 +1011,14 @@ export default function ReportsPage() {
                         {(userDetailModal.data.payments ?? []).length === 0 ? (
                           <div className="p-5 text-sm text-slate-500 text-center">{t('reports_no_payments_history')}</div>
                         ) : (
-                          (userDetailModal.data.payments ?? []).map((p) => (
+                          (userDetailModal.data.payments ?? []).map((p) => {
+                            const { total } = addCanadaHST(p.amount);
+                            const currency = (p.currency || 'cad').toUpperCase();
+                            return (
                             <div key={p.id} className="px-4 py-3 flex justify-between items-center text-sm border-b border-slate-50 last:border-0 gap-2">
                               <div className="flex-1 min-w-0">
                                 <span className="text-slate-600">{formatDateShort(p.payment_date)}</span>
-                                <span className="font-semibold text-slate-900 ml-2">{formatCurrency(p.amount)}</span>
+                                <span className="font-semibold text-slate-900 ml-2">{formatCurrency(total)}</span>
                                 {p.invoice_number && <span className="text-xs text-slate-400 ml-2 font-mono">{p.invoice_number}</span>}
                               </div>
                               <div className="flex gap-1 flex-shrink-0">
@@ -1001,7 +1031,8 @@ export default function ReportsPage() {
                                 </button>
                               </div>
                             </div>
-                          ))
+                            );
+                          })
                         )}
                       </div>
                     </div>
@@ -1048,34 +1079,101 @@ export default function ReportsPage() {
           aria-modal="true"
         >
           <div
-            className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto"
+            className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             {adminInvoiceModal.loading ? (
               <div className="py-8 text-center text-slate-600">{t('settings_loading')}</div>
             ) : adminInvoiceModal.data ? (
               <>
-                <h3 className="text-lg font-semibold text-slate-900 mb-4">{t('invoice_title')}</h3>
-                {adminInvoiceModal.data.company && (
-                  <div className="mb-4 p-3 bg-slate-50 rounded-lg text-sm">
-                    <div className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">{t('invoice_from')}</div>
-                    <div className="font-medium text-slate-800">{(adminInvoiceModal.data.company as Record<string, string>).company_name}</div>
-                    {(adminInvoiceModal.data.company as Record<string, string>).company_address && <div className="text-slate-600 text-sm">{(adminInvoiceModal.data.company as Record<string, string>).company_address}</div>}
+                {/* Fatura başlık */}
+                <div className="border-b border-slate-200 pb-4 mb-4">
+                  <h3 className="text-xl font-bold text-slate-900">{t('invoice_title')}</h3>
+                  <div className="flex justify-between items-start mt-2 text-sm">
+                    <span className="text-slate-500">{t('invoice_number')}:</span>
+                    <span className="font-mono font-semibold text-slate-800">{String(adminInvoiceModal.data.invoice_number ?? '-')}</span>
                   </div>
-                )}
-                <dl className="space-y-2 text-sm">
-                  <div><dt className="text-slate-500">{t('invoice_number')}</dt><dd className="font-medium text-slate-800">{String(adminInvoiceModal.data.invoice_number ?? '-')}</dd></div>
-                  <div><dt className="text-slate-500">{t('invoice_date')}</dt><dd className="text-slate-800">{formatDateShort(adminInvoiceModal.data.payment_date as string | null | undefined)}</dd></div>
-                  <div><dt className="text-slate-500 font-medium">{t('invoice_bill_to')}</dt><dd className="text-slate-800 mt-1">{String(adminInvoiceModal.data.business_name ?? '—')}</dd></div>
-                  {adminInvoiceModal.data.customer_email ? <dd className="text-slate-600 text-xs">{String(adminInvoiceModal.data.customer_email)}</dd> : null}
-                  <div><dt className="text-slate-500">{t('invoice_plan')}</dt><dd className="text-slate-800">{String(adminInvoiceModal.data.plan_name ?? '—')}</dd></div>
-                  <div><dt className="text-slate-500">{t('invoice_amount')}</dt><dd className="text-slate-800 font-semibold">{Number(adminInvoiceModal.data.amount ?? 0).toFixed(2)} {(String(adminInvoiceModal.data.currency || 'cad')).toUpperCase()}</dd></div>
-                  <div><dt className="text-slate-500">{t('invoice_status')}</dt><dd className="capitalize text-slate-800">{String(adminInvoiceModal.data.status ?? '—')}</dd></div>
-                </dl>
-                <div className="flex gap-2 mt-6">
+                  <div className="flex justify-between items-start mt-0.5 text-sm">
+                    <span className="text-slate-500">{t('invoice_date')}:</span>
+                    <span className="text-slate-800">{formatDateShort(adminInvoiceModal.data.payment_date as string | null | undefined)}</span>
+                  </div>
+                </div>
+                {/* Gönderen / Alıcı grid */}
+                <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
+                  {adminInvoiceModal.data.company ? (
+                    <div className="p-3 bg-slate-50 rounded-lg">
+                      <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">{t('invoice_from')}</div>
+                      <div className="font-medium text-slate-800">{(adminInvoiceModal.data.company as Record<string, string>).company_name}</div>
+                      {(adminInvoiceModal.data.company as Record<string, string>).company_address ? <div className="text-slate-600 text-xs mt-0.5">{(adminInvoiceModal.data.company as Record<string, string>).company_address}</div> : null}
+                    </div>
+                  ) : null}
+                  <div className="p-3 bg-slate-50 rounded-lg">
+                    <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">{t('invoice_bill_to')}</div>
+                    <div className="font-medium text-slate-800">{String(adminInvoiceModal.data.business_name ?? '—')}</div>
+                    {adminInvoiceModal.data.customer_email ? <div className="text-slate-600 text-xs mt-0.5">{String(adminInvoiceModal.data.customer_email)}</div> : null}
+                  </div>
+                </div>
+                {/* Tablo: Plan, Ara toplam, Vergi, Toplam */}
+                <div className="border border-slate-200 rounded-lg overflow-hidden mb-6">
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-100">
+                      <tr>
+                        <th className="px-4 py-2 text-left font-semibold text-slate-700">{t('invoice_plan')}</th>
+                        <th className="px-4 py-2 text-right font-semibold text-slate-700">{t('invoice_amount')}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="border-t border-slate-100">
+                        <td className="px-4 py-2 text-slate-800">{String(adminInvoiceModal.data.plan_name ?? '—')}</td>
+                        <td className="px-4 py-2 text-right text-slate-800">{Number(adminInvoiceModal.data.amount ?? 0).toFixed(2)} {(String(adminInvoiceModal.data.currency || 'cad')).toUpperCase()}</td>
+                      </tr>
+                      {(() => {
+                        const { subtotal, tax, total } = addCanadaHST(Number(adminInvoiceModal.data?.amount ?? 0));
+                        const cur = (String(adminInvoiceModal.data?.currency || 'cad')).toUpperCase();
+                        return (
+                          <>
+                            <tr className="border-t border-slate-100 bg-slate-50">
+                              <td className="px-4 py-2 text-slate-600">{t('invoice_subtotal')}</td>
+                              <td className="px-4 py-2 text-right text-slate-700">{subtotal.toFixed(2)} {cur}</td>
+                            </tr>
+                            <tr className="border-t border-slate-100 bg-slate-50">
+                              <td className="px-4 py-2 text-slate-600">{t('invoice_tax')}</td>
+                              <td className="px-4 py-2 text-right text-slate-700">{tax.toFixed(2)} {cur}</td>
+                            </tr>
+                            <tr className="border-t-2 border-slate-200 bg-slate-100">
+                              <td className="px-4 py-2 font-semibold text-slate-800">{t('invoice_total')}</td>
+                              <td className="px-4 py-2 text-right font-bold text-slate-900">{total.toFixed(2)} {cur}</td>
+                            </tr>
+                          </>
+                        );
+                      })()}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="text-xs text-slate-500 mb-4">{t('invoice_status')}: <span className="capitalize font-medium text-slate-700">{String(adminInvoiceModal.data.status ?? '—')}</span></div>
+                <div className="flex gap-2">
                   <button
                     type="button"
-                    onClick={() => window.print()}
+                    onClick={() => {
+                      const d = adminInvoiceModal.data!;
+                      const { subtotal, tax, total } = addCanadaHST(Number(d.amount ?? 0));
+                      const cur = (String(d.currency || 'cad')).toUpperCase();
+                      const company = d.company as Record<string, string> | undefined;
+                      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${t('invoice_title')}</title><style>body{font-family:system-ui,sans-serif;max-width:600px;margin:40px auto;padding:20px;color:#1e293b}table{width:100%;border-collapse:collapse;margin:20px 0}th,td{padding:10px;text-align:left;border-bottom:1px solid #e2e8f0}th{background:#f1f5f9;font-weight:600}.total{font-weight:700;background:#f8fafc}.header{border-bottom:2px solid #1e293b;padding-bottom:16px;margin-bottom:16px}h1{margin:0;font-size:1.5rem}.meta{color:#64748b;font-size:0.9rem;margin-top:8px}.from,.to{background:#f8fafc;padding:12px;border-radius:8px;margin:8px 0}.label{font-size:0.75rem;text-transform:uppercase;color:#64748b;margin-bottom:4px}@media print{body{margin:0;padding:0}}</style></head><body>
+<div class="header"><h1>${t('invoice_title')}</h1><div class="meta">${t('invoice_number')}: ${String(d.invoice_number ?? '-')} | ${t('invoice_date')}: ${formatDateShort(d.payment_date as string)}</div></div>
+${company ? `<div class="from"><div class="label">${t('invoice_from')}</div><strong>${company.company_name || ''}</strong>${company.company_address ? `<br>${company.company_address}` : ''}</div>` : ''}
+<div class="to"><div class="label">${t('invoice_bill_to')}</div><strong>${String(d.business_name ?? '—')}</strong>${d.customer_email ? `<br>${d.customer_email}` : ''}</div>
+<table><thead><tr><th>${t('invoice_plan')}</th><th style="text-align:right">${t('invoice_amount')}</th></tr></thead><tbody>
+<tr><td>${String(d.plan_name ?? '—')}</td><td style="text-align:right">${Number(d.amount ?? 0).toFixed(2)} ${cur}</td></tr>
+<tr style="background:#f8fafc"><td>${t('invoice_subtotal')}</td><td style="text-align:right">${subtotal.toFixed(2)} ${cur}</td></tr>
+<tr style="background:#f8fafc"><td>${t('invoice_tax')}</td><td style="text-align:right">${tax.toFixed(2)} ${cur}</td></tr>
+<tr class="total" style="background:#f1f5f9;border-top:2px solid #cbd5e1"><td>${t('invoice_total')}</td><td style="text-align:right">${total.toFixed(2)} ${cur}</td></tr>
+</tbody></table>
+<div style="margin-top:16px;font-size:0.85rem;color:#64748b">${t('invoice_status')}: ${String(d.status ?? '—')}</div>
+</body></html>`;
+                      const w = window.open('', '_blank');
+                      if (w) { w.document.write(html); w.document.close(); w.focus(); setTimeout(() => { w.print(); w.close(); }, 250); }
+                    }}
                     className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
                   >
                     {t('invoice_download') || 'Yazdır / PDF indir'}

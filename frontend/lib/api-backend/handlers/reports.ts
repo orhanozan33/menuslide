@@ -23,12 +23,17 @@ export async function getUsersWithSubscription(user: JwtPayload): Promise<Respon
     const users = (allUsers ?? []).filter((u: { role?: string }) => u.role !== 'super_admin' && u.role !== 'admin');
     const businessIds = Array.from(new Set(users.map((u: { business_id?: string }) => u.business_id).filter(Boolean))) as string[];
     let activeSet = new Set<string>();
+    const stoppedMap = new Map<string, { plan_name: string; plan_max_screens: number; stop_reason: string }>();
+    let activeSubs: { business_id: string; plan_id?: string; plans?: unknown }[] = [];
+    const planMap: Record<string, { display_name: string; max_screens: number }> = {};
     if (businessIds.length > 0) {
       const [
         { data: subs },
+        { data: allSubs },
         { data: paidList },
       ] = await Promise.all([
-        supabase.from('subscriptions').select('id, business_id, current_period_end, plans(max_screens)').eq('status', 'active').in('business_id', businessIds),
+        supabase.from('subscriptions').select('id, business_id, current_period_end, plan_id, plans(max_screens, display_name)').eq('status', 'active').in('business_id', businessIds),
+        supabase.from('subscriptions').select('business_id, plan_id, stop_reason, plans(max_screens, display_name)').eq('status', 'canceled').in('business_id', businessIds).order('updated_at', { ascending: false }),
         supabase.from('payments').select('subscription_id').eq('status', 'succeeded'),
       ]);
       const now = new Date().toISOString();
@@ -38,12 +43,50 @@ export async function getUsersWithSubscription(user: JwtPayload): Promise<Respon
         (!s.current_period_end || s.current_period_end >= now) &&
         getMaxScreens(s.plans) > 0
       );
-      activeSet = new Set(trulyActive.map((s: { business_id: string }) => s.business_id));
+      activeSubs = trulyActive;
+      trulyActive.forEach((s: { business_id: string; plan_id?: string; plans?: unknown }) => {
+        activeSet.add(s.business_id);
+        const p = (Array.isArray(s.plans) ? s.plans[0] : s.plans) as { display_name?: string; max_screens?: number };
+        if (p && s.plan_id) planMap[s.plan_id] = { display_name: p.display_name ?? '', max_screens: p.max_screens ?? 0 };
+      });
+      (allSubs ?? []).forEach((s: { business_id: string; plan_id?: string; stop_reason?: string; plans?: unknown }) => {
+        if (!stoppedMap.has(s.business_id) && s.stop_reason) {
+          const p = (Array.isArray(s.plans) ? s.plans[0] : s.plans) as { display_name?: string; max_screens?: number };
+          stoppedMap.set(s.business_id, {
+            plan_name: p?.display_name ?? '0 ekran',
+            plan_max_screens: p?.max_screens ?? 0,
+            stop_reason: s.stop_reason ?? '',
+          });
+        }
+      });
     }
-    const list = users.map((u: { business_id?: string } & Record<string, unknown>) => ({
-      ...u,
-      has_active_subscription: u.business_id ? activeSet.has(u.business_id) : false,
-    }));
+    const list = users.map((u: { business_id?: string } & Record<string, unknown>) => {
+      const bid = u.business_id as string | undefined;
+      const hasActive = bid ? activeSet.has(bid) : false;
+      const stopped = bid ? stoppedMap.get(bid) : null;
+      const subscription_status: 'active' | 'stopped' | 'none' = hasActive ? 'active' : (stopped ? 'stopped' : 'none');
+      let plan_name: string | null = null;
+      let plan_max_screens: number | null = null;
+      let stop_reason: string | null = null;
+      if (hasActive) {
+        const sub = activeSubs.find((s: { business_id: string }) => s.business_id === bid);
+        const p = sub?.plan_id ? planMap[sub.plan_id] : null;
+        plan_name = p?.display_name ?? null;
+        plan_max_screens = p?.max_screens ?? null;
+      } else if (stopped) {
+        plan_name = stopped.plan_name;
+        plan_max_screens = stopped.plan_max_screens;
+        stop_reason = stopped.stop_reason || null;
+      }
+      return {
+        ...u,
+        has_active_subscription: hasActive,
+        subscription_status,
+        plan_name,
+        plan_max_screens,
+        stop_reason,
+      };
+    });
     return Response.json(list);
   } catch {
     return Response.json([]);
@@ -147,6 +190,7 @@ export async function getStats(request: NextRequest, user: JwtPayload): Promise<
     usersWithoutSubscription,
     businessesWithSubscription,
     businessesWithoutSubscription,
+    revenue: revenueTotal,
     revenueTotal,
     revenueThisMonth,
     revenueInRange,
@@ -166,9 +210,67 @@ export async function getPaymentStatus(user: JwtPayload): Promise<Response> {
   ]);
   const now = new Date().toISOString();
   const overdueSubscriptions = (subsRes.data ?? []).filter((s: { current_period_end?: string }) => s.current_period_end && s.current_period_end < now);
+
+  // Ödemelere kullanıcı ve işletme bilgisi ekle
+  const payments = (paymentsRes.data ?? []) as { id: string; subscription_id?: string; amount: number; currency: string; payment_date?: string; status?: string }[];
+  const subIds = Array.from(new Set(payments.map((p) => p.subscription_id).filter(Boolean))) as string[];
+  const businessIds = new Set<string>();
+  const subToBiz = new Map<string, string>();
+  if (subIds.length > 0) {
+    const { data: subs } = await supabase.from('subscriptions').select('id, business_id').in('id', subIds);
+    (subs ?? []).forEach((s: { id: string; business_id?: string }) => {
+      if (s.business_id) {
+        subToBiz.set(s.id, s.business_id);
+        businessIds.add(s.business_id);
+      }
+    });
+  }
+  const bizIds = Array.from(businessIds);
+  const bizNames = new Map<string, string>();
+  const userEmails = new Map<string, string | null>();
+  if (bizIds.length > 0) {
+    const [bizRes, usersRes] = await Promise.all([
+      supabase.from('businesses').select('id, name').in('id', bizIds),
+      supabase.from('users').select('business_id, email').in('business_id', bizIds).eq('role', 'business_user'),
+    ]);
+    (bizRes.data ?? []).forEach((b: { id: string; name?: string }) => bizNames.set(b.id, b.name ?? ''));
+    (usersRes.data ?? []).forEach((u: { business_id: string; email?: string }) => {
+      if (!userEmails.has(u.business_id)) userEmails.set(u.business_id, u.email ?? null);
+    });
+  }
+  const recentPayments = payments.map((p) => {
+    const bid = p.subscription_id ? subToBiz.get(p.subscription_id) : undefined;
+    return {
+      ...p,
+      business_name: bid ? (bizNames.get(bid) ?? '') : '',
+      user_email: bid ? (userEmails.get(bid) ?? null) : null,
+    };
+  });
+
+  // Başarısız ödemelere kullanıcı ve işletme bilgisi ekle (business_id zaten var)
+  const failures = (failuresRes.data ?? []) as { id: string; business_id?: string; amount?: number; currency?: string; failure_reason?: string; attempted_at?: string }[];
+  const failBizIds = Array.from(new Set(failures.map((f) => f.business_id).filter(Boolean))) as string[];
+  const failBizNames = new Map<string, string>();
+  const failUserEmails = new Map<string, string | null>();
+  if (failBizIds.length > 0) {
+    const [fbizRes, fusersRes] = await Promise.all([
+      supabase.from('businesses').select('id, name').in('id', failBizIds),
+      supabase.from('users').select('business_id, email').in('business_id', failBizIds).eq('role', 'business_user'),
+    ]);
+    (fbizRes.data ?? []).forEach((b: { id: string; name?: string }) => failBizNames.set(b.id, b.name ?? ''));
+    (fusersRes.data ?? []).forEach((u: { business_id: string; email?: string }) => {
+      if (!failUserEmails.has(u.business_id)) failUserEmails.set(u.business_id, u.email ?? null);
+    });
+  }
+  const failedPayments = failures.map((f) => ({
+    ...f,
+    business_name: f.business_id ? (failBizNames.get(f.business_id) ?? '') : '',
+    user_email: f.business_id ? (failUserEmails.get(f.business_id) ?? null) : null,
+  }));
+
   return Response.json({
-    recentPayments: paymentsRes.data ?? [],
-    failedPayments: failuresRes.data ?? [],
+    recentPayments,
+    failedPayments,
     overdueSubscriptions,
   });
 }
@@ -223,9 +325,13 @@ export async function getUserDetailReport(userId: string, currentUserId: string,
   }
   const userWithContact = { ...u, phone: phone ?? undefined, address: address ?? undefined };
   const { data: business } = u.business_id ? await supabase.from('businesses').select('*').eq('id', (u as { business_id: string }).business_id).single() : { data: null };
-  const { data: sub } = (u as { business_id?: string }).business_id
-    ? await supabase.from('subscriptions').select('*').eq('business_id', (u as { business_id: string }).business_id).order('created_at', { ascending: false }).limit(1).maybeSingle()
+  const { data: subRaw } = (u as { business_id?: string }).business_id
+    ? await supabase.from('subscriptions').select('*, plans(display_name, max_screens)').eq('business_id', (u as { business_id: string }).business_id).order('created_at', { ascending: false }).limit(1).maybeSingle()
     : { data: null };
+  const p = subRaw?.plans ? (Array.isArray(subRaw.plans) ? subRaw.plans[0] : subRaw.plans) as { display_name?: string; max_screens?: number } : null;
+  const sub = subRaw
+    ? { ...subRaw, plan_name: p?.display_name ?? null, plan_max_screens: p?.max_screens ?? null, plans: undefined }
+    : null;
   const businessId = (u as { business_id?: string }).business_id;
   let subIds: string[] = [];
   if (businessId) {

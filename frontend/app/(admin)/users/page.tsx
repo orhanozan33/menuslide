@@ -53,7 +53,13 @@ export default function UsersPage() {
   } | null>(null);
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [planChangePeriodMonths, setPlanChangePeriodMonths] = useState<number>(1);
+  const [planChangeStopReason, setPlanChangeStopReason] = useState<string>('');
   const [planChangeSaving, setPlanChangeSaving] = useState(false);
+
+  const STOP_REASONS = [
+    { value: 'payment_not_received', label: 'Ödeme alınamadı' },
+    { value: 'membership_termination', label: 'Üyelik sonlandırma' },
+  ] as const;
   const [showAdminCreateModal, setShowAdminCreateModal] = useState(false);
   const [adminForm, setAdminForm] = useState({ email: '', password: '' });
   const [creatingAdmin, setCreatingAdmin] = useState(false);
@@ -305,6 +311,7 @@ export default function UsersPage() {
     setPlanChangeModal(null);
     setSelectedPlanId(null);
     setPlanChangePeriodMonths(1);
+    setPlanChangeStopReason('');
   };
 
   const handleConfirmPlanChange = async () => {
@@ -338,12 +345,18 @@ export default function UsersPage() {
       toast.showWarning(t('users_plan_already_assigned'));
       return;
     }
+    if (selectedPlanId === '__zero__' && !planChangeStopReason) {
+      toast.showError('Paketi durdurmak için lütfen bir neden seçin.');
+      return;
+    }
 
     setPlanChangeSaving(true);
     try {
+      const body: Record<string, unknown> = { plan_id: planIdToUse, subscription_period_months: planChangePeriodMonths };
+      if (selectedPlanId === '__zero__' && planChangeStopReason) body.stop_reason = planChangeStopReason;
       await apiClient(`/users/${planChangeModal.userId}`, {
         method: 'PATCH',
-        body: JSON.stringify({ plan_id: planIdToUse, subscription_period_months: planChangePeriodMonths }),
+        body: JSON.stringify(body),
       });
       loadData();
       closePlanChangeModal();
@@ -870,7 +883,23 @@ export default function UsersPage() {
                     );
                   })}
                 </div>
-                {selectedPlanId && (selectedPlanId === '__zero__' || selectedPlanId !== planChangeModal.currentPlanId) && (
+                {selectedPlanId === '__zero__' && (
+                  <div className="mt-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Durdurma nedeni <span className="text-red-500">*</span></label>
+                    <select
+                      value={planChangeStopReason}
+                      onChange={(e) => setPlanChangeStopReason(e.target.value)}
+                      required
+                      className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900"
+                    >
+                      <option value="">Seçiniz</option>
+                      {STOP_REASONS.map((r) => (
+                        <option key={r.value} value={r.value}>{r.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {selectedPlanId && selectedPlanId !== '__zero__' && selectedPlanId !== planChangeModal.currentPlanId && (
                   <div className="mt-4">
                     <label className="block text-sm font-medium text-gray-700 mb-2">Süre (başlangıç = bugün, bitiş otomatik)</label>
                     <select
@@ -909,7 +938,7 @@ export default function UsersPage() {
                 <button
                   type="button"
                   onClick={handleConfirmPlanChange}
-                  disabled={!selectedPlanId || (selectedPlanId !== '__zero__' && selectedPlanId === planChangeModal.currentPlanId) || planChangeSaving}
+                  disabled={!selectedPlanId || (selectedPlanId !== '__zero__' && selectedPlanId === planChangeModal.currentPlanId) || (selectedPlanId === '__zero__' && !planChangeStopReason) || planChangeSaving}
                   className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {planChangeSaving ? 'Kaydediliyor...' : 'Tamam'}

@@ -25,15 +25,11 @@ function TVFrame({
   title,
   onClick,
   thumbnail,
-  loadFailedLabel,
-  noBroadcastLabel,
 }: {
   previewUrl: string;
   title: string;
   onClick: () => void;
   thumbnail?: string;
-  loadFailedLabel?: string;
-  noBroadcastLabel?: string;
 }) {
   const [inView, setInView] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -58,8 +54,6 @@ function TVFrame({
 
   const showIframe = inView && previewUrl && !loadFailed;
 
-  const placeholderText = loadFailed ? (loadFailedLabel ?? noBroadcastLabel) : (noBroadcastLabel ?? loadFailedLabel);
-
   return (
     <div
       ref={containerRef}
@@ -67,25 +61,25 @@ function TVFrame({
       onClick={onClick}
     >
       <div className="relative w-full max-w-[280px] sm:max-w-sm transition-transform duration-300 group-hover:scale-[1.02] group-active:scale-[0.99]">
-        {/* Sony BRAVIA-style TV — ultra-slim bezel, premium metallic frame */}
+        {/* Gerçekçi TV — belirgin çerçeve, ayaklı model */}
         <div
-          className="relative overflow-hidden rounded-[4px]"
+          className="relative overflow-hidden rounded-lg"
           style={{
             aspectRatio: '16/9',
             boxShadow:
-              '0 0 0 1px rgba(255,255,255,0.04), 0 4px 6px -1px rgba(0,0,0,0.3), 0 10px 24px -4px rgba(0,0,0,0.4), 0 24px 48px -12px rgba(0,0,0,0.5)',
+              '0 0 0 1px rgba(0,0,0,0.5), 0 0 0 2px rgba(60,60,65,0.9), 0 8px 16px rgba(0,0,0,0.4), 0 20px 40px -10px rgba(0,0,0,0.5)',
           }}
         >
-          {/* Ultra-slim bezel — charcoal aluminum look */}
+          {/* TV çerçevesi — kalın, mat siyah/gri bezel */}
           <div
-            className="absolute inset-0 rounded-[4px]"
+            className="absolute inset-0 rounded-lg"
             style={{
-              background: 'linear-gradient(145deg, #2a2d32 0%, #1c1e22 50%, #25282d 100%)',
-              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), inset 0 -1px 0 rgba(0,0,0,0.3)',
+              background: 'linear-gradient(180deg, #2d2f33 0%, #1e2024 30%, #181a1e 70%, #1a1c20 100%)',
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.08), inset 0 0 0 1px rgba(255,255,255,0.03)',
             }}
           />
-          {/* Screen area — minimal inset for frameless feel */}
-          <div className="absolute inset-[4px] rounded-[2px] overflow-hidden bg-black">
+          {/* Ekran alanı — gerçek TV’deki gibi içeri çekik */}
+          <div className="absolute inset-[8px] rounded overflow-hidden bg-black">
             {showIframe ? (
               <iframe
                 src={previewUrl}
@@ -95,39 +89,34 @@ function TVFrame({
                 onError={() => setLoadFailed(true)}
               />
             ) : (
-              <div className="w-full h-full flex flex-col items-center justify-center bg-zinc-950 text-zinc-500 text-sm px-2 text-center gap-2">
+              <div className="w-full h-full bg-black">
                 {thumbnail ? (
                   <img src={thumbnail} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" />
-                ) : (
-                  <>
-                    <svg className="w-12 h-12 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                    </svg>
-                    <span>{placeholderText || '…'}</span>
-                  </>
-                )}
+                ) : null}
               </div>
             )}
           </div>
-          {/* Subtle screen reflection on bottom bezel */}
-          <div
-            className="absolute bottom-0 left-[15%] right-[15%] h-[3px] rounded-b-[2px] pointer-events-none opacity-40"
-            style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent)' }}
-          />
-          <div className="absolute inset-0 pointer-events-none rounded-[4px] group-hover:ring-2 group-hover:ring-white/15 transition-all" />
+          <div className="absolute inset-0 pointer-events-none rounded-lg group-hover:ring-2 group-hover:ring-white/15 transition-all" />
         </div>
-        {/* Standing pedestal — Sony "slice" style, wide base */}
-        <div className="flex justify-center -mt-0.5">
+        {/* TV ayağı — merkezi pedastal, geniş taban */}
+        <div className="flex justify-center -mt-px">
           <div
-            className="relative w-[55%] min-w-[70px] h-8 rounded-b-lg"
-            style={{
-              background: 'linear-gradient(180deg, #2a2d32 0%, #1a1c20 40%, #15171a 100%)',
-              boxShadow: 'inset 0 2px 4px rgba(255,255,255,0.03), 0 4px 12px rgba(0,0,0,0.4)',
-            }}
+            className="relative flex flex-col items-center"
+            style={{ width: '65%', minWidth: 80 }}
           >
             <div
-              className="absolute inset-x-2 top-0 h-1 rounded-full opacity-60"
-              style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent)' }}
+              className="w-full h-3 rounded-t-sm"
+              style={{
+                background: 'linear-gradient(180deg, #25272b 0%, #1c1e22 100%)',
+                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06)',
+              }}
+            />
+            <div
+              className="w-[85%] h-6 rounded-b-md"
+              style={{
+                background: 'linear-gradient(180deg, #1e2024 0%, #16181c 50%, #121418 100%)',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)',
+              }}
             />
           </div>
         </div>
@@ -348,25 +337,17 @@ export function HomePage({ localePath }: HomePageProps) {
             {t('home_channels_desc')}
           </p>
 
-          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-8 md:gap-10">
-            {channels.map((ch, index) => {
-              const isLastAndOdd = index === channels.length - 1 && channels.length % 2 === 1;
-              return (
-                <div
-                  key={ch.slug}
-                  className={isLastAndOdd ? 'col-span-2 flex justify-center justify-self-center w-[calc(50%-8px)] sm:w-auto sm:col-span-1 sm:flex-none' : ''}
-                >
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 md:gap-10 place-items-center">
+            {channels.map((ch) => (
+                <div key={ch.slug} className="flex justify-center w-full max-w-[280px] sm:max-w-sm">
                   <TVFrame
                     previewUrl={getPreviewUrl(ch, localePath)}
                     title={ch.title}
                     onClick={() => setPreviewChannel(ch)}
                     thumbnail={ch.thumbnail}
-                    loadFailedLabel={t('home_channel_preview_unavailable')}
-                    noBroadcastLabel={t('home_channel_no_broadcast')}
                   />
                 </div>
-              );
-            })}
+            ))}
           </div>
 
           {previewChannel && (

@@ -506,16 +506,7 @@ export default function DisplayPage() {
   if (viewAllowed === false) {
     return (
       <EmbedFitWrapper>
-        <div className="fixed inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white p-6 text-center">
-          <h2 className="text-xl md:text-3xl font-bold mb-3">{t('display_blocked_multiple_devices_title')}</h2>
-          <p className="text-white/80 mb-6 max-w-lg">{t('display_blocked_multiple_devices_message')}</p>
-          <Link
-            href={localePath('/pricing')}
-            className="px-6 py-3 rounded-xl bg-emerald-500 text-white font-semibold hover:bg-emerald-400 transition-colors"
-          >
-            {t('display_blocked_upgrade_plan')}
-          </Link>
-        </div>
+        <div className="fixed inset-0 bg-black" />
       </EmbedFitWrapper>
     );
   }
