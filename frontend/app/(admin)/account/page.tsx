@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api';
 import { useTranslation } from '@/lib/i18n/useTranslation';
+import { InvoiceModal } from '@/components/InvoiceModal';
 
 interface AccountData {
   user: {
@@ -423,54 +424,11 @@ export default function AccountPage() {
 
         {/* Fatura detay modal */}
         {(invoiceLoading || invoiceModal) && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => !invoiceLoading && setInvoiceModal(null)}>
-            <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 text-left" onClick={e => e.stopPropagation()}>
-              {invoiceLoading ? (
-                <p className="text-slate-600">{t('common_loading')}</p>
-              ) : invoiceModal ? (
-                <>
-                  <h3 className="text-lg font-semibold text-slate-900 mb-4">{t('invoice_title')}</h3>
-                  {invoiceModal.company && (
-                    <div className="mb-4 pb-4 border-b border-slate-200">
-                      <div className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">{t('invoice_from')}</div>
-                      <div className="text-slate-800 font-medium">{invoiceModal.company.company_name}</div>
-                      {invoiceModal.company.company_address && <div className="text-slate-600 text-sm">{invoiceModal.company.company_address}</div>}
-                      <div className="flex flex-wrap gap-x-3 gap-y-0 text-slate-600 text-sm mt-0.5">
-                        {invoiceModal.company.company_phone && <span>{invoiceModal.company.company_phone}</span>}
-                        {invoiceModal.company.company_email && <span>{invoiceModal.company.company_email}</span>}
-                      </div>
-                    </div>
-                  )}
-                  <dl className="space-y-2 text-sm">
-                    <div><dt className="text-slate-500">{t('invoice_number')}</dt><dd className="font-medium text-slate-800">{invoiceModal.invoice_number}</dd></div>
-                    <div><dt className="text-slate-500">{t('invoice_date')}</dt><dd className="text-slate-800">{formatDate(invoiceModal.payment_date, locale)}</dd></div>
-                    <div className="pt-2 mt-2 border-t border-slate-200">
-                      <dt className="text-slate-500 font-medium">{t('invoice_bill_to')}</dt>
-                      <dd className="text-slate-800 mt-1">{invoiceModal.business_name || '—'}</dd>
-                      {invoiceModal.customer_email && <dd className="text-slate-600 text-xs mt-0.5">{invoiceModal.customer_email}</dd>}
-                    </div>
-                    <div><dt className="text-slate-500">{t('invoice_plan')}</dt><dd className="text-slate-800">{invoiceModal.plan_name || '—'}</dd></div>
-                    <div><dt className="text-slate-500">{t('invoice_amount')}</dt><dd className="text-slate-800 font-semibold">{invoiceModal.amount.toFixed(2)} {(invoiceModal.currency || 'cad').toUpperCase()}</dd></div>
-                    <div><dt className="text-slate-500">{t('invoice_status')}</dt><dd className="capitalize text-slate-800">{invoiceModal.status}</dd></div>
-                  </dl>
-                  {invoiceModal.company && (invoiceModal.company.footer_legal || invoiceModal.company.footer_tax_id) && (
-                    <div className="mt-4 pt-4 border-t border-slate-100 text-xs text-slate-500">
-                      {invoiceModal.company.footer_legal && <div>{invoiceModal.company.footer_legal}</div>}
-                      {invoiceModal.company.footer_tax_id && <div>{invoiceModal.company.footer_tax_id}</div>}
-                    </div>
-                  )}
-                  <div className="mt-6 flex gap-2 justify-end">
-                    <button type="button" onClick={() => window.print()} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                      {t('invoice_download') || 'Yazdır / PDF indir'}
-                    </button>
-                    <button type="button" onClick={() => setInvoiceModal(null)} className="px-4 py-2 bg-slate-200 text-slate-800 rounded-lg hover:bg-slate-300">
-                      {t('btn_close')}
-                    </button>
-                  </div>
-                </>
-              ) : null}
-            </div>
-          </div>
+          <InvoiceModal
+            data={invoiceModal}
+            loading={invoiceLoading}
+            onClose={() => setInvoiceModal(null)}
+          />
         )}
       </section>
 
