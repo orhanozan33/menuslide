@@ -10,6 +10,7 @@ import { resolveMediaUrl } from '@/lib/resolveMediaUrl';
 import ContentLibrary from '@/components/ContentLibrary';
 import { VideoRotationPlayer } from '@/components/display/VideoRotationPlayer';
 import { ImageRotationPlayer, type ImageRotationItem } from '@/components/display/ImageRotationPlayer';
+import { BlockOverlayKonvaEditor } from '@/components/BlockOverlayKonvaEditor';
 // Resim üzerindeki yazı katmanı tipi
 interface TextLayer {
   id: string;
@@ -423,6 +424,31 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
   const previewResizeLayersRef = useRef<TextLayer[] | null>(null);
   const overlayImagesRef = useRef<OverlayImageLayer[]>([]);
   const imageScaleDuringResizeRef = useRef<{ scaleX: number; scaleY: number }>({ scaleX: 1, scaleY: 1 });
+  /** Konva overlay editörü için container boyutu (blok önizleme alanı) */
+  const overlayKonvaContainerRef = useRef<HTMLDivElement>(null);
+  const [overlayKonvaSize, setOverlayKonvaSize] = useState({ w: 400, h: 225 });
+  useEffect(() => {
+    const el = overlayKonvaContainerRef.current;
+    if (!el) return;
+    const update = () => setOverlayKonvaSize({ w: el.offsetWidth, h: el.offsetHeight });
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    update();
+    return () => ro.disconnect();
+  }, []);
+  /** Resim sırası modalı yazı editörü için Konva boyutu */
+  const imageRotationTextKonvaRef = useRef<HTMLDivElement>(null);
+  const [imageRotationTextKonvaSize, setImageRotationTextKonvaSize] = useState({ w: 400, h: 225 });
+  useEffect(() => {
+    if (editingImageRotationTextIndex === null) return;
+    const el = imageRotationTextKonvaRef.current;
+    if (!el) return;
+    const update = () => setImageRotationTextKonvaSize({ w: el.offsetWidth, h: el.offsetHeight });
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    update();
+    return () => ro.disconnect();
+  }, [editingImageRotationTextIndex]);
   /** Önizlemede fiyat etiketi sürükleme bitince kaydetmek için: hangi content + son konum */
   const previewBadgeDragRef = useRef<{ contentId: string; positionX: number; positionY: number } | null>(null);
   /** Video döngüsü önizlemede hangi videonun oynadığı (contentId -> phase + index) – yazı katmanlarını buna göre gösteririz */
@@ -1750,16 +1776,17 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
     }
   };
 
-  // Yeni yazı katmanı ekle - "Resme Yazı Ekle" her tıklamada yeni satır; canvas'a tıklayınca o konumda
-  const addTextLayer = (clickX?: number, clickY?: number) => {
+  // Yeni yazı katmanı ekle — tasarım editörü gibi: varsayılan pozisyon ve metin
+  const addTextLayer = (clickX?: number, clickY?: number, overrides?: Partial<TextLayer>) => {
     const idx = textLayers.length + 1;
-    const x = clickX != null ? clickX : 50;
-    const y = clickY != null ? clickY : 25 + (idx - 1) * 20; // Üstten aşağı dizilir
+    // Tasarım editörü: (80,80) 800x450'de ≈ %10, %18 — merkeze yakın sol üst
+    const x = clickX != null ? clickX : 15;
+    const y = clickY != null ? clickY : 20 + (idx - 1) * 15;
     const newLayer: TextLayer = {
       id: `layer-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      text: `${t('editor_text_default')} ${idx}`,
-      color: idx % 2 === 1 ? '#FFFFFF' : '#FFD700',
-      size: 24,
+      text: t('editor_new_text'),
+      color: '#FFFFFF',
+      size: 28,
       x,
       y,
       fontWeight: 'bold',
@@ -1767,14 +1794,19 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
       fontFamily: 'Arial',
       iconPosition: 'before',
       isDiscountBlock: false,
+      ...overrides,
     };
     setTextLayers([...textLayers, newLayer]);
     setSelectedTextLayerId(newLayer.id);
   };
 
-  // Resme Yazı Ekle butonu: sadece modal aç, kullanıcı canvas'a tıklayarak kendi ekler
+  // Resme Yazı Ekle — tasarım editörü gibi: doğrudan canvas'a yazı ekler (modal açmaz)
   const handleResmeYaziEkle = () => {
-    setShowImageTextModal(true);
+    if (!selectedBlockContent || (selectedBlockContent.content_type !== 'image' && selectedBlockContent.content_type !== 'video')) {
+      alert(`⚠️ ${t('editor_select_block_first')}`);
+      return;
+    }
+    addTextLayer(10, 18); // tasarım editörü (80,80)/800x450 ≈ %10,%18
   };
 
   // Kütüphaneden seçilen resmi önizleme/düzenleme alanına taşı — Kaydet ile bloğa eklenir
@@ -2588,15 +2620,6 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
     }
   };
 
-  // Canvas'a (resme) tıklayınca o noktada yeni yazı ekle
-  const handleCanvasClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!textPreviewRef.current) return;
-    const rect = textPreviewRef.current.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
-    addTextLayer(x, y);
-  };
-
   // Yazı katmanını sil
   const removeTextLayer = (layerId: string) => {
     setTextLayers(textLayers.filter(l => l.id !== layerId));
@@ -2975,7 +2998,7 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
                     onClick={() => {
                       if (!selectedBlock) { alert(`⚠️ ${t('editor_select_block_first')}`); return; }
                       if (selectedBlockContent?.content_type === 'image' || selectedBlockContent?.content_type === 'video') {
-                        addTextLayer(50, 50);
+                        addTextLayer(10, 18);
                       } else {
                         alert(`⚠️ ${t('editor_select_block_first')}`);
                       }
@@ -3154,7 +3177,7 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
               {selectedBlock && (selectedBlockContent?.content_type === 'image' || selectedBlockContent?.content_type === 'video') && (
                 <div className="flex flex-wrap gap-1.5">
                   <button
-                    onClick={() => addTextLayer(50, 50)}
+                    onClick={() => addTextLayer(10, 18)}
                     title={t('editor_add_text_hint')}
                     className="px-2 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded text-[11px] font-semibold flex items-center gap-1"
                   >
@@ -3685,7 +3708,7 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
                                     ? (rotState.phase === 'first' ? (previewEditingTextLayers[videoContent.id] || savedTextLayers) : (previewEditingTextLayers[rotKey] || rotationItems[rotState.index]?.textLayers || []))
                                     : (previewEditingTextLayers[videoContent.id] || savedTextLayers));
                                 return (
-                                  <div className="absolute inset-0 w-full h-full overflow-hidden">
+                                  <div ref={isEditingThisBlockVideo ? overlayKonvaContainerRef : undefined} className="absolute inset-0 w-full h-full overflow-hidden">
                                     <div className="absolute inset-0 pointer-events-none" style={{ transformOrigin: pos }}>
                                       {useRotation ? (
                                         <VideoRotationPlayer
@@ -3710,154 +3733,72 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
                                         />
                                       )}
                                     </div>
-                                    {(isEditingThisBlockVideo ? overlayImages : savedOverlayImages).map((o: any) => {
-                                      const isSelected = isEditingThisBlockVideo && selectedOverlayImageId === o.id;
-                                      const handleResizeStart = (handle: string) => (e: React.MouseEvent) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        const container = (e.currentTarget as HTMLElement).closest('.absolute.inset-0');
-                                        if (!container || !videoContent?.id) return;
-                                        const rect = container.getBoundingClientRect();
-                                        setPreviewOverlayResizeState({
-                                          contentId: videoContent.id,
-                                          overlayId: o.id,
-                                          containerEl: container as HTMLElement,
-                                          handle,
-                                          startSize: o.size || 28,
-                                          startX: ((e.clientX - rect.left) / rect.width) * 100,
-                                          startY: ((e.clientY - rect.top) / rect.height) * 100,
-                                        });
-                                      };
-                                      return (
-                                        <div
-                                          key={o.id}
-                                          className={`absolute z-30 select-none ${isEditingThisBlockVideo ? 'cursor-grab active:cursor-grabbing' : ''}`}
-                                          style={{
-                                            left: `${o.x}%`,
-                                            top: `${o.y}%`,
-                                            width: `${o.size}%`,
-                                            aspectRatio: '1',
-                                            transform: 'translate(-50%, -50%)',
-                                            borderRadius: o.shape === 'round' ? '50%' : o.shape === 'rounded' ? '12px' : 0,
-                                            boxShadow: o.shape === 'shadow' ? '0 4px 12px rgba(0,0,0,0.35)' : undefined,
-                                            overflow: 'hidden',
-                                            pointerEvents: isEditingThisBlockVideo ? 'auto' : 'none',
-                                          }}
-                                        >
-                                          {isSelected && (
-                                            <>
-                                              <div className="absolute -inset-2 border-2 border-blue-500 rounded pointer-events-none z-10" />
-                                              {['nw','ne','sw','se'].map((h) => (
-                                                <div key={h} data-resize-handle className="absolute w-2.5 h-2.5 bg-white border-2 border-blue-500 rounded-sm cursor-nwse-resize z-20 shadow" style={{
-                                                  top: h.includes('n') ? '-10px' : 'auto',
-                                                  bottom: h.includes('s') ? '-10px' : 'auto',
-                                                  left: h.includes('w') ? '-10px' : 'auto',
-                                                  right: h.includes('e') ? '-10px' : 'auto',
-                                                }} onMouseDown={handleResizeStart(h)} />
-                                              ))}
-                                            </>
-                                          )}
+                                    {isEditingThisBlockVideo ? (
+                                      <div className="absolute inset-0 z-40">
+                                        <BlockOverlayKonvaEditor
+                                          width={overlayKonvaSize.w}
+                                          height={overlayKonvaSize.h}
+                                          textLayers={activeTextLayers}
+                                          overlayImages={overlayImages}
+                                          onTextLayersChange={(layers) => setTextLayers(layers.map((l) => ({ ...l, fontWeight: l.fontWeight ?? 'bold', fontStyle: l.fontStyle ?? 'normal', fontFamily: l.fontFamily ?? 'Arial' })))}
+                                          onOverlayImagesChange={setOverlayImages}
+                                          selectedTextLayerId={selectedTextLayerId}
+                                          selectedOverlayImageId={selectedOverlayImageId}
+                                          onSelectTextLayer={setSelectedTextLayerId}
+                                          onSelectOverlayImage={setSelectedOverlayImageId}
+                                        />
+                                      </div>
+                                    ) : (
+                                      <>
+                                        {savedOverlayImages.map((o: any) => (
                                           <div
-                                            className={`w-full h-full ${isSelected ? 'ring-2 ring-blue-400 ring-offset-1 rounded' : ''}`}
-                                            onClick={(e) => { e.stopPropagation(); if (isEditingThisBlockVideo) setSelectedOverlayImageId(o.id); }}
-                                            onMouseDown={(e) => {
-                                              if ((e.target as HTMLElement).closest('[data-resize-handle]')) return;
-                                              e.preventDefault();
-                                              e.stopPropagation();
-                                              const container = (e.currentTarget as HTMLElement).closest('.absolute.inset-0');
-                                              if (!container || !videoContent?.id) return;
-                                              setPreviewOverlayDragState({ contentId: videoContent.id, overlayId: o.id, containerEl: container as HTMLElement });
-                                            }}
-                                          >
-                                            <img src={o.image_url} alt="" className="w-full h-full object-cover pointer-events-none" />
-                                          </div>
-                                        </div>
-                                      );
-                                    })}
-                                    {activeTextLayers.map((layer: any) => {
-                                      const isDisc = !!layer.isDiscountBlock;
-                                      const iconB = layer.icon && layer.iconPosition !== 'after';
-                                      const iconA = layer.icon && layer.iconPosition === 'after';
-                                      const isSelected = isEditingThisBlockVideo && selectedTextLayerId === layer.id;
-                                      const phase = useRotation && rotState ? rotState.phase : 'first';
-                                      const rotIdx = useRotation && rotState ? rotState.index : undefined;
-                                      const handleResizeStart = (handle: string) => (e: React.MouseEvent) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        const container = (e.currentTarget as HTMLElement).closest('.absolute.inset-0');
-                                        if (!container || !videoContent?.id) return;
-                                        previewResizeLayersRef.current = (activeTextLayers as any[]).map((l: any) => ({ ...l, fontFamily: l.fontFamily || 'Arial' }));
-                                        const rect = container.getBoundingClientRect();
-                                        setPreviewResizeState({
-                                          contentId: videoContent.id,
-                                          layerId: layer.id,
-                                          containerEl: container as HTMLElement,
-                                          handle,
-                                          startSize: layer.size || 24,
-                                          startX: ((e.clientX - rect.left) / rect.width) * 100,
-                                          startY: ((e.clientY - rect.top) / rect.height) * 100,
-                                          phase,
-                                          rotationIndex: rotIdx,
-                                        });
-                                      };
-                                      return (
-                                        <div
-                                          key={layer.id}
-                                          className={`absolute z-30 select-none ${isDisc ? getDiscountBlockClasses(layer) + ' px-2 py-1 shadow border' : ''}`}
-                                          style={{
-                                            left: `${layer.x}%`,
-                                            top: `${layer.y}%`,
-                                            transform: 'translate(-50%, -50%)',
-                                            pointerEvents: 'auto',
-                                          }}
-                                        >
-                                          {isSelected && (
-                                            <>
-                                              <div className="absolute -inset-2 border-2 border-blue-500 rounded pointer-events-none" />
-                                              {['nw','ne','sw','se'].map((h) => (
-                                                <div key={h} data-resize-handle className="absolute w-2.5 h-2.5 bg-white border-2 border-blue-500 rounded-sm cursor-nwse-resize z-40 shadow" style={{
-                                                  top: h.includes('n') ? '-10px' : 'auto',
-                                                  bottom: h.includes('s') ? '-10px' : 'auto',
-                                                  left: h.includes('w') ? '-10px' : 'auto',
-                                                  right: h.includes('e') ? '-10px' : 'auto',
-                                                }} onMouseDown={handleResizeStart(h)} />
-                                              ))}
-                                            </>
-                                          )}
-                                          <div
-                                            className={`cursor-grab active:cursor-grabbing ${isSelected ? 'ring-2 ring-blue-400 ring-offset-1 rounded' : ''}`}
+                                            key={o.id}
+                                            className="absolute z-30 select-none pointer-events-none"
                                             style={{
-                                              ...(isDisc ? getDiscountBlockStyles(layer) : { color: layer.color }),
-                                              fontSize: `${layer.size * 0.4}px`,
-                                              fontWeight: layer.fontWeight,
-                                              fontStyle: layer.fontStyle,
-                                              fontFamily: layer.fontFamily || 'Arial',
-                                              textDecoration: layer.textDecoration || 'none',
-                                              textShadow: isDisc ? '0 1px 2px rgba(0,0,0,0.3)' : '1px 1px 2px rgba(0,0,0,0.8)',
-                                              whiteSpace: 'pre' as const,
-                                              textAlign: (layer.textAlign || 'center') as 'left' | 'center' | 'right',
-                                            }}
-                                            onClick={(e) => { e.stopPropagation(); if (isEditingThisBlockVideo) setSelectedTextLayerId(layer.id); }}
-                                            onMouseDown={(e) => {
-                                              if ((e.target as HTMLElement).closest('[data-resize-handle]')) return;
-                                              e.preventDefault();
-                                              e.stopPropagation();
-                                              const container = (e.currentTarget as HTMLElement).closest('.absolute.inset-0');
-                                              if (!container || !videoContent?.id) return;
-                                              const layers = (activeTextLayers as any[]).map((l: any) => ({ ...l, fontFamily: l.fontFamily || 'Arial' }));
-                                              const editKey = phase === 'rotation' && rotIdx != null ? `${videoContent.id}-rot-${rotIdx}` : videoContent.id;
-                                              setPreviewEditingTextLayers((prev) => ({ ...prev, [editKey]: layers }));
-                                              previewDragLayersRef.current = layers;
-                                              setPreviewDragState({ contentId: videoContent.id, layerId: layer.id, containerEl: container as HTMLElement, phase, rotationIndex: rotIdx });
+                                              left: `${o.x}%`,
+                                              top: `${o.y}%`,
+                                              width: `${o.size}%`,
+                                              aspectRatio: '1',
+                                              transform: 'translate(-50%, -50%)',
+                                              borderRadius: o.shape === 'round' ? '50%' : o.shape === 'rounded' ? '12px' : 0,
+                                              boxShadow: o.shape === 'shadow' ? '0 4px 12px rgba(0,0,0,0.35)' : undefined,
+                                              overflow: 'hidden',
                                             }}
                                           >
-                                            {iconB && <span className="mr-0.5">{layer.icon}</span>}
-                                            {layer.text}
-                                            {iconA && <span className="ml-0.5">{layer.icon}</span>}
+                                            <img src={o.image_url} alt="" className="w-full h-full object-cover" />
                                           </div>
-                                        </div>
-                                      );
-                                    })}
+                                        ))}
+                                        {activeTextLayers.map((layer: any) => {
+                                          const isDisc = !!layer.isDiscountBlock;
+                                          const iconB = layer.icon && layer.iconPosition !== 'after';
+                                          const iconA = layer.icon && layer.iconPosition === 'after';
+                                          return (
+                                            <div
+                                              key={layer.id}
+                                              className={`absolute z-30 select-none pointer-events-none ${isDisc ? getDiscountBlockClasses(layer) + ' px-2 py-1 shadow border' : ''}`}
+                                              style={{
+                                                left: `${layer.x}%`,
+                                                top: `${layer.y}%`,
+                                                transform: 'translate(-50%, -50%)',
+                                                ...(isDisc ? getDiscountBlockStyles(layer) : { color: layer.color }),
+                                                fontSize: `${layer.size * 0.4}px`,
+                                                fontWeight: layer.fontWeight,
+                                                fontStyle: layer.fontStyle,
+                                                fontFamily: layer.fontFamily || 'Arial',
+                                                textDecoration: layer.textDecoration || 'none',
+                                                textShadow: isDisc ? '0 1px 2px rgba(0,0,0,0.3)' : '1px 1px 2px rgba(0,0,0,0.8)',
+                                                whiteSpace: 'pre' as const,
+                                                textAlign: (layer.textAlign || 'center') as 'left' | 'center' | 'right',
+                                              }}
+                                            >
+                                              {iconB && <span className="mr-0.5">{layer.icon}</span>}
+                                              {layer.text}
+                                              {iconA && <span className="ml-0.5">{layer.icon}</span>}
+                                            </div>
+                                          );
+                                        })}
+                                      </>
+                                    )}
                                   </div>
                                 );
                               })()}
@@ -3910,7 +3851,7 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
                                   });
                                 };
                                 return (
-                                  <div className="absolute inset-0 w-full h-full overflow-hidden">
+                                  <div ref={isEditingThisBlock ? overlayKonvaContainerRef : undefined} className="absolute inset-0 w-full h-full overflow-hidden">
                                     <div className="absolute inset-0 pointer-events-none" style={{ transform: `scale(${scaleX}, ${scaleY})`, transformOrigin: pos }}>
                                     {useImageRotation ? (
                                       <ImageRotationPlayer
@@ -3949,159 +3890,72 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
                                     />
                                     )}
                                     </div>
-                                    {/* Overlay resimleri (kütüphaneden) — tasarım editörü gibi sürüklenebilir, resize tutamakları */}
-                                    {((previewOverlayDragState?.contentId === imageContent.id && overlayDragLiveOverlays) ? overlayDragLiveOverlays : (isEditingThisBlock ? overlayImages : savedOverlayImages)).map((o: any) => {
-                                      const isSelected = isEditingThisBlock && selectedOverlayImageId === o.id;
-                                      const handleResizeStart = (handle: string) => (e: React.MouseEvent) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        const container = (e.currentTarget as HTMLElement).closest('.absolute.inset-0');
-                                        if (!container || !imageContent?.id) return;
-                                        const rect = container.getBoundingClientRect();
-                                        setPreviewOverlayResizeState({
-                                          contentId: imageContent.id,
-                                          overlayId: o.id,
-                                          containerEl: container as HTMLElement,
-                                          handle,
-                                          startSize: o.size || 28,
-                                          startX: ((e.clientX - rect.left) / rect.width) * 100,
-                                          startY: ((e.clientY - rect.top) / rect.height) * 100,
-                                        });
-                                      };
-                                      return (
-                                        <div
-                                          key={o.id}
-                                          className="absolute z-30 select-none cursor-grab active:cursor-grabbing"
-                                          style={{
-                                            left: `${o.x}%`,
-                                            top: `${o.y}%`,
-                                            width: `${o.size}%`,
-                                            aspectRatio: '1',
-                                            transform: 'translate(-50%, -50%)',
-                                            borderRadius: o.shape === 'round' ? '50%' : o.shape === 'rounded' ? '12px' : 0,
-                                            boxShadow: o.shape === 'shadow' ? '0 4px 12px rgba(0,0,0,0.35)' : undefined,
-                                            overflow: 'hidden',
-                                            pointerEvents: 'auto',
-                                          }}
-                                        >
-                                          {isSelected && (
-                                            <>
-                                              <div className="absolute -inset-2 border-2 border-blue-500 rounded pointer-events-none z-10" />
-                                              {['nw','ne','sw','se'].map((h) => (
-                                                <div key={h} data-resize-handle className="absolute w-2.5 h-2.5 bg-white border-2 border-blue-500 rounded-sm cursor-nwse-resize z-20 shadow" style={{
-                                                  top: h.includes('n') ? '-10px' : 'auto',
-                                                  bottom: h.includes('s') ? '-10px' : 'auto',
-                                                  left: h.includes('w') ? '-10px' : 'auto',
-                                                  right: h.includes('e') ? '-10px' : 'auto',
-                                                }} onMouseDown={handleResizeStart(h)} />
-                                              ))}
-                                            </>
-                                          )}
+                                    {isEditingThisBlock ? (
+                                      <div className="absolute inset-0 z-40">
+                                        <BlockOverlayKonvaEditor
+                                          width={overlayKonvaSize.w}
+                                          height={overlayKonvaSize.h}
+                                          textLayers={activeImageTextLayersSm}
+                                          overlayImages={overlayImages}
+                                          onTextLayersChange={(layers) => setTextLayers(layers.map((l) => ({ ...l, fontWeight: l.fontWeight ?? 'bold', fontStyle: l.fontStyle ?? 'normal', fontFamily: l.fontFamily ?? 'Arial' })))}
+                                          onOverlayImagesChange={setOverlayImages}
+                                          selectedTextLayerId={selectedTextLayerId}
+                                          selectedOverlayImageId={selectedOverlayImageId}
+                                          onSelectTextLayer={setSelectedTextLayerId}
+                                          onSelectOverlayImage={setSelectedOverlayImageId}
+                                        />
+                                      </div>
+                                    ) : (
+                                      <>
+                                        {savedOverlayImages.map((o: any) => (
                                           <div
-                                            className={`w-full h-full ${isSelected ? 'ring-2 ring-blue-400 ring-offset-1 rounded' : ''}`}
-                                            onClick={(e) => { e.stopPropagation(); setSelectedOverlayImageId(o.id); }}
-                                            onMouseDown={(e) => {
-                                              if ((e.target as HTMLElement).closest('[data-resize-handle]')) return;
-                                              e.preventDefault();
-                                              e.stopPropagation();
-                                              const container = (e.currentTarget as HTMLElement).closest('.absolute.inset-0');
-                                              if (!container || !imageContent?.id) return;
-                                              const list = isEditingThisBlock ? overlayImages : savedOverlayImages;
-                                              overlayImagesRef.current = [...list];
-                                              setOverlayDragLiveOverlays([...list]);
-                                              setPreviewOverlayDragState({ contentId: imageContent.id, overlayId: o.id, containerEl: container as HTMLElement });
-                                            }}
-                                          >
-                                            <img src={o.image_url} alt="" className="w-full h-full object-cover pointer-events-none" />
-                                          </div>
-                                        </div>
-                                      );
-                                    })}
-                                    {/* Çoklu yazı katmanları (ikon + indirim bloğu) - sürüklenebilir, seçildiğinde resize */}
-                                    {activeImageTextLayersSm.map((layer: any) => {
-                                      const isDisc = !!layer.isDiscountBlock;
-                                      const iconB = layer.icon && layer.iconPosition !== 'after';
-                                      const iconA = layer.icon && layer.iconPosition === 'after';
-                                      const isSelected = isEditingThisBlock && selectedTextLayerId === layer.id;
-                                      const phase = useImageRotation && imgRotState ? imgRotState.phase : 'first';
-                                      const rotIdx = useImageRotation && imgRotState ? imgRotState.index : undefined;
-                                      const handleResizeStart = (handle: string) => (e: React.MouseEvent) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        const container = (e.currentTarget as HTMLElement).closest('.absolute.inset-0');
-                                        if (!container || !imageContent?.id) return;
-                                        previewResizeLayersRef.current = (activeImageTextLayersSm as TextLayer[]).map((l: any) => ({ ...l, fontFamily: l.fontFamily || 'Arial' }));
-                                        const rect = container.getBoundingClientRect();
-                                        setPreviewResizeState({
-                                          contentId: imageContent.id,
-                                          layerId: layer.id,
-                                          containerEl: container as HTMLElement,
-                                          handle,
-                                          startSize: layer.size || 24,
-                                          startX: ((e.clientX - rect.left) / rect.width) * 100,
-                                          startY: ((e.clientY - rect.top) / rect.height) * 100,
-                                          phase,
-                                          rotationIndex: rotIdx,
-                                        });
-                                      };
-                                      return (
-                                        <div
-                                          key={layer.id}
-                                          className={`absolute z-30 select-none cursor-grab active:cursor-grabbing ${isDisc ? getDiscountBlockClasses(layer) + ' px-2 py-1 shadow border' : ''}`}
-                                          style={{
-                                            left: `${layer.x}%`,
-                                            top: `${layer.y}%`,
-                                            transform: 'translate(-50%, -50%)',
-                                            pointerEvents: 'auto',
-                                          }}
-                                        >
-                                          {isSelected && (
-                                            <>
-                                              <div className="absolute -inset-2 border-2 border-blue-500 rounded pointer-events-none" />
-                                              {['nw','ne','sw','se'].map((h) => (
-                                                <div key={h} data-resize-handle className="absolute w-2.5 h-2.5 bg-white border-2 border-blue-500 rounded-sm cursor-nwse-resize z-40 shadow" style={{
-                                                  top: h.includes('n') ? '-10px' : 'auto',
-                                                  bottom: h.includes('s') ? '-10px' : 'auto',
-                                                  left: h.includes('w') ? '-10px' : 'auto',
-                                                  right: h.includes('e') ? '-10px' : 'auto',
-                                                }} onMouseDown={handleResizeStart(h)} />
-                                              ))}
-                                            </>
-                                          )}
-                                          <div
-                                            className={`cursor-grab active:cursor-grabbing ${isSelected ? 'ring-2 ring-blue-400 ring-offset-1 rounded' : ''}`}
+                                            key={o.id}
+                                            className="absolute z-30 select-none pointer-events-none"
                                             style={{
-                                              ...(isDisc ? getDiscountBlockStyles(layer) : { color: layer.color }),
-                                              fontSize: `${layer.size * 0.4}px`,
-                                              fontWeight: layer.fontWeight,
-                                              fontStyle: layer.fontStyle,
-                                              fontFamily: layer.fontFamily || 'Arial',
-                                              textDecoration: layer.textDecoration || 'none',
-                                              textShadow: isDisc ? '0 1px 2px rgba(0,0,0,0.3)' : '1px 1px 2px rgba(0,0,0,0.8)',
-                                              whiteSpace: 'pre' as const,
-                                              textAlign: (layer.textAlign || 'center') as 'left' | 'center' | 'right',
-                                            }}
-                                            onClick={(e) => { e.stopPropagation(); if (isEditingThisBlock) setSelectedTextLayerId(layer.id); }}
-                                            onMouseDown={(e) => {
-                                              if ((e.target as HTMLElement).closest('[data-resize-handle]')) return;
-                                              e.preventDefault();
-                                              e.stopPropagation();
-                                              const container = (e.currentTarget as HTMLElement).closest('.absolute.inset-0');
-                                              if (!container || !imageContent?.id) return;
-                                              const layers = (activeImageTextLayersSm as any[]).map((l: any) => ({ ...l, fontFamily: l.fontFamily || 'Arial' }));
-                                              const editKey = phase === 'rotation' && rotIdx != null ? `${imageContent.id}-rot-${rotIdx}` : imageContent.id;
-                                              setPreviewEditingTextLayers((prev) => ({ ...prev, [editKey]: layers }));
-                                              previewDragLayersRef.current = layers;
-                                              setPreviewDragState({ contentId: imageContent.id, layerId: layer.id, containerEl: container as HTMLElement, phase, rotationIndex: rotIdx });
+                                              left: `${o.x}%`,
+                                              top: `${o.y}%`,
+                                              width: `${o.size}%`,
+                                              aspectRatio: '1',
+                                              transform: 'translate(-50%, -50%)',
+                                              borderRadius: o.shape === 'round' ? '50%' : o.shape === 'rounded' ? '12px' : 0,
+                                              boxShadow: o.shape === 'shadow' ? '0 4px 12px rgba(0,0,0,0.35)' : undefined,
+                                              overflow: 'hidden',
                                             }}
                                           >
-                                            {iconB && <span className="mr-0.5">{layer.icon}</span>}
-                                            {layer.text}
-                                            {iconA && <span className="ml-0.5">{layer.icon}</span>}
+                                            <img src={o.image_url} alt="" className="w-full h-full object-cover" />
                                           </div>
-                                        </div>
-                                      );
-                                    })}
+                                        ))}
+                                        {activeImageTextLayersSm.map((layer: any) => {
+                                          const isDisc = !!layer.isDiscountBlock;
+                                          const iconB = layer.icon && layer.iconPosition !== 'after';
+                                          const iconA = layer.icon && layer.iconPosition === 'after';
+                                          return (
+                                            <div
+                                              key={layer.id}
+                                              className={`absolute z-30 select-none pointer-events-none ${isDisc ? getDiscountBlockClasses(layer) + ' px-2 py-1 shadow border' : ''}`}
+                                              style={{
+                                                left: `${layer.x}%`,
+                                                top: `${layer.y}%`,
+                                                transform: 'translate(-50%, -50%)',
+                                                ...(isDisc ? getDiscountBlockStyles(layer) : { color: layer.color }),
+                                                fontSize: `${layer.size * 0.4}px`,
+                                                fontWeight: layer.fontWeight,
+                                                fontStyle: layer.fontStyle,
+                                                fontFamily: layer.fontFamily || 'Arial',
+                                                textDecoration: layer.textDecoration || 'none',
+                                                textShadow: isDisc ? '0 1px 2px rgba(0,0,0,0.3)' : '1px 1px 2px rgba(0,0,0,0.8)',
+                                                whiteSpace: 'pre' as const,
+                                                textAlign: (layer.textAlign || 'center') as 'left' | 'center' | 'right',
+                                              }}
+                                            >
+                                              {iconB && <span className="mr-0.5">{layer.icon}</span>}
+                                              {layer.text}
+                                              {iconA && <span className="ml-0.5">{layer.icon}</span>}
+                                            </div>
+                                          );
+                                        })}
+                                      </>
+                                    )}
                                     <PriceBadgePreview
                                       priceBadge={(useImageRotation && imgRotState
                                         ? (imgRotState.phase === 'first'
@@ -5159,7 +5013,11 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
               <button
                 onClick={() => {
                   setShowEmptyBlockOptionsModal(false);
-                  setShowImageTextModal(true);
+                  if (selectedBlockContent?.content_type === 'image' || selectedBlockContent?.content_type === 'video') {
+                    addTextLayer(10, 18);
+                  } else {
+                    alert(`⚠️ ${t('editor_empty_block_add_content_first')}`);
+                  }
                 }}
                 className="w-full px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors text-sm font-semibold flex items-center justify-center gap-2"
               >
@@ -5374,7 +5232,7 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
                       type="button"
                       onClick={() => {
                         setIsEditingContent(false);
-                        setShowImageTextModal(true);
+                        addTextLayer(10, 18);
                       }}
                       className="px-3 py-2 bg-purple-100 hover:bg-purple-200 text-purple-800 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5"
                     >
@@ -5398,7 +5256,7 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
                       type="button"
                       onClick={() => {
                         setIsEditingContent(false);
-                        setShowImageTextModal(true);
+                        addTextLayer(50, 50, { isDiscountBlock: true, text: '%20 İndirim', discountPercent: 20 });
                       }}
                       className="px-3 py-2 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5"
                     >
@@ -5445,7 +5303,14 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
             <p className="text-sm text-gray-500 mb-4">{t('editor_empty_block_add_content_first')}</p>
             <div className="space-y-3">
               <button
-                onClick={() => { setShowEmptyBlockOptionsModal(false); setShowImageTextModal(true); }}
+                onClick={() => {
+                  setShowEmptyBlockOptionsModal(false);
+                  if (selectedBlockContent?.content_type === 'image' || selectedBlockContent?.content_type === 'video') {
+                    addTextLayer(10, 18);
+                  } else {
+                    alert(`⚠️ ${t('editor_empty_block_add_content_first')}`);
+                  }
+                }}
                 className="w-full px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors text-sm font-semibold flex items-center justify-center gap-2"
               >
                 <span className="text-lg">✏️</span>
@@ -6828,11 +6693,11 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
                 })()}
               </div>
 
-              {/* Sağ Panel - Resim canvas (tıkla = yeni yazı, yazıya tıkla = sürükle) */}
+              {/* Sağ Panel - Konva canvas (blok editörü ile aynı: tıkla = yeni yazı, sürükle/resize) */}
               <div className="w-1/2 flex flex-col">
                 <label className="block text-sm font-semibold text-teal-800 mb-2">{t('editor_canvas_hint')}</label>
                 <div
-                  ref={imageRotationTextPreviewRef}
+                  ref={imageRotationTextKonvaRef}
                   className="relative bg-gray-800 rounded-lg overflow-hidden flex-1 select-none"
                   style={{ minHeight: '320px', aspectRatio: getBlockAspectRatio(blocks.length) }}
                 >
@@ -6854,47 +6719,20 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
                     backgroundImage: 'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)',
                     backgroundSize: '10% 10%'
                   }} />
-                  <div
-                    className="absolute inset-0 z-10 cursor-crosshair"
-                    onClick={handleImageRotationCanvasClick}
-                    aria-label={t('editor_image_text_modal_click_hint')}
-                  />
-                  {imageRotationTextLayers.map((layer) => {
-                    const isDisc = !!layer.isDiscountBlock;
-                    const iconB = layer.icon && layer.iconPosition !== 'after';
-                    const iconA = layer.icon && layer.iconPosition === 'after';
-                    return (
-                      <div
-                        key={layer.id}
-                        onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); handleImageRotationTextDragStart(e, layer.id); }}
-                        onClick={(e) => { e.stopPropagation(); setSelectedImageRotationTextLayerId(layer.id); }}
-                        className={`absolute z-30 cursor-grab active:cursor-grabbing ${
-                          selectedImageRotationTextLayerId === layer.id ? 'ring-2 ring-teal-500 ring-offset-2' : ''
-                        } ${draggingImageRotationLayerId === layer.id ? 'opacity-80' : ''} ${
-                          isDisc ? getDiscountBlockClasses(layer) + ' px-3 py-1.5 shadow-lg border' : ''
-                        }`}
-                        style={{
-                          left: `${layer.x}%`,
-                          top: `${layer.y}%`,
-                          transform: 'translate(-50%, -50%)',
-                          pointerEvents: 'auto',
-                          ...(isDisc ? getDiscountBlockStyles(layer) : { color: layer.color }),
-                          fontSize: `${layer.size * 0.5}px`,
-                          fontWeight: layer.fontWeight,
-                          fontStyle: layer.fontStyle,
-                          fontFamily: layer.fontFamily || 'Arial',
-                          textDecoration: layer.textDecoration || 'none',
-                          textShadow: isDisc ? '0 1px 2px rgba(0,0,0,0.3)' : '2px 2px 4px rgba(0,0,0,0.8)',
-                          whiteSpace: 'pre',
-                          textAlign: (layer.textAlign || 'center') as 'left' | 'center' | 'right',
-                        }}
-                      >
-                        {iconB && <span className="mr-1">{layer.icon}</span>}
-                        {layer.text || t('editor_text_default')}
-                        {iconA && <span className="ml-1">{layer.icon}</span>}
-                      </div>
-                    );
-                  })}
+                  <div className="absolute inset-0 z-20">
+                    <BlockOverlayKonvaEditor
+                      width={imageRotationTextKonvaSize.w}
+                      height={imageRotationTextKonvaSize.h}
+                      textLayers={imageRotationTextLayers}
+                      overlayImages={[]}
+                      onTextLayersChange={(layers) => setImageRotationTextLayers(layers.map((l) => ({ ...l, fontWeight: l.fontWeight ?? 'bold', fontStyle: l.fontStyle ?? 'normal', fontFamily: l.fontFamily ?? 'Arial' })))}
+                      onOverlayImagesChange={() => {}}
+                      selectedTextLayerId={selectedImageRotationTextLayerId}
+                      selectedOverlayImageId={null}
+                      onSelectTextLayer={setSelectedImageRotationTextLayerId}
+                      onSelectOverlayImage={() => {}}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -7523,11 +7361,11 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
                     backgroundSize: '10% 10%'
                   }} />
 
-                  {/* Resme tıklayınca yeni yazı ekle - boş alana tıklanınca tetiklenir */}
+                  {/* Boş alana tıklayınca sadece seçimi kaldır (yazı ekleme sadece butonla) */}
                   <div
-                    className="absolute inset-0 z-10 cursor-crosshair"
-                    onClick={handleCanvasClick}
-                    aria-label="Resme tıklayarak yeni yazı ekleyin"
+                    className="absolute inset-0 z-10 cursor-default"
+                    onClick={() => setSelectedTextLayerId(null)}
+                    aria-label={t('editor_click_to_deselect')}
                   />
 
                   {/* Yazı katmanları - tıklayınca seçilir, sürüklenebilir; ikon + hareketli indirim bloğu */}

@@ -404,6 +404,40 @@ export default function ScreensPage() {
     toast.showSuccess(t('screens_url_copied'));
   };
 
+  const getDisplayUrl = (screen: Screen) => {
+    const slug = (screen as any).public_slug || screen.public_token;
+    return `${typeof window !== 'undefined' ? window.location.origin : ''}/display/${slug}`;
+  };
+
+  const downloadIndexHtml = (screen: Screen) => {
+    const url = getDisplayUrl(screen);
+    const html = `<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="refresh" content="0; url=${url}">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MenuSlide Yayın</title>
+  <style>
+    body {
+      margin: 0;
+      background: #000;
+    }
+  </style>
+</head>
+<body>
+</body>
+</html>
+`;
+    const blob = new Blob([html], { type: 'text/html' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'index.html';
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toast.showSuccess(t('screens_html_downloaded'));
+  };
+
   const loadTemplates = async () => {
     try {
       // Sadece kullanıcının "Benim Şablonlarım" şablonları
@@ -696,7 +730,7 @@ export default function ScreensPage() {
               )}
               
               {/* Durdur ve Yayınla butonları - abonelik yoksa Yayınla kilitli */}
-              <div className="flex space-x-2 mb-2">
+              <div className="flex space-x-2 mb-2 items-stretch">
                 <button
                   onClick={() => handleStopPublishing(screen.id)}
                   disabled={!screen.is_active}
@@ -717,6 +751,13 @@ export default function ScreensPage() {
                   {screen.templateRotations && screen.templateRotations.length > 0
                     ? t('screens_edit_publish')
                     : t('screens_publish')}
+                </button>
+                <button
+                  onClick={() => downloadIndexHtml(screen)}
+                  title={t('screens_download_html_hint')}
+                  className="px-2.5 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors text-xs font-medium whitespace-nowrap"
+                >
+                  HTML
                 </button>
               </div>
 
