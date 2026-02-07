@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { getServerSupabase } from '@/lib/supabase-server';
 import type { JwtPayload } from '@/lib/auth-server';
 import { useLocalDb, insertLocal, queryLocal, queryOne, updateLocal, deleteLocal, runLocal, mirrorToSupabase } from '@/lib/api-backend/db-local';
+import { insertAdminActivityLog } from '@/lib/api-backend/admin-activity-log';
 
 /** POST /templates */
 export async function create(request: NextRequest, user: JwtPayload): Promise<Response> {
@@ -37,6 +38,7 @@ export async function create(request: NextRequest, user: JwtPayload): Promise<Re
         await mirrorToSupabase('template_blocks', 'insert', { row: inserted });
       }
       const blocks = await queryLocal('SELECT * FROM template_blocks WHERE template_id = $1 ORDER BY block_index', [template.id]);
+      if (isAdmin) await insertAdminActivityLog(user, { action_type: 'template_create', page_key: 'templates', resource_type: 'template', resource_id: template.id, details: { name: row.display_name } });
       return Response.json({ ...template, template_blocks: blocks });
     } catch (e: any) {
       return Response.json({ message: e?.message || 'Insert failed' }, { status: 500 });
@@ -57,6 +59,7 @@ export async function create(request: NextRequest, user: JwtPayload): Promise<Re
     });
   }
   const { data: withBlocks } = await supabase.from('templates').select('*, template_blocks(*)').eq('id', template.id).single();
+  if (isAdmin) await insertAdminActivityLog(user, { action_type: 'template_create', page_key: 'templates', resource_type: 'template', resource_id: template.id, details: { name: row.display_name } });
   return Response.json(withBlocks ?? template);
 }
 
@@ -83,6 +86,7 @@ export async function update(id: string, request: NextRequest, user: JwtPayload)
     const data = await updateLocal('templates', id, updates);
     if (!data) return Response.json({ message: 'Not found' }, { status: 404 });
     await mirrorToSupabase('templates', 'update', { id, row: { ...updates, id } });
+    await insertAdminActivityLog(user, { action_type: 'template_update', page_key: 'templates', resource_type: 'template', resource_id: id, details: { name: String(updates.display_name || updates.name || '') } });
     return Response.json(data);
   }
 
@@ -97,6 +101,7 @@ export async function update(id: string, request: NextRequest, user: JwtPayload)
   }
   const { data, error } = await supabase.from('templates').update(updates).eq('id', id).select().single();
   if (error) return Response.json({ message: error.message }, { status: 500 });
+  await insertAdminActivityLog(user, { action_type: 'template_update', page_key: 'templates', resource_type: 'template', resource_id: id, details: { name: String(updates.display_name || updates.name || '') } });
   return Response.json(data);
 }
 
@@ -111,6 +116,7 @@ export async function remove(id: string, user: JwtPayload): Promise<Response> {
       return Response.json({ message: 'Access denied' }, { status: 403 });
     await deleteLocal('templates', id);
     await mirrorToSupabase('templates', 'delete', { id });
+    await insertAdminActivityLog(user, { action_type: 'template_delete', page_key: 'templates', resource_type: 'template', resource_id: id, details: {} });
     return Response.json({ message: 'Template deleted successfully' });
   }
   const supabase = getServerSupabase();
@@ -122,6 +128,7 @@ export async function remove(id: string, user: JwtPayload): Promise<Response> {
     return Response.json({ message: 'Access denied' }, { status: 403 });
   const { error } = await supabase.from('templates').delete().eq('id', id);
   if (error) return Response.json({ message: error.message }, { status: 500 });
+  await insertAdminActivityLog(user, { action_type: 'template_delete', page_key: 'templates', resource_type: 'template', resource_id: id, details: {} });
   return Response.json({ message: 'Template deleted successfully' });
 }
 
@@ -260,6 +267,7 @@ export async function applyToScreen(request: NextRequest, user: JwtPayload): Pro
       await sb.from('screen_blocks').insert({ screen_id: screenId, template_block_id: tb.id, display_order: tb.block_index, is_active: true, position_x: tb.position_x, position_y: tb.position_y, width: tb.width, height: tb.height });
     }
     await sb.from('screens').update({ template_id: templateId }).eq('id', screenId);
+    await insertAdminActivityLog(user, { action_type: 'template_apply', page_key: 'templates', resource_type: 'template', resource_id: templateId, details: { screen_id: screenId } });
     return Response.json({ message: 'Template applied' });
   }
   const supabase = getServerSupabase();
@@ -284,6 +292,7 @@ export async function applyToScreen(request: NextRequest, user: JwtPayload): Pro
     });
   }
   await supabase.from('screens').update({ template_id: templateId }).eq('id', screenId);
+  await insertAdminActivityLog(user, { action_type: 'template_apply', page_key: 'templates', resource_type: 'template', resource_id: templateId, details: { screen_id: screenId } });
   return Response.json({ message: 'Template applied' });
 }
 
@@ -304,12 +313,14 @@ export async function duplicate(id: string, request: NextRequest, user: JwtPaylo
       description: orig.description,
       block_count: orig.block_count,
       preview_image_url: orig.preview_image_url,
+      canvas_design: orig.canvas_design ?? null,
       is_active: true,
       scope: 'user',
       created_by: user.userId,
     }) as { id: string };
     await mirrorToSupabase('templates', 'insert', { row: created });
-    const blocks = await queryLocal<Record<string, unknown>>('SELECT * FROM template_blocks WHERE template_id = $1 ORDER BY block_index', [id]);
+    const blocks = await queryLocal<Record<string, unknown> & { id: string }>('SELECT * FROM template_blocks WHERE template_id = $1 ORDER BY block_index', [id]);
+    const oldToNew: Record<string, string> = {};
     for (const bl of blocks) {
       const inserted = await insertLocal('template_blocks', {
         template_id: created.id,
@@ -318,10 +329,48 @@ export async function duplicate(id: string, request: NextRequest, user: JwtPaylo
         position_y: bl.position_y,
         width: bl.width,
         height: bl.height,
-      });
+        z_index: bl.z_index,
+        animation_type: bl.animation_type,
+        animation_duration: bl.animation_duration,
+        animation_delay: bl.animation_delay,
+        style_config: bl.style_config,
+      }) as { id: string };
+      oldToNew[bl.id] = inserted.id;
       await mirrorToSupabase('template_blocks', 'insert', { row: inserted });
     }
+    const blockIds = Object.keys(oldToNew);
+    if (blockIds.length > 0) {
+      const contents = await queryLocal<Record<string, unknown> & { template_block_id: string }>(
+        'SELECT * FROM template_block_contents WHERE template_block_id = ANY($1::uuid[]) ORDER BY display_order',
+        [blockIds]
+      );
+      for (const c of contents) {
+        const newBlockId = oldToNew[c.template_block_id];
+        if (!newBlockId) continue;
+        const row = {
+          template_block_id: newBlockId,
+          content_type: c.content_type,
+          image_url: c.image_url,
+          icon_name: c.icon_name,
+          title: c.title,
+          description: c.description,
+          price: c.price,
+          campaign_text: c.campaign_text,
+          background_color: c.background_color,
+          background_image_url: c.background_image_url,
+          text_color: c.text_color,
+          style_config: c.style_config,
+          menu_item_id: null,
+          menu_id: null,
+          display_order: c.display_order ?? 0,
+          is_active: c.is_active ?? true,
+        };
+        const ins = await insertLocal('template_block_contents', row);
+        await mirrorToSupabase('template_block_contents', 'insert', { row: ins });
+      }
+    }
     const withBlocks = await queryLocal('SELECT * FROM template_blocks WHERE template_id = $1 ORDER BY block_index', [created.id]);
+    await insertAdminActivityLog(user, { action_type: 'template_duplicate', page_key: 'templates', resource_type: 'template', resource_id: created.id, details: { name: body.name || String(orig.display_name), source_id: id } });
     return Response.json({ ...created, template_blocks: withBlocks });
   }
   const supabase = getServerSupabase();
@@ -334,24 +383,60 @@ export async function duplicate(id: string, request: NextRequest, user: JwtPaylo
     description: o.description,
     block_count: o.block_count,
     preview_image_url: o.preview_image_url,
+    canvas_design: o.canvas_design ?? null,
     is_active: true,
     scope: 'user',
     created_by: user.userId,
   }).select().single();
   if (error) return Response.json({ message: error.message }, { status: 500 });
   const { data: blocks } = await supabase.from('template_blocks').select('*').eq('template_id', id).order('block_index', { ascending: true });
+  const oldToNew: Record<string, string> = {};
   for (const b of blocks ?? []) {
     const bl = b as Record<string, unknown>;
-    await supabase.from('template_blocks').insert({
+    const { data: inserted } = await supabase.from('template_blocks').insert({
       template_id: created.id,
       block_index: bl.block_index,
       position_x: bl.position_x,
       position_y: bl.position_y,
       width: bl.width,
       height: bl.height,
-    });
+      z_index: bl.z_index,
+      animation_type: bl.animation_type,
+      animation_duration: bl.animation_duration,
+      animation_delay: bl.animation_delay,
+      style_config: bl.style_config,
+    }).select('id').single();
+    if (inserted) oldToNew[(bl.id as string)] = (inserted as { id: string }).id;
+  }
+  const blockIds = Object.keys(oldToNew);
+  if (blockIds.length > 0) {
+    const { data: contents } = await supabase.from('template_block_contents').select('*').in('template_block_id', blockIds).order('display_order', { ascending: true });
+    for (const c of contents ?? []) {
+      const ct = c as Record<string, unknown>;
+      const newBlockId = oldToNew[ct.template_block_id as string];
+      if (!newBlockId) continue;
+      await supabase.from('template_block_contents').insert({
+        template_block_id: newBlockId,
+        content_type: ct.content_type,
+        image_url: ct.image_url,
+        icon_name: ct.icon_name,
+        title: ct.title,
+        description: ct.description,
+        price: ct.price,
+        campaign_text: ct.campaign_text,
+        background_color: ct.background_color,
+        background_image_url: ct.background_image_url,
+        text_color: ct.text_color,
+        style_config: ct.style_config,
+        menu_item_id: null,
+        menu_id: null,
+        display_order: ct.display_order ?? 0,
+        is_active: ct.is_active ?? true,
+      });
+    }
   }
   const { data: withBlocks } = await supabase.from('templates').select('*, template_blocks(*)').eq('id', created.id).single();
+  await insertAdminActivityLog(user, { action_type: 'template_duplicate', page_key: 'templates', resource_type: 'template', resource_id: created.id, details: { name: body.name || String(o.display_name), source_id: id } });
   return Response.json(withBlocks ?? created);
 }
 
@@ -438,6 +523,7 @@ export async function copyToSystem(id: string, request: NextRequest, user: JwtPa
       }
     }
     const withBlocks = await queryLocal('SELECT * FROM template_blocks WHERE template_id = $1 ORDER BY block_index', [created.id]);
+    await insertAdminActivityLog(user, { action_type: 'template_copy_system', page_key: 'templates', resource_type: 'template', resource_id: created.id, details: { name: newDisplayName, source_id: id } });
     return Response.json({ ...created, template_blocks: withBlocks });
   }
 
@@ -508,6 +594,7 @@ export async function copyToSystem(id: string, request: NextRequest, user: JwtPa
     }
   }
   const { data: withBlocks } = await supabase.from('templates').select('*, template_blocks(*)').eq('id', created.id).single();
+  await insertAdminActivityLog(user, { action_type: 'template_copy_system', page_key: 'templates', resource_type: 'template', resource_id: created.id, details: { name: newDisplayName, source_id: id } });
   return Response.json(withBlocks ?? created);
 }
 

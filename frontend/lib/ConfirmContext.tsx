@@ -84,7 +84,7 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
               <button
                 type="button"
                 onClick={handleClose}
-                className="px-4 py-2.5 rounded-xl bg-slate-200 dark:bg-slate-600 text-slate-800 dark:text-white hover:bg-slate-300 dark:hover:bg-slate-500 text-sm font-medium transition-colors"
+                className="px-4 py-2.5 rounded-xl bg-slate-200 dark:bg-slate-600 text-gray-800 dark:text-white hover:bg-slate-300 dark:hover:bg-slate-500 text-sm font-medium transition-colors"
               >
                 {opts.cancelLabel}
               </button>

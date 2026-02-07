@@ -268,7 +268,7 @@ export default function MenuBuilder({
               <h3 className="font-semibold text-white">{t('editor_content_library')}</h3>
               <p className="text-xs text-slate-400 mt-1">{t('menus_click_to_add')}</p>
             </div>
-            <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+            <div className="flex-1 overflow-hidden min-h-0">
               <ContentLibrary onSelectContent={handleContentSelect} />
             </div>
           </div>

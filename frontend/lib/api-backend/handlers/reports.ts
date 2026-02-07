@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server';
 import { getServerSupabase } from '@/lib/supabase-server';
 import type { JwtPayload } from '@/lib/auth-server';
+import { useLocalDb, queryLocal } from '@/lib/api-backend/db-local';
+import { insertAdminActivityLog } from '@/lib/api-backend/admin-activity-log';
 
 /** Supabase plans join returns object or array; extract max_screens safely. */
 function getMaxScreens(plans: unknown): number {
@@ -175,15 +177,44 @@ export async function getUserDetailReport(userId: string, currentUserId: string,
   const userEmail = (u as { email?: string }).email;
   let phone: string | null = null;
   let address: string | null = null;
+  // Supabase'den registration_requests (öncelik: status='registered')
   try {
-    const { data: regList } = await supabase.from('registration_requests').select('phone, address').eq('email', userEmail).order('created_at', { ascending: false }).limit(1);
-    const reg = regList?.[0] as { phone?: string; address?: string } | undefined;
+    let regList: { phone?: string; address?: string }[] | null = null;
+    const { data: regRegistered } = await supabase.from('registration_requests').select('phone, address').eq('email', userEmail).eq('status', 'registered').order('created_at', { ascending: false }).limit(1);
+    if (regRegistered?.length) regList = regRegistered;
+    if (!regList?.length) {
+      const { data: regAny } = await supabase.from('registration_requests').select('phone, address').eq('email', userEmail).order('created_at', { ascending: false }).limit(1);
+      regList = regAny;
+    }
+    const reg = regList?.[0];
     if (reg) {
       phone = (reg.phone ?? '').trim() || null;
       address = (reg.address ?? '').trim() || null;
     }
   } catch {
     // ignore if registration_requests not available
+  }
+  // Yerel DB kullanılıyorsa ve Supabase'de bulunamadıysa yerelden dene (öncelik: status='registered')
+  if ((!phone && !address) && userEmail && useLocalDb()) {
+    try {
+      let regRows = await queryLocal<{ phone?: string; address?: string }>(
+        `SELECT phone, address FROM registration_requests WHERE email = $1 AND status = 'registered' ORDER BY created_at DESC LIMIT 1`,
+        [userEmail]
+      );
+      if (!regRows?.length) {
+        regRows = await queryLocal<{ phone?: string; address?: string }>(
+          `SELECT phone, address FROM registration_requests WHERE email = $1 ORDER BY created_at DESC LIMIT 1`,
+          [userEmail]
+        );
+      }
+      const reg = regRows?.[0];
+      if (reg) {
+        phone = phone ?? ((reg.phone ?? '').trim() || null);
+        address = address ?? ((reg.address ?? '').trim() || null);
+      }
+    } catch {
+      // ignore if table doesn't exist or query fails
+    }
   }
   const userWithContact = { ...u, phone: phone ?? undefined, address: address ?? undefined };
   const { data: business } = u.business_id ? await supabase.from('businesses').select('*').eq('id', (u as { business_id: string }).business_id).single() : { data: null };
@@ -237,17 +268,28 @@ export async function markSubscriptionPaid(subscriptionId: string, request: Next
   end.setMonth(end.getMonth() + months);
   const { error } = await supabase.from('subscriptions').update({ current_period_end: end.toISOString(), status: 'active' }).eq('id', subscriptionId);
   if (error) return Response.json({ message: error.message }, { status: 500 });
+  await insertAdminActivityLog(user, { action_type: 'subscription_mark_paid', page_key: 'reports', resource_type: 'subscription', resource_id: subscriptionId, details: { period_months: months } });
   return Response.json({ message: 'Marked as paid' });
 }
 
 /** GET /reports/activity (admin) */
 export async function getActivityLog(request: NextRequest, user: JwtPayload): Promise<Response> {
   if (user.role !== 'super_admin' && user.role !== 'admin') return Response.json({ message: 'Admin required' }, { status: 403 });
-  const supabase = getServerSupabase();
   const { searchParams } = new URL(request.url);
   const from = searchParams.get('from');
   const to = searchParams.get('to');
   const userId = searchParams.get('user_id');
+  if (useLocalDb()) {
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+    if (from) { params.push(from); conditions.push(`created_at >= $${params.length}`); }
+    if (to) { params.push(to); conditions.push(`created_at <= $${params.length}`); }
+    if (userId) { params.push(userId); conditions.push(`user_id = $${params.length}`); }
+    const where = conditions.length ? ` WHERE ${conditions.join(' AND ')}` : '';
+    const rows = await queryLocal(`SELECT * FROM admin_activity_log${where} ORDER BY created_at DESC LIMIT 200`, params);
+    return Response.json(rows ?? []);
+  }
+  const supabase = getServerSupabase();
   let q = supabase.from('admin_activity_log').select('*').order('created_at', { ascending: false }).limit(200);
   if (from) q = q.gte('created_at', from);
   if (to) q = q.lte('created_at', to);
@@ -260,28 +302,30 @@ export async function getActivityLog(request: NextRequest, user: JwtPayload): Pr
 /** POST /reports/activity (admin) */
 export async function logActivity(request: NextRequest, user: JwtPayload): Promise<Response> {
   if (user.role !== 'super_admin' && user.role !== 'admin') return Response.json({ message: 'Admin required' }, { status: 403 });
-  const supabase = getServerSupabase();
   let body: { action_type?: string; page_key?: string; resource_type?: string; resource_id?: string; details?: Record<string, unknown> } = {};
   try {
     body = await request.json();
   } catch {
     return Response.json({ message: 'Invalid JSON' }, { status: 400 });
   }
-  const { error } = await supabase.from('admin_activity_log').insert({
-    user_id: user.userId,
+  const { insertAdminActivityLog } = await import('@/lib/api-backend/admin-activity-log');
+  await insertAdminActivityLog(user, {
     action_type: body.action_type ?? 'view',
     page_key: body.page_key ?? '',
-    resource_type: body.resource_type ?? null,
-    resource_id: body.resource_id ?? null,
-    details: body.details ?? null,
+    resource_type: body.resource_type ?? undefined,
+    resource_id: body.resource_id ?? undefined,
+    details: body.details ?? undefined,
   });
-  if (error) return Response.json({ message: error.message }, { status: 500 });
   return Response.json({ success: true });
 }
 
 /** GET /reports/activity-users (admin) */
 export async function getActivityAdminUsers(user: JwtPayload): Promise<Response> {
   if (user.role !== 'super_admin' && user.role !== 'admin') return Response.json({ message: 'Admin required' }, { status: 403 });
+  if (useLocalDb()) {
+    const rows = await queryLocal<{ id: string; email: string; full_name: string }>('SELECT id, email, full_name FROM users WHERE role IN ($1, $2) ORDER BY email', ['super_admin', 'admin']);
+    return Response.json(rows ?? []);
+  }
   const supabase = getServerSupabase();
   const { data } = await supabase.from('users').select('id, email, full_name').in('role', ['super_admin', 'admin']).order('email');
   return Response.json(data ?? []);

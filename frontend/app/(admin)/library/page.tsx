@@ -821,7 +821,7 @@ export default function LibraryPage() {
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50"
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-800 font-medium"
                 >
                   {t('btn_cancel')}
                 </button>
@@ -878,7 +878,7 @@ export default function LibraryPage() {
                 />
               </div>
               <div className="flex gap-3 pt-4">
-                <button type="button" onClick={() => setShowCategoryModal(false)} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">
+                <button type="button" onClick={() => setShowCategoryModal(false)} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-800 font-medium">
                   {t('btn_cancel')}
                 </button>
                 <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50">

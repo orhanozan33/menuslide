@@ -510,7 +510,7 @@ export function HomePage({ localePath }: HomePageProps) {
             {t('home_contact_desc')}
           </p>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
             {contactInfo.email && (
               <div className="flex flex-col items-center text-center p-4 min-h-0 min-w-0 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-white/20 transition-colors">
                 <span className="text-xl sm:text-2xl mb-1.5 sm:mb-2 flex-shrink-0">✉</span>
@@ -526,7 +526,7 @@ export function HomePage({ localePath }: HomePageProps) {
               </div>
             )}
             {contactInfo.address && (
-              <div className="flex flex-col items-center text-center p-4 min-h-0 min-w-0 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-white/20 transition-colors">
+              <div className="col-span-2 sm:col-span-1 max-w-[200px] sm:max-w-none mx-auto sm:mx-0 flex flex-col items-center text-center p-4 min-h-0 min-w-0 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-white/20 transition-colors">
                 <span className="text-xl sm:text-2xl mb-1.5 sm:mb-2 flex-shrink-0">📍</span>
                 <h3 className="font-medium text-white text-xs sm:text-sm flex-shrink-0">{t('home_contact_address')}</h3>
                 <p className="text-white/70 text-xs sm:text-sm break-words max-w-full">{contactInfo.address}</p>

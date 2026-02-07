@@ -3,6 +3,7 @@ import { getServerSupabase } from '@/lib/supabase-server';
 import type { JwtPayload } from '@/lib/auth-server';
 import { randomUUID } from 'crypto';
 import { useLocalDb, queryLocal, queryOne, insertLocal, updateLocal, deleteLocal, mirrorToSupabase } from '@/lib/api-backend/db-local';
+import { insertAdminActivityLog } from '@/lib/api-backend/admin-activity-log';
 
 const TABLE = 'registration_requests';
 
@@ -103,16 +104,19 @@ export async function updateStatus(id: string, req: NextRequest, user: JwtPayloa
   if (!['pending', 'approved', 'rejected'].includes(status)) {
     return Response.json({ message: 'Invalid status' }, { status: 400 });
   }
+  const actionType = status === 'approved' ? 'reg_approve' : status === 'rejected' ? 'reg_reject' : 'reg_update';
   if (useLocalDb()) {
     const data = await updateLocal(TABLE, id, { status });
     if (!data) return Response.json({ message: 'Not found' }, { status: 404 });
     await mirrorToSupabase(TABLE, 'update', { id, row: { status, id } });
+    await insertAdminActivityLog(user, { action_type: actionType, page_key: 'registration-requests', resource_type: 'registration_request', resource_id: id, details: { status } });
     return Response.json(rowToDto(data));
   }
   const supabase = getServerSupabase();
   const { data, error } = await supabase.from(TABLE).update({ status }).eq('id', id).select().maybeSingle();
   if (error) return Response.json({ message: error.message }, { status: 500 });
   if (!data) return Response.json({ message: 'Not found' }, { status: 404 });
+  await insertAdminActivityLog(user, { action_type: actionType, page_key: 'registration-requests', resource_type: 'registration_request', resource_id: id, details: { status } });
   return Response.json(rowToDto(data));
 }
 
@@ -122,10 +126,12 @@ export async function remove(id: string, user: JwtPayload): Promise<Response> {
   if (useLocalDb()) {
     await deleteLocal(TABLE, id);
     await mirrorToSupabase(TABLE, 'delete', { id });
+    await insertAdminActivityLog(user, { action_type: 'reg_delete', page_key: 'registration-requests', resource_type: 'registration_request', resource_id: id, details: {} });
     return Response.json({ success: true });
   }
   const supabase = getServerSupabase();
   const { error } = await supabase.from(TABLE).delete().eq('id', id);
   if (error) return Response.json({ message: error.message }, { status: 500 });
+  await insertAdminActivityLog(user, { action_type: 'reg_delete', page_key: 'registration-requests', resource_type: 'registration_request', resource_id: id, details: {} });
   return Response.json({ success: true });
 }

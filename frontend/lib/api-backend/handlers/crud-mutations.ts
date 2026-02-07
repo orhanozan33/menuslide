@@ -3,6 +3,7 @@ import { randomBytes } from 'crypto';
 import { getServerSupabase } from '@/lib/supabase-server';
 import type { JwtPayload } from '@/lib/auth-server';
 import { useLocalDb, insertLocal, updateLocal, deleteLocal, mirrorToSupabase, queryOne, runLocal, getLocalPg, isSupabaseConfigured } from '@/lib/api-backend/db-local';
+import { insertAdminActivityLog } from '@/lib/api-backend/admin-activity-log';
 
 /** Create screens for business up to maxScreens (used when plan assigned by admin) */
 async function createScreensForBusiness(businessId: string, maxScreens: number): Promise<void> {
@@ -54,11 +55,13 @@ export async function createBusiness(request: NextRequest, user: JwtPayload): Pr
   if (useLocalDb()) {
     const data = await insertLocal('businesses', body);
     await mirrorToSupabase('businesses', 'insert', { row: data });
+    await insertAdminActivityLog(user, { action_type: 'business_create', page_key: 'users', resource_type: 'business', resource_id: (data as { id: string }).id, details: { name: String(body.name || '') } });
     return Response.json(data);
   }
   const supabase = getServerSupabase();
   const { data, error } = await supabase.from('businesses').insert(body).select().single();
   if (error) return Response.json({ message: error.message }, { status: 500 });
+  await insertAdminActivityLog(user, { action_type: 'business_create', page_key: 'users', resource_type: 'business', resource_id: (data as { id: string }).id, details: { name: String(body.name || '') } });
   return Response.json(data);
 }
 
@@ -88,11 +91,13 @@ export async function updateBusiness(id: string, request: NextRequest, user: Jwt
     const data = await updateLocal('businesses', id, body);
     if (!data) return Response.json({ message: 'Not found' }, { status: 404 });
     await mirrorToSupabase('businesses', 'update', { id, row: { ...body, id } });
+    if (user.role === 'admin' || user.role === 'super_admin') await insertAdminActivityLog(user, { action_type: 'business_update', page_key: 'users', resource_type: 'business', resource_id: id, details: {} });
     return Response.json(data);
   }
   const supabase = getServerSupabase();
   const { data, error } = await supabase.from('businesses').update(body).eq('id', id).select().single();
   if (error) return Response.json({ message: error.message }, { status: 500 });
+  if (user.role === 'admin' || user.role === 'super_admin') await insertAdminActivityLog(user, { action_type: 'business_update', page_key: 'users', resource_type: 'business', resource_id: id, details: {} });
   return Response.json(data);
 }
 
@@ -112,6 +117,7 @@ export async function createUser(request: NextRequest, user: JwtPayload): Promis
   if (useLocalDb()) {
     const data = await insertLocal('users', bodyWithoutPlan);
     await mirrorToSupabase('users', 'insert', { row: data });
+    await insertAdminActivityLog(user, { action_type: 'user_create', page_key: 'users', resource_type: 'user', resource_id: (data as { id: string }).id, details: { email: String(body.email || '') } });
     if (planId && data.business_id) {
       const businessId = data.business_id as string;
       const client = await getLocalPg();
@@ -149,6 +155,7 @@ export async function createUser(request: NextRequest, user: JwtPayload): Promis
     const maxScreens = (planData as { max_screens?: number })?.max_screens ?? 0;
     if (maxScreens > 0 && maxScreens !== -1) await createScreensForBusiness(businessId, maxScreens);
   }
+  await insertAdminActivityLog(user, { action_type: 'user_create', page_key: 'users', resource_type: 'user', resource_id: (data as { id: string }).id, details: { email: String(body.email || '') } });
   return Response.json(data);
 }
 
@@ -315,6 +322,7 @@ export async function updateUser(id: string, request: NextRequest, user: JwtPayl
     await applyAdminPermissions('local');
     await applyPlanAndBusiness();
     await mirrorToSupabase('users', 'update', { id, row: { ...bodyWithoutPerms, id } });
+    if (user.role === 'admin' || user.role === 'super_admin') await insertAdminActivityLog(user, { action_type: 'user_update', page_key: 'users', resource_type: 'user', resource_id: id, details: {} });
     return Response.json(data);
   }
   const supabase = getServerSupabase();
@@ -325,6 +333,7 @@ export async function updateUser(id: string, request: NextRequest, user: JwtPayl
   await applyAdminPermissions('supabase');
   await applyPlanAndBusiness();
   const { data: updated } = await supabase.from('users').select('*').eq('id', id).single();
+  if (user.role === 'admin' || user.role === 'super_admin') await insertAdminActivityLog(user, { action_type: 'user_update', page_key: 'users', resource_type: 'user', resource_id: id, details: {} });
   return Response.json(updated ?? { message: 'Not found' }, { status: updated ? 200 : 404 });
 }
 
@@ -355,6 +364,7 @@ export async function deleteUser(id: string, user: JwtPayload): Promise<Response
         }
       }
     }
+    await insertAdminActivityLog(user, { action_type: 'user_delete', page_key: 'users', resource_type: 'user', resource_id: id, details: {} });
     return Response.json({ success: true });
   }
   const supabase = getServerSupabase();
@@ -367,6 +377,7 @@ export async function deleteUser(id: string, user: JwtPayload): Promise<Response
       await supabase.from('businesses').update({ is_active: false, updated_at: new Date().toISOString() }).eq('id', businessId);
     }
   }
+  await insertAdminActivityLog(user, { action_type: 'user_delete', page_key: 'users', resource_type: 'user', resource_id: id, details: {} });
   return Response.json({ success: true });
 }
 

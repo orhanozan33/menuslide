@@ -41,7 +41,7 @@ export interface TemplatesLibraryBodyProps {
   setSelectedUserId?: (id: string) => void;
   getTemplateDisplayName: (name: string) => string;
   getTemplateDescription: (desc: string) => string;
-  renderTemplatePreview: (template: any) => React.ReactNode;
+  renderTemplatePreview: (template: any, opts?: { live?: boolean }) => React.ReactNode;
   loadBlocksAndContentsForTemplates: (templates: any[]) => void;
   setPreviewTemplate: (t: any) => void;
   setPreviewBlocksLoading: (b: boolean) => void;
@@ -71,8 +71,6 @@ export interface TemplatesLibraryBodyProps {
   setDeleteConfirmTemplate: (t: any) => void;
   confirmDeleteTemplate: () => void;
   previewTemplate: any;
-  previewFullscreen: boolean;
-  setPreviewFullscreen: (b: boolean) => void;
   previewBlocksLoading: boolean;
   showApplyModal: boolean;
   setShowApplyModal: (b: boolean) => void;
@@ -137,8 +135,6 @@ export function TemplatesLibraryBody(props: TemplatesLibraryBodyProps) {
     setDeleteConfirmTemplate,
     confirmDeleteTemplate,
     previewTemplate,
-    previewFullscreen,
-    setPreviewFullscreen,
     previewBlocksLoading,
     showApplyModal,
     setShowApplyModal,
@@ -425,7 +421,7 @@ export function TemplatesLibraryBody(props: TemplatesLibraryBodyProps) {
                   setShowApplyModal(false);
                   setSelectedTemplate(null);
                 }}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-800 font-medium"
               >
                 {t('common_cancel')}
               </button>
@@ -453,7 +449,7 @@ export function TemplatesLibraryBody(props: TemplatesLibraryBodyProps) {
             <div className="flex gap-2">
               <button
                 onClick={() => setDeleteConfirmTemplate(null)}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-800 font-medium"
               >
                 {t('common_cancel')}
               </button>
@@ -471,11 +467,18 @@ export function TemplatesLibraryBody(props: TemplatesLibraryBodyProps) {
       {/* Preview Modal */}
       {previewTemplate && (
         <div
-          className={`fixed inset-0 z-50 flex items-center justify-center ${previewFullscreen ? 'bg-black' : 'bg-black/70'}`}
-          onClick={() => !previewFullscreen && setPreviewTemplate(null)}
+          className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/70 p-4"
+          onClick={() => setPreviewTemplate(null)}
         >
+          <button
+            type="button"
+            onClick={() => setPreviewTemplate(null)}
+            className="absolute top-4 right-4 z-10 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg text-sm font-medium shadow-lg"
+          >
+            {t('templates_close_esc')}
+          </button>
           <div
-            className={`relative ${previewFullscreen ? 'w-full h-full' : 'max-w-4xl w-full mx-4 aspect-video'}`}
+            className="w-full max-w-4xl aspect-video rounded-lg overflow-hidden bg-black shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             {previewBlocksLoading ? (
@@ -483,24 +486,10 @@ export function TemplatesLibraryBody(props: TemplatesLibraryBodyProps) {
                 {t('common_loading')}
               </div>
             ) : (
-              <div className="w-full h-full bg-black rounded overflow-hidden">
-                {renderTemplatePreview(previewTemplate)}
+              <div className="w-full h-full">
+                {renderTemplatePreview(previewTemplate, { live: true })}
               </div>
             )}
-            <div className="absolute top-4 right-4 flex gap-2">
-              <button
-                onClick={() => setPreviewFullscreen(!previewFullscreen)}
-                className="px-3 py-1.5 bg-white/20 text-white rounded hover:bg-white/30 text-sm"
-              >
-                {t('templates_fullscreen_tv')}
-              </button>
-              <button
-                onClick={() => setPreviewTemplate(null)}
-                className="px-3 py-1.5 bg-white/20 text-white rounded hover:bg-white/30 text-sm"
-              >
-                {t('templates_close_esc')}
-              </button>
-            </div>
           </div>
         </div>
       )}

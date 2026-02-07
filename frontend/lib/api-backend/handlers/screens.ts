@@ -3,6 +3,7 @@ import { randomBytes } from 'crypto';
 import { getServerSupabase } from '@/lib/supabase-server';
 import type { JwtPayload } from '@/lib/auth-server';
 import { useLocalDb, queryOne, queryLocal, insertLocal, updateLocal, deleteLocal, runLocal, mirrorToSupabase } from '@/lib/api-backend/db-local';
+import { insertAdminActivityLog } from '@/lib/api-backend/admin-activity-log';
 
 function generatePublicToken(): string {
   return randomBytes(32).toString('hex');
@@ -155,6 +156,7 @@ export async function create(request: NextRequest, user: JwtPayload): Promise<Re
       allow_multi_device: allowMultiDevice,
     });
     await mirrorToSupabase('screens', 'insert', { row: data });
+    if (user.role === 'admin' || user.role === 'super_admin') await insertAdminActivityLog(user, { action_type: 'screen_create', page_key: 'screens', resource_type: 'screen', resource_id: (data as { id: string }).id, details: { name: body.name || 'TV1' } });
     return Response.json(data);
   }
 
@@ -182,6 +184,7 @@ export async function create(request: NextRequest, user: JwtPayload): Promise<Re
     allow_multi_device: allowMultiDevice,
   }).select().single();
   if (error) return Response.json({ message: error.message }, { status: 500 });
+  if (user.role === 'admin' || user.role === 'super_admin') await insertAdminActivityLog(user, { action_type: 'screen_create', page_key: 'screens', resource_type: 'screen', resource_id: (data as { id: string }).id, details: { name: body.name || 'TV1' } });
   return Response.json(data);
 }
 
@@ -214,6 +217,7 @@ export async function update(id: string, request: NextRequest, user: JwtPayload)
     const data = await updateLocal('screens', id, updates);
     if (!data) return Response.json({ message: 'Not found' }, { status: 404 });
     await mirrorToSupabase('screens', 'update', { id, row: { ...updates, id } });
+    if (user.role === 'admin' || user.role === 'super_admin') await insertAdminActivityLog(user, { action_type: 'screen_update', page_key: 'screens', resource_type: 'screen', resource_id: id, details: {} });
     return Response.json(data);
   }
 
@@ -234,6 +238,7 @@ export async function update(id: string, request: NextRequest, user: JwtPayload)
   }
   const { data, error } = await supabase.from('screens').update(updates).eq('id', id).select().single();
   if (error) return Response.json({ message: error.message }, { status: 500 });
+  if (user.role === 'admin' || user.role === 'super_admin') await insertAdminActivityLog(user, { action_type: 'screen_update', page_key: 'screens', resource_type: 'screen', resource_id: id, details: {} });
   return Response.json(data);
 }
 
@@ -244,6 +249,7 @@ export async function remove(id: string, user: JwtPayload): Promise<Response> {
     if (!screen) return Response.json({ message: 'Not found or access denied' }, { status: 404 });
     await deleteLocal('screens', id);
     await mirrorToSupabase('screens', 'delete', { id });
+    if (user.role === 'admin' || user.role === 'super_admin') await insertAdminActivityLog(user, { action_type: 'screen_delete', page_key: 'screens', resource_type: 'screen', resource_id: id, details: {} });
     return Response.json({ message: 'Screen deleted successfully' });
   }
   const supabase = getServerSupabase();
@@ -251,6 +257,7 @@ export async function remove(id: string, user: JwtPayload): Promise<Response> {
   if (!screen) return Response.json({ message: 'Not found or access denied' }, { status: 404 });
   const { error } = await supabase.from('screens').delete().eq('id', id);
   if (error) return Response.json({ message: error.message }, { status: 500 });
+  if (user.role === 'admin' || user.role === 'super_admin') await insertAdminActivityLog(user, { action_type: 'screen_delete', page_key: 'screens', resource_type: 'screen', resource_id: id, details: {} });
   return Response.json({ message: 'Screen deleted successfully' });
 }
 

@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { getServerSupabase } from '@/lib/supabase-server';
 import type { JwtPayload } from '@/lib/auth-server';
 import { useLocalDb, queryLocal, queryOne, insertLocal, updateLocal, deleteLocal, mirrorToSupabase } from '@/lib/api-backend/db-local';
+import { insertAdminActivityLog } from '@/lib/api-backend/admin-activity-log';
 
 /** GET /content-library/categories */
 export async function getCategories(): Promise<Response> {
@@ -103,11 +104,13 @@ export async function create(request: NextRequest, user: JwtPayload): Promise<Re
   if (useLocalDb()) {
     const data = await insertLocal('content_library', body);
     await mirrorToSupabase('content_library', 'insert', { row: data });
+    await insertAdminActivityLog(user, { action_type: 'library_upload', page_key: 'library', resource_type: 'content_library', resource_id: (data as { id: string }).id, details: { name: String(body.name) } });
     return Response.json(data);
   }
   const supabase = getServerSupabase();
   const { data, error } = await supabase.from('content_library').insert(body).select().single();
   if (error) return Response.json({ message: error.message }, { status: 500 });
+  await insertAdminActivityLog(user, { action_type: 'library_upload', page_key: 'library', resource_type: 'content_library', resource_id: (data as { id: string }).id, details: { name: String(body.name) } });
   return Response.json(data);
 }
 
@@ -127,6 +130,7 @@ export async function update(id: string, request: NextRequest, user: JwtPayload)
     const data = await updateLocal('content_library', id, body);
     if (!data) return Response.json({ message: 'Not found' }, { status: 404 });
     await mirrorToSupabase('content_library', 'update', { id, row: { ...body, id } });
+    await insertAdminActivityLog(user, { action_type: 'library_update', page_key: 'library', resource_type: 'content_library', resource_id: id, details: { name: String(body.name || '') } });
     return Response.json(data);
   }
   const supabase = getServerSupabase();
@@ -136,6 +140,7 @@ export async function update(id: string, request: NextRequest, user: JwtPayload)
     return Response.json({ message: 'Access denied' }, { status: 403 });
   const { data, error } = await supabase.from('content_library').update(body).eq('id', id).select().single();
   if (error) return Response.json({ message: error.message }, { status: 500 });
+  await insertAdminActivityLog(user, { action_type: 'library_update', page_key: 'library', resource_type: 'content_library', resource_id: id, details: { name: String(body.name || '') } });
   return Response.json(data);
 }
 
@@ -148,6 +153,7 @@ export async function remove(id: string, user: JwtPayload): Promise<Response> {
       return Response.json({ message: 'Access denied' }, { status: 403 });
     await deleteLocal('content_library', id);
     await mirrorToSupabase('content_library', 'delete', { id });
+    await insertAdminActivityLog(user, { action_type: 'library_delete', page_key: 'library', resource_type: 'content_library', resource_id: id, details: {} });
     return Response.json({ success: true });
   }
   const supabase = getServerSupabase();
@@ -157,5 +163,6 @@ export async function remove(id: string, user: JwtPayload): Promise<Response> {
     return Response.json({ message: 'Access denied' }, { status: 403 });
   const { error } = await supabase.from('content_library').delete().eq('id', id);
   if (error) return Response.json({ message: error.message }, { status: 500 });
+  await insertAdminActivityLog(user, { action_type: 'library_delete', page_key: 'library', resource_type: 'content_library', resource_id: id, details: {} });
   return Response.json({ success: true });
 }

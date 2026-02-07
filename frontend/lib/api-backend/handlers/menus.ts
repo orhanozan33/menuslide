@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { getServerSupabase } from '@/lib/supabase-server';
 import type { JwtPayload } from '@/lib/auth-server';
 import { useLocalDb, queryOne, queryLocal, insertLocal, updateLocal, deleteLocal, mirrorToSupabase } from '@/lib/api-backend/db-local';
+import { insertAdminActivityLog } from '@/lib/api-backend/admin-activity-log';
 
 async function getBusinessId(supabase: ReturnType<typeof getServerSupabase>, userId: string, role: string, targetUserId?: string): Promise<string | null> {
   const effective = (role === 'super_admin' || role === 'admin') && targetUserId ? targetUserId : userId;
@@ -71,6 +72,7 @@ export async function create(request: NextRequest, user: JwtPayload): Promise<Re
     }
     const data = await insertLocal('menus', row);
     await mirrorToSupabase('menus', 'insert', { row: data });
+    if (user.role === 'admin' || user.role === 'super_admin') await insertAdminActivityLog(user, { action_type: 'menu_create', page_key: 'menus', resource_type: 'menu', resource_id: (data as { id: string }).id, details: { name: String(row.name) } });
     return Response.json(data);
   }
   const supabase = getServerSupabase();
@@ -80,6 +82,7 @@ export async function create(request: NextRequest, user: JwtPayload): Promise<Re
   }
   const { data, error } = await supabase.from('menus').insert(row).select().single();
   if (error) return Response.json({ message: error.message }, { status: 500 });
+  if (user.role === 'admin' || user.role === 'super_admin') await insertAdminActivityLog(user, { action_type: 'menu_create', page_key: 'menus', resource_type: 'menu', resource_id: (data as { id: string })?.id, details: { name: String(row.name) } });
   return Response.json(data);
 }
 
@@ -108,6 +111,7 @@ export async function update(id: string, request: NextRequest, user: JwtPayload)
     const data = await updateLocal('menus', id, updates);
     if (!data) return Response.json({ message: 'Not found' }, { status: 404 });
     await mirrorToSupabase('menus', 'update', { id, row: { ...updates, id } });
+    if (user.role === 'admin' || user.role === 'super_admin') await insertAdminActivityLog(user, { action_type: 'menu_update', page_key: 'menus', resource_type: 'menu', resource_id: id, details: {} });
     return Response.json(data);
   }
   const supabase = getServerSupabase();
@@ -123,6 +127,7 @@ export async function update(id: string, request: NextRequest, user: JwtPayload)
   }
   const { data, error } = await supabase.from('menus').update(updates).eq('id', id).select().single();
   if (error) return Response.json({ message: error.message }, { status: 500 });
+  if (user.role === 'admin' || user.role === 'super_admin') await insertAdminActivityLog(user, { action_type: 'menu_update', page_key: 'menus', resource_type: 'menu', resource_id: id, details: {} });
   return Response.json(data);
 }
 
@@ -137,6 +142,7 @@ export async function remove(id: string, user: JwtPayload): Promise<Response> {
     }
     await deleteLocal('menus', id);
     await mirrorToSupabase('menus', 'delete', { id });
+    if (user.role === 'admin' || user.role === 'super_admin') await insertAdminActivityLog(user, { action_type: 'menu_delete', page_key: 'menus', resource_type: 'menu', resource_id: id, details: {} });
     return Response.json({ message: 'Menu deleted successfully' });
   }
   const supabase = getServerSupabase();
@@ -148,5 +154,6 @@ export async function remove(id: string, user: JwtPayload): Promise<Response> {
   }
   const { error } = await supabase.from('menus').delete().eq('id', id);
   if (error) return Response.json({ message: error.message }, { status: 500 });
+  if (user.role === 'admin' || user.role === 'super_admin') await insertAdminActivityLog(user, { action_type: 'menu_delete', page_key: 'menus', resource_type: 'menu', resource_id: id, details: {} });
   return Response.json({ message: 'Menu deleted successfully' });
 }

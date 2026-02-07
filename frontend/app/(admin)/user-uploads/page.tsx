@@ -462,7 +462,7 @@ export default function UserUploadsPage() {
                 <button
                   type="button"
                   onClick={() => { setShowEditModal(false); setEditingItem(null); }}
-                  className="flex-1 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  className="flex-1 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-800 font-medium"
                 >
                   {t('btn_cancel')}
                 </button>

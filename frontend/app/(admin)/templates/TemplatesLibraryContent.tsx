@@ -6,6 +6,7 @@ import { apiClient } from '@/lib/api';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 import { useToast } from '@/lib/ToastContext';
 import { resolveMediaUrl } from '@/lib/resolveMediaUrl';
+import { TemplateDisplay } from '@/components/display/TemplateDisplay';
 import { TemplatesLibraryBody } from '../../[locale]/(admin)/templates/TemplatesLibraryBody';
 
 interface User {
@@ -69,7 +70,6 @@ export function TemplatesLibraryContent({
   const [selectedUserId, setSelectedUserId] = useState<string>('');
   const [previewTemplate, setPreviewTemplate] = useState<any | null>(null);
   const [previewBlocksLoading, setPreviewBlocksLoading] = useState(false);
-  const [previewFullscreen, setPreviewFullscreen] = useState(false);
   const [deleteConfirmTemplate, setDeleteConfirmTemplate] = useState<any | null>(null);
   const [useThisLoadingId, setUseThisLoadingId] = useState<string | null>(null);
   const [copyToSystemLoadingId, setCopyToSystemLoadingId] = useState<string | null>(null);
@@ -302,10 +302,7 @@ export function TemplatesLibraryContent({
   useEffect(() => {
     if (!previewTemplate) return;
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setPreviewFullscreen(false);
-        setPreviewTemplate(null);
-      }
+      if (e.key === 'Escape') setPreviewTemplate(null);
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
@@ -499,7 +496,52 @@ export function TemplatesLibraryContent({
     return { cols, rows, gap: '2px', specialLayout: false };
   };
 
-  const renderTemplatePreview = (template: any) => {
+  const renderTemplatePreview = (template: any, opts?: { live?: boolean }) => {
+    const blocks = templateBlocks[template.id] || [];
+    const contents = templateContents[template.id] || [];
+    const blockCount = blocks.length || template.block_count || 0;
+
+    if (opts?.live && blocks.length > 0) {
+      const sortedBlocks = [...blocks].sort((a, b) => (a.block_index ?? 0) - (b.block_index ?? 0));
+      const screenBlocks = sortedBlocks.map((tb: any) => ({
+        id: tb.id,
+        template_block_id: tb.id,
+        block_index: tb.block_index ?? 0,
+        position_x: tb.position_x ?? 0,
+        position_y: tb.position_y ?? 0,
+        width: tb.width ?? 100,
+        height: tb.height ?? 100,
+        z_index: tb.z_index ?? 0,
+        animation_type: tb.animation_type ?? 'fade',
+        animation_duration: tb.animation_duration ?? 500,
+        animation_delay: tb.animation_delay ?? 0,
+      }));
+      const blockContents = contents.map((c: any) => ({
+        ...c,
+        screen_block_id: c.template_block_id,
+      }));
+      const screenData = {
+        screen: {
+          id: 'preview',
+          animation_type: 'fade',
+          animation_duration: 500,
+          frame_type: 'none',
+          ticker_text: '',
+        },
+        template,
+        screenBlocks,
+        blockContents,
+      };
+      return (
+        <TemplateDisplay
+          screenData={screenData as any}
+          animationType="fade"
+          animationDuration={500}
+          inline
+        />
+      );
+    }
+
     if (template.preview_image_url) {
       return (
         <img
@@ -512,10 +554,6 @@ export function TemplatesLibraryContent({
         />
       );
     }
-
-    const blocks = templateBlocks[template.id] || [];
-    const contents = templateContents[template.id] || [];
-    const blockCount = blocks.length || template.block_count || 0;
 
     if (blocks.length === 0) {
       const count = template.block_count || 0;
@@ -728,8 +766,6 @@ export function TemplatesLibraryContent({
     setDeleteConfirmTemplate,
     confirmDeleteTemplate,
     previewTemplate,
-    previewFullscreen,
-    setPreviewFullscreen,
     previewBlocksLoading,
     showApplyModal,
     setShowApplyModal,
