@@ -179,6 +179,14 @@ const FRAME_STYLES: Record<string, React.CSSProperties & { className?: string }>
     borderRadius: '4px',
     boxShadow: 'inset 0 0 0 1px #8B4513, 0 0 20px rgba(184, 115, 51, 0.25)',
   },
+  frame_metallic: {
+    borderTop: '6px solid #5a5d63',
+    borderLeft: '6px solid #5a5d63',
+    borderRight: '6px solid #5a5d63',
+    borderBottom: '6px solid #5a5d63',
+    borderRadius: '4px',
+    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.12), inset 0 -1px 0 rgba(0,0,0,0.2)',
+  },
 };
 
 export const FRAME_OPTIONS = [
@@ -205,6 +213,7 @@ export const FRAME_OPTIONS = [
   { value: 'frame_ivy_light', labelKey: 'frame_ivy_light' },
   { value: 'frame_stone', labelKey: 'frame_stone' },
   { value: 'frame_copper', labelKey: 'frame_copper' },
+  { value: 'frame_metallic', labelKey: 'frame_metallic' },
 ];
 
 interface DisplayFrameProps {
@@ -222,7 +231,11 @@ export function DisplayFrame({ frameType, hideBottomFrame = false, children, cla
     : baseStyle;
 
   if (frameType === 'none' || !frameType) {
-    return <>{children}</>;
+    return (
+      <div className={className} style={{ position: 'relative', width: '100%', height: '100%', boxSizing: 'border-box', ...FRAME_STYLES.frame_metallic }}>
+        {children}
+      </div>
+    );
   }
 
   return (

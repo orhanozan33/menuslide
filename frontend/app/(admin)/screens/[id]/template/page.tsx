@@ -1495,14 +1495,13 @@ export default function TemplatePage() {
                       const displayTitle = textContent?.title || productContent?.title || productContent?.name || imageContent?.title || videoContent?.title || '';
                       const displayPrice = textContent?.price || productContent?.price || imageContent?.price || videoContent?.price || null;
                       
-                      // 3 blok için: son blok (index 2) hem 2 satırı hem 2 sütunu kaplıyor (tüm alt kısım)
-                      // 5 blok için: 3. blok (index 2) 2 satırı kaplıyor
-                      // 7 blok için: son blok (index 6) 2 sütunu kaplıyor
+                      // 3 ve 5 blok: son/3. blok sağ sütunda 2 satır kaplar (spanRows)
+                      // 7 blok: son blok 2 sütun kaplar (spanCols)
                       const is3BlockLast = currentBlocks.length === 3 && index === 2;
                       const is5BlockThird = currentBlocks.length === 5 && index === 2;
                       const is7BlockLast = currentBlocks.length === 7 && index === 6;
                       const shouldSpanRows = gridLayout.specialLayout && (is3BlockLast || is5BlockThird);
-                      const shouldSpanCols = is3BlockLast || is7BlockLast; // 3 blok ve 7 blok için son blok 2 sütunu kaplıyor
+                      const shouldSpanCols = is7BlockLast;
                       
                       // Arka plan varsa border'ı kaldır
                       const hasBackground = bgImage || bgGradient || (bgColor && bgColor !== '#1a1a1a');

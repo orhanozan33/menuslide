@@ -60,26 +60,26 @@ function TVFrame({
       className="group flex flex-col items-center cursor-pointer touch-manipulation"
       onClick={onClick}
     >
-      <div className="relative w-full max-w-[280px] sm:max-w-sm transition-transform duration-300 group-hover:scale-[1.02] group-active:scale-[0.99]">
-        {/* Gerçekçi TV — belirgin çerçeve, ayaklı model */}
+      <div className="relative w-full max-w-[520px] sm:max-w-[600px] md:max-w-[680px] lg:max-w-[780px] transition-transform duration-300 group-hover:scale-[1.02] group-active:scale-[0.99]">
+        {/* TV kabini — ince metalik çerçeve 4 taraf */}
         <div
-          className="relative overflow-hidden rounded-lg"
+          className="relative overflow-hidden rounded-[4px]"
           style={{
             aspectRatio: '16/9',
             boxShadow:
-              '0 0 0 1px rgba(0,0,0,0.5), 0 0 0 2px rgba(60,60,65,0.9), 0 8px 16px rgba(0,0,0,0.4), 0 20px 40px -10px rgba(0,0,0,0.5)',
+              '0 8px 24px rgba(0,0,0,0.4), 0 24px 48px -16px rgba(0,0,0,0.5)',
           }}
         >
-          {/* TV çerçevesi — kalın, mat siyah/gri bezel */}
+          {/* İnce metalik çerçeve — 4 taraf eşit */}
           <div
-            className="absolute inset-0 rounded-lg"
+            className="absolute inset-0 rounded-[4px]"
             style={{
-              background: 'linear-gradient(180deg, #2d2f33 0%, #1e2024 30%, #181a1e 70%, #1a1c20 100%)',
-              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.08), inset 0 0 0 1px rgba(255,255,255,0.03)',
+              background: 'linear-gradient(145deg, #6b6e74 0%, #5a5d63 25%, #4d5056 50%, #44474d 75%, #5c5f65 100%)',
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.25), inset 0 -1px 0 rgba(0,0,0,0.25)',
             }}
           />
           {/* Ekran alanı — gerçek TV’deki gibi içeri çekik */}
-          <div className="absolute inset-[8px] rounded overflow-hidden bg-black">
+          <div className="absolute inset-[8px] sm:inset-[10px] rounded-[2px] overflow-hidden bg-black relative">
             {showIframe ? (
               <iframe
                 src={previewUrl}
@@ -96,33 +96,23 @@ function TVFrame({
               </div>
             )}
           </div>
-          <div className="absolute inset-0 pointer-events-none rounded-lg group-hover:ring-2 group-hover:ring-white/15 transition-all" />
+          {/* Cam yansıması */}
+          <div className="absolute inset-[8px] sm:inset-[10px] rounded-[2px] pointer-events-none bg-gradient-to-b from-white/5 via-transparent to-transparent" />
+          <div className="absolute inset-0 pointer-events-none rounded-[4px] group-hover:ring-2 group-hover:ring-white/30 transition-all" />
         </div>
-        {/* TV ayağı — merkezi pedastal, geniş taban */}
+        {/* TV ayakları — metalik merkez taban */}
         <div className="flex justify-center -mt-px">
           <div
-            className="relative flex flex-col items-center"
-            style={{ width: '65%', minWidth: 80 }}
-          >
-            <div
-              className="w-full h-3 rounded-t-sm"
-              style={{
-                background: 'linear-gradient(180deg, #25272b 0%, #1c1e22 100%)',
-                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06)',
-              }}
-            />
-            <div
-              className="w-[85%] h-6 rounded-b-md"
-              style={{
-                background: 'linear-gradient(180deg, #1e2024 0%, #16181c 50%, #121418 100%)',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)',
-              }}
-            />
-          </div>
+            className="relative h-5 sm:h-6 w-[45%] min-w-[120px] rounded-b-md"
+            style={{
+              background: 'linear-gradient(180deg, #6b6e74 0%, #5a5d63 30%, #44474d 70%, #3d4046 100%)',
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.2), 0 4px 12px rgba(0,0,0,0.4)',
+            }}
+          />
         </div>
         {/* Channel label */}
-        <div className="mt-2 text-center">
-          <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">{title}</span>
+        <div className="mt-3 text-center">
+          <span className="text-sm font-medium text-zinc-400 uppercase tracking-wider">{title}</span>
         </div>
       </div>
     </div>
@@ -193,7 +183,7 @@ export function HomePage({ localePath }: HomePageProps) {
   }, [previewChannel]);
 
   return (
-    <div className="min-h-screen bg-[#06090f] text-white font-sans antialiased overflow-x-hidden">
+    <div className="min-h-screen bg-[#06090f] text-white font-sans antialiased overflow-x-auto">
       {/* Header: logo + nav + Giriş + Kayıt + dil */}
       <header className="fixed top-0 left-0 right-0 z-50 min-h-[4rem] h-16 flex items-center justify-between px-3 sm:px-6 md:px-12 pt-[env(safe-area-inset-top)] bg-[#06090f]/98 sm:bg-[#06090f]/95 backdrop-blur-md border-b border-white/5">
         <Link href={localePath('/')} className="flex items-center gap-2 sm:gap-3 flex-shrink-0 min-w-0" onClick={() => setMobileNavOpen(false)}>
@@ -322,7 +312,7 @@ export function HomePage({ localePath }: HomePageProps) {
 
       {/* TV Kanalları - Önce gösteriliyor */}
       <section id="channels" className="py-10 sm:py-16 md:py-20 px-3 sm:px-6 md:px-12 scroll-mt-20">
-        <div className="max-w-6xl mx-auto">
+        <div className="max-w-7xl mx-auto">
           <h2 className="text-xl sm:text-3xl font-bold text-white text-center mb-2 sm:mb-4">
             {t('home_channels_title')}
           </h2>
@@ -330,9 +320,9 @@ export function HomePage({ localePath }: HomePageProps) {
             {t('home_channels_desc')}
           </p>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 md:gap-10 place-items-center">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-10 sm:gap-12 md:gap-16 place-items-center">
             {channels.map((ch) => (
-                <div key={ch.slug} className="flex justify-center w-full max-w-[280px] sm:max-w-sm">
+                <div key={ch.slug} className="flex justify-center w-full max-w-[520px] sm:max-w-[600px] md:max-w-[680px] lg:max-w-[780px]">
                   <TVFrame
                     previewUrl={getPreviewUrl(ch, localePath)}
                     title={ch.title}

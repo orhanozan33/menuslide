@@ -574,6 +574,7 @@ export const translations: Record<Locale, Record<string, string>> = {
     frame_ivy_light: 'Light Ivy',
     frame_stone: 'Stone',
     frame_copper: 'Copper',
+    frame_metallic: 'Metallic',
 
     // Templates
     templates_title: 'Template Library',
@@ -2169,6 +2170,7 @@ export const translations: Record<Locale, Record<string, string>> = {
     frame_ivy_light: 'Açık Sarmaşık',
     frame_stone: 'Taş',
     frame_copper: 'Bakır',
+    frame_metallic: 'Metalik',
 
     // Templates
     templates_title: 'Hazır Şablonlar / Şablon Kütüphanesi',
@@ -3754,6 +3756,7 @@ export const translations: Record<Locale, Record<string, string>> = {
     frame_ivy_light: 'Lierre Clair',
     frame_stone: 'Pierre',
     frame_copper: 'Cuivre',
+    frame_metallic: 'Métallique',
 
     // Templates
     templates_title: 'Bibliothèque de modèles',

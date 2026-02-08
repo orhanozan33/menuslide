@@ -619,7 +619,7 @@ export function TemplatesLibraryContent({
           const is5BlockThird = blockCount === 5 && index === 2;
           const is7BlockLast = blockCount === 7 && index === 6;
           const shouldSpanRows = gridLayout.specialLayout && (is3BlockLast || is5BlockThird);
-          const shouldSpanCols = is3BlockLast || is7BlockLast;
+          const shouldSpanCols = is7BlockLast;
 
           const bgImage = block.style_config
             ? (typeof block.style_config === 'string'

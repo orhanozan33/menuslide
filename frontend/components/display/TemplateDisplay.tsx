@@ -218,11 +218,14 @@ export function TemplateDisplay({
   }, [sortedBlocks, templateBlockCount]);
   const blockCount = blocksToRender.length > 0 ? blocksToRender.length : (templateBlockCount || 0);
 
-  // Blok birleştirmede bir blok 0 boyutlu kalabilir; en az bir blokta geçerli pozisyon/boyut varsa custom layout kullan (büyük dikey blok doğru görünsün)
+  // Blok birleştirmede pozisyon/boyut varsa custom layout kullan — tasarımdaki gibi yayında da büyük blok doğru görünsün
   const useCustomPositions = useMemo(() => {
     if (blocksToRender.length === 0) return false;
     const hasAnyValid = blocksToRender.some((b) => {
-      const x = Number(b.position_x), y = Number(b.position_y), w = Number(b.width), h = Number(b.height);
+      const x = Number((b as Record<string, unknown>).position_x);
+      const y = Number((b as Record<string, unknown>).position_y);
+      const w = Number((b as Record<string, unknown>).width);
+      const h = Number((b as Record<string, unknown>).height);
       return Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0;
     });
     return hasAnyValid;
@@ -301,20 +304,30 @@ export function TemplateDisplay({
           const is3Last = blockCount === 3 && index === 2;
           const is5Third = blockCount === 5 && index === 2;
           const is7Last = blockCount === 7 && index === 6;
+          // 3 blok: son blok sağ sütunda 2 satır. 5 blok (sağ birleştirme): 3. blok sağ sütunda 2 satır. 7 blok: son blok 2 sütun.
           const spanRows = !useCustomPositions && gridLayout.specialLayout && (is3Last || is5Third);
-          const spanCols = !useCustomPositions && (is3Last || is7Last);
+          const spanCols = !useCustomPositions && is7Last;
+          const tallBlockCol = spanRows ? (is3Last ? 2 : 3) : undefined; // 3 blok: col 2 (sağ), 5 blok: col 3 (sağ, birleştirme sonrası)
 
+          // 3 ve 5 bloklu layout: sağ sütun tek dikey blok olmalı. DB'de height=50 olabilir; canlıda 2 satır span için height=100 kullan.
+          const posX = Number(block.position_x ?? 0);
+          const posY = Number(block.position_y ?? 0);
+          const w = Number(block.width ?? 25);
+          let h = Number(block.height ?? 25);
+          if (useCustomPositions && gridLayout.specialLayout && (is3Last || is5Third) && posX >= 50 && h <= 55) {
+            h = 100; // Sağ sütundaki blok tam yükseklik kaplasın
+          }
           const blockStyle: React.CSSProperties = useCustomPositions
             ? {
                 position: 'absolute',
-                left: `${Number(block.position_x ?? 0)}%`,
-                top: `${Number(block.position_y ?? 0)}%`,
-                width: `${Number(block.width ?? 25)}%`,
-                height: `${Number(block.height ?? 25)}%`,
+                left: `${posX}%`,
+                top: `${posY}%`,
+                width: `${w}%`,
+                height: `${h}%`,
               }
             : {
-                gridRow: spanRows ? 'span 2' : 'auto',
-                gridColumn: spanCols ? 'span 2' : 'auto',
+                gridRow: spanRows ? '1 / span 2' : 'auto',
+                gridColumn: spanCols ? 'span 2' : tallBlockCol !== undefined ? tallBlockCol : 'auto',
               };
 
           let styleConfig: Record<string, unknown> = {};
@@ -340,7 +353,7 @@ export function TemplateDisplay({
             singleProduct ||
             drinkContent
           );
-          const defaultBlockBg = '#374151';
+          const defaultBlockBg = !hasVisibleContent ? '#3d4552' : '#374151';
           const bgColorRaw =
             (styleConfig.background_color as string) ||
             (styleConfig.backgroundColor as string) ||

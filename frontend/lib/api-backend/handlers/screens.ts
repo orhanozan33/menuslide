@@ -435,13 +435,18 @@ export async function publishTemplates(screenId: string, request: NextRequest, u
   await supabase.from('screen_template_rotations').delete().eq('screen_id', screenId);
   await supabase.from('screen_blocks').delete().eq('screen_id', screenId);
   await supabase.from('screens').update({ template_id: first.template_id, is_active: true }).eq('id', screenId);
-  const { data: tBlocks } = await supabase.from('template_blocks').select('*').eq('template_id', first.template_id).order('block_index', { ascending: true });
+  const { data: tBlocks } = await supabase.from('template_blocks').select('id, block_index, position_x, position_y, width, height').eq('template_id', first.template_id).order('block_index', { ascending: true });
   for (const tb of tBlocks ?? []) {
+    const row = tb as { id: string; block_index: number; position_x?: number; position_y?: number; width?: number; height?: number };
     await supabase.from('screen_blocks').insert({
       screen_id: screenId,
-      template_block_id: (tb as { id: string }).id,
-      display_order: (tb as { block_index: number }).block_index,
+      template_block_id: row.id,
+      display_order: row.block_index,
       is_active: true,
+      position_x: row.position_x ?? 0,
+      position_y: row.position_y ?? 0,
+      width: row.width ?? 100,
+      height: row.height ?? 100,
     });
   }
   for (let i = 0; i < templates.length; i++) {

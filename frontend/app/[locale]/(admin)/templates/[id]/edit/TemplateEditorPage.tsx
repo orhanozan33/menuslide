@@ -878,12 +878,21 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
     const newBlockCount = blockCount - others.length;
     try {
       setSaving(true);
-      const pos = (b: any) => getBlockGridPosition(b.block_index ?? 0, blockCount);
-      let { x: left, y: top, w: w0, h: h0 } = pos(targetBlock);
+      const getPos = (b: any) => {
+        const px = Number(b.position_x);
+        const py = Number(b.position_y);
+        const pw = Number(b.width);
+        const ph = Number(b.height);
+        if (Number.isFinite(px) && Number.isFinite(py) && Number.isFinite(pw) && Number.isFinite(ph) && pw > 0 && ph > 0) {
+          return { x: px, y: py, w: pw, h: ph };
+        }
+        return getBlockGridPosition(b.block_index ?? 0, blockCount);
+      };
+      let { x: left, y: top, w: w0, h: h0 } = getPos(targetBlock);
       let right = left + w0;
       let bottom = top + h0;
       for (const b of others) {
-        const { x, y, w, h } = pos(b);
+        const { x, y, w, h } = getPos(b);
         left = Math.min(left, x);
         top = Math.min(top, y);
         right = Math.max(right, x + w);
@@ -3549,7 +3558,7 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
                         const is5BlockThird = blocks.length === 5 && index === 2;
                         const is7BlockLast = blocks.length === 7 && index === 6;
                         const shouldSpanRows = !useAbsoluteLayout && gridLayout.specialLayout && (is3BlockLast || is5BlockThird);
-                        const shouldSpanCols = !useAbsoluteLayout && (is3BlockLast || is7BlockLast);
+                        const shouldSpanCols = !useAbsoluteLayout && is7BlockLast;
                         
                         const hasBackground = bgImage || bgGradient || (bgColor && bgColor !== '#1a1a1a');
                         
@@ -4352,7 +4361,7 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
                     const is5BlockThird = blocks.length === 5 && index === 2;
                     const is7BlockLast = blocks.length === 7 && index === 6;
                     const shouldSpanRows = !useAbsoluteLayout && gridLayout.specialLayout && (is3BlockLast || is5BlockThird);
-                    const shouldSpanCols = !useAbsoluteLayout && (is3BlockLast || is7BlockLast);
+                    const shouldSpanCols = !useAbsoluteLayout && is7BlockLast;
                     const blockPositionStyle = useAbsoluteLayout ? {
                       position: 'absolute' as const,
                       left: `${Number(block.position_x ?? 0)}%`,
@@ -5746,7 +5755,7 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
                               const is5BlockThird = blocks.length === 5 && index === 2;
                               const is7BlockLast = blocks.length === 7 && index === 6;
                               const shouldSpanRows = gridLayout.specialLayout && (is3BlockLast || is5BlockThird);
-                              const shouldSpanCols = is3BlockLast || is7BlockLast;
+                              const shouldSpanCols = is7BlockLast;
                               return (
                                 <div
                                   key={block.id}

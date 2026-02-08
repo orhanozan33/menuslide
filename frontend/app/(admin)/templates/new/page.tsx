@@ -225,7 +225,7 @@ export default function NewTemplatePage() {
                     const is3BlockLast = selectedGrid.blocks === 3 && idx === 2;
                     const is5BlockThird = selectedGrid.blocks === 5 && idx === 2;
                     const shouldSpanRows = is3BlockLast || is5BlockThird;
-                    const shouldSpanCols = is3BlockLast || is7BlockLast;
+                    const shouldSpanCols = is7BlockLast;
                     
                     return (
                       <div
