@@ -43,29 +43,37 @@ function EmbedFitWrapper({ children }: { children: React.ReactNode }) {
     const update = () => {
       const w = window.innerWidth;
       const h = window.innerHeight;
-      setScale(Math.min(w / EMBED_WIDTH, h / EMBED_HEIGHT));
+      // Cover: tam ekran doldur, siyah bant kalmasın (önceki: Math.min = contain)
+      setScale(Math.max(w / EMBED_WIDTH, h / EMBED_HEIGHT));
     };
     update();
     window.addEventListener('resize', update);
     return () => window.removeEventListener('resize', update);
   }, []);
 
-  // Her zaman scale uygula — iframe veya normal sekme fark etmez; içerik ekranı doldurur
+  // Cover modu: içerik viewport'u tam doldurur, overflow clip edilir
   return (
     <div
       style={{
-        width: EMBED_WIDTH,
-        height: EMBED_HEIGHT,
-        transform: `scale(${scale})`,
-        transformOrigin: inIframe ? '0 0' : 'center center',
         position: 'fixed' as const,
-        top: inIframe ? 0 : '50%',
-        left: inIframe ? 0 : '50%',
-        margin: inIframe ? 0 : `-${EMBED_HEIGHT / 2}px 0 0 -${EMBED_WIDTH / 2}px`,
+        inset: 0,
         overflow: 'hidden',
       }}
     >
-      {children}
+      <div
+        style={{
+          width: EMBED_WIDTH,
+          height: EMBED_HEIGHT,
+          transform: `scale(${scale})`,
+          transformOrigin: inIframe ? '0 0' : 'center center',
+          position: 'absolute' as const,
+          top: inIframe ? 0 : '50%',
+          left: inIframe ? 0 : '50%',
+          margin: inIframe ? 0 : `-${EMBED_HEIGHT / 2}px 0 0 -${EMBED_WIDTH / 2}px`,
+        }}
+      >
+        {children}
+      </div>
     </div>
   );
 }
