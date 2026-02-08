@@ -60,22 +60,28 @@ function TVFrame({
       className="group flex flex-col items-center cursor-pointer touch-manipulation"
       onClick={onClick}
     >
-      <div className="relative w-full max-w-[520px] sm:max-w-[600px] md:max-w-[680px] lg:max-w-[780px] transition-transform duration-300 group-hover:scale-[1.02] group-active:scale-[0.99]">
-        {/* TV kabini — ince metalik çerçeve 4 taraf */}
+      <div className="relative w-full max-w-[520px] sm:max-w-[600px] md:max-w-[680px] lg:max-w-[780px] transition-transform duration-300 group-hover:scale-[1.01] group-active:scale-[0.99]">
+        {/* TV kabini — ince metalik çerçeve 4 taraf, taşma yok */}
         <div
           className="relative overflow-hidden rounded-[4px]"
           style={{
             aspectRatio: '16/9',
             boxShadow:
-              '0 8px 24px rgba(0,0,0,0.4), 0 24px 48px -16px rgba(0,0,0,0.5)',
+              '0 4px 16px rgba(0,0,0,0.35), 0 12px 32px -12px rgba(0,0,0,0.4)',
           }}
         >
-          {/* İnce metalik çerçeve — 4 taraf eşit */}
+          {/* İnce metalik çerçeve — 4 taraf eşit, sağ kenar da dahil */}
           <div
-            className="absolute inset-0 rounded-[4px]"
+            className="absolute inset-0 rounded-[4px] overflow-hidden"
             style={{
               background: 'linear-gradient(145deg, #6b6e74 0%, #5a5d63 25%, #4d5056 50%, #44474d 75%, #5c5f65 100%)',
               boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.25), inset 0 -1px 0 rgba(0,0,0,0.25)',
+              border: '6px solid #5a5d63',
+              borderTopColor: '#6b6e74',
+              borderRightColor: '#5a5d63',
+              borderBottomColor: '#44474d',
+              borderLeftColor: '#5a5d63',
+              boxSizing: 'border-box',
             }}
           />
           {/* Ekran alanı — gerçek TV’deki gibi içeri çekik */}
@@ -98,7 +104,6 @@ function TVFrame({
           </div>
           {/* Cam yansıması */}
           <div className="absolute inset-[8px] sm:inset-[10px] rounded-[2px] pointer-events-none bg-gradient-to-b from-white/5 via-transparent to-transparent" />
-          <div className="absolute inset-0 pointer-events-none rounded-[4px] group-hover:ring-2 group-hover:ring-white/30 transition-all" />
         </div>
         {/* TV ayakları — metalik merkez taban */}
         <div className="flex justify-center -mt-px">
