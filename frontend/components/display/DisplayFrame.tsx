@@ -187,6 +187,52 @@ const FRAME_STYLES: Record<string, React.CSSProperties & { className?: string }>
     borderRadius: '4px',
     boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.12), inset 0 -1px 0 rgba(0,0,0,0.2)',
   },
+  // Süslemeli barok/antik çerçeveler (resimdeki gibi)
+  frame_ornate_gold: {
+    borderTop: '10px solid transparent',
+    borderLeft: '10px solid transparent',
+    borderRight: '10px solid transparent',
+    borderBottom: '10px solid transparent',
+    borderImage: 'linear-gradient(145deg, #d4af37 0%, #f4d03f 15%, #c9a227 35%, #b8860b 50%, #c9a227 65%, #f4d03f 85%, #d4af37 100%) 1',
+    borderRadius: '4px',
+    boxShadow: 'inset 0 0 0 2px rgba(184,134,11,0.4), inset 0 0 0 4px rgba(212,175,55,0.2), 0 4px 20px rgba(0,0,0,0.3)',
+  },
+  frame_ornate_silver: {
+    borderTop: '10px solid transparent',
+    borderLeft: '10px solid transparent',
+    borderRight: '10px solid transparent',
+    borderBottom: '10px solid transparent',
+    borderImage: 'linear-gradient(145deg, #c0c0c0 0%, #e8e8e8 15%, #a8a8a8 35%, #909090 50%, #a8a8a8 65%, #e8e8e8 85%, #c0c0c0 100%) 1',
+    borderRadius: '4px',
+    boxShadow: 'inset 0 0 0 2px rgba(128,128,128,0.4), inset 0 0 0 4px rgba(192,192,192,0.2), 0 4px 20px rgba(0,0,0,0.3)',
+  },
+  frame_ornate_antique_gold: {
+    borderTop: '12px solid transparent',
+    borderLeft: '12px solid transparent',
+    borderRight: '12px solid transparent',
+    borderBottom: '12px solid transparent',
+    borderImage: 'linear-gradient(160deg, #8B7355 0%, #b8860b 20%, #daa520 40%, #8B7355 60%, #cd853f 80%, #b8860b 100%) 1',
+    borderRadius: '6px',
+    boxShadow: 'inset 0 0 0 3px rgba(139,90,43,0.5), inset 0 2px 4px rgba(255,255,255,0.1), 0 6px 24px rgba(0,0,0,0.35)',
+  },
+  frame_ornate_rose_gold: {
+    borderTop: '10px solid transparent',
+    borderLeft: '10px solid transparent',
+    borderRight: '10px solid transparent',
+    borderBottom: '10px solid transparent',
+    borderImage: 'linear-gradient(145deg, #b76e79 0%, #e8b4b8 15%, #9e5a63 35%, #8b4a52 50%, #9e5a63 65%, #e8b4b8 85%, #b76e79 100%) 1',
+    borderRadius: '4px',
+    boxShadow: 'inset 0 0 0 2px rgba(139,74,82,0.4), inset 0 0 0 4px rgba(183,110,121,0.2), 0 4px 20px rgba(0,0,0,0.3)',
+  },
+  frame_ornate_bronze: {
+    borderTop: '10px solid transparent',
+    borderLeft: '10px solid transparent',
+    borderRight: '10px solid transparent',
+    borderBottom: '10px solid transparent',
+    borderImage: 'linear-gradient(145deg, #8B6914 0%, #cd7f32 15%, #6b4423 35%, #5c4033 50%, #6b4423 65%, #cd7f32 85%, #8B6914 100%) 1',
+    borderRadius: '4px',
+    boxShadow: 'inset 0 0 0 2px rgba(91,64,51,0.5), inset 0 2px 4px rgba(255,255,255,0.08), 0 4px 20px rgba(0,0,0,0.35)',
+  },
 };
 
 export const FRAME_OPTIONS = [
@@ -214,6 +260,11 @@ export const FRAME_OPTIONS = [
   { value: 'frame_stone', labelKey: 'frame_stone' },
   { value: 'frame_copper', labelKey: 'frame_copper' },
   { value: 'frame_metallic', labelKey: 'frame_metallic' },
+  { value: 'frame_ornate_gold', labelKey: 'frame_ornate_gold' },
+  { value: 'frame_ornate_silver', labelKey: 'frame_ornate_silver' },
+  { value: 'frame_ornate_antique_gold', labelKey: 'frame_ornate_antique_gold' },
+  { value: 'frame_ornate_rose_gold', labelKey: 'frame_ornate_rose_gold' },
+  { value: 'frame_ornate_bronze', labelKey: 'frame_ornate_bronze' },
 ];
 
 interface DisplayFrameProps {

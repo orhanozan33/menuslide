@@ -575,6 +575,11 @@ export const translations: Record<Locale, Record<string, string>> = {
     frame_stone: 'Stone',
     frame_copper: 'Copper',
     frame_metallic: 'Metallic',
+    frame_ornate_gold: 'Ornate Gold',
+    frame_ornate_silver: 'Ornate Silver',
+    frame_ornate_antique_gold: 'Ornate Antique Gold',
+    frame_ornate_rose_gold: 'Ornate Rose Gold',
+    frame_ornate_bronze: 'Ornate Bronze',
 
     // Templates
     templates_title: 'Template Library',
@@ -2171,6 +2176,11 @@ export const translations: Record<Locale, Record<string, string>> = {
     frame_stone: 'Taş',
     frame_copper: 'Bakır',
     frame_metallic: 'Metalik',
+    frame_ornate_gold: 'Süslemeli Altın',
+    frame_ornate_silver: 'Süslemeli Gümüş Grisi',
+    frame_ornate_antique_gold: 'Süslemeli Antik Altın',
+    frame_ornate_rose_gold: 'Süslemeli Gül Altını',
+    frame_ornate_bronze: 'Süslemeli Bronz',
 
     // Templates
     templates_title: 'Hazır Şablonlar / Şablon Kütüphanesi',
@@ -3757,6 +3767,11 @@ export const translations: Record<Locale, Record<string, string>> = {
     frame_stone: 'Pierre',
     frame_copper: 'Cuivre',
     frame_metallic: 'Métallique',
+    frame_ornate_gold: 'Or doré orné',
+    frame_ornate_silver: 'Argent orné',
+    frame_ornate_antique_gold: 'Or antique orné',
+    frame_ornate_rose_gold: 'Or rose orné',
+    frame_ornate_bronze: 'Bronze orné',
 
     // Templates
     templates_title: 'Bibliothèque de modèles',
