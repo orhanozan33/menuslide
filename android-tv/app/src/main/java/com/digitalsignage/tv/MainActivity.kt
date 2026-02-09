@@ -48,8 +48,10 @@ class MainActivity : AppCompatActivity() {
         private const val PREFS = "tv_player"
         private const val KEY_BROADCAST_CODE = "broadcast_code"
         private const val KEY_DEVICE_ID = "device_id"
-        private const val API_BASE = "https://api.menuslide.com"
-        private const val API_RESOLVE = "$API_BASE/player/resolve"
+        /** Ayarlardan alınan API taban URL (örn. https://menuslide.com/api/proxy) */
+        private const val KEY_API_BASE = "api_base"
+        /** Config alınacak site (apiBaseUrl buradan gelir) */
+        private const val BOOTSTRAP_BASE = "https://menuslide.com"
         private const val WATCHDOG_INTERVAL_MS = 5 * 60 * 1000L // 5 dakika
         private const val STUCK_THRESHOLD_MS = 90_000L // 1.5 dk oynatma yoksa yeniden başlat
     }
@@ -225,22 +227,56 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /** Config'ten API taban URL al (önbelleğe alır). IO thread'de çağrılmalı. */
+    private fun getApiBaseUrl(): String {
+        val cached = prefs.getString(KEY_API_BASE, null)?.trim()
+        if (!cached.isNullOrEmpty()) return cached.trimEnd('/')
+        return try {
+            val configUrl = "$BOOTSTRAP_BASE/api/tv-app-config"
+            val request = Request.Builder().url(configUrl).get().build()
+            val client = OkHttpClient.Builder().connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS).build()
+            val response = client.newCall(request).execute()
+            if (response.isSuccessful) {
+                val json = response.body?.string() ?: ""
+                val obj = JSONObject(json)
+                val base = obj.optString("apiBaseUrl", "").trim()
+                val url = if (base.isNotEmpty()) base.trimEnd('/') else "$BOOTSTRAP_BASE/api/proxy"
+                prefs.edit().putString(KEY_API_BASE, url).apply()
+                Log.d(TAG, "api base from config: $url")
+                url
+            } else {
+                val fallback = "$BOOTSTRAP_BASE/api/proxy"
+                Log.w(TAG, "config failed ${response.code}, using $fallback")
+                fallback
+            }
+        } catch (e: Exception) {
+            val fallback = "$BOOTSTRAP_BASE/api/proxy"
+            Log.e(TAG, "config fetch error, using $fallback", e)
+            fallback
+        }
+    }
+
     private fun resolveStreamUrl(code: String): String? {
         return try {
+            val apiBase = getApiBaseUrl()
+            val resolveUrl = "$apiBase/player/resolve"
             val deviceId = getOrCreateDeviceId()
             val body = JSONObject().apply {
                 put("code", code)
                 put("deviceId", deviceId)
             }.toString()
             val request = Request.Builder()
-                .url(API_RESOLVE)
+                .url(resolveUrl)
                 .post(body.toRequestBody("application/json".toMediaType()))
                 .addHeader("Content-Type", "application/json")
                 .build()
-            val client = OkHttpClient.Builder().build()
+            val client = OkHttpClient.Builder()
+                .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(20, java.util.concurrent.TimeUnit.SECONDS)
+                .build()
             val response = client.newCall(request).execute()
             if (!response.isSuccessful) {
-                Log.e(TAG, "resolve failed: ${response.code}")
+                Log.e(TAG, "resolve failed: ${response.code} $resolveUrl")
                 return null
             }
             val json = response.body?.string() ?: return null

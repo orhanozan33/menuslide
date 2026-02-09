@@ -41,6 +41,8 @@ interface Screen {
   location: string;
   public_token: string;
   public_slug?: string;
+  /** Android TV uygulamasında girilecek 5 haneli kod (örn. 12345) */
+  broadcast_code?: string | null;
   is_active: boolean;
   created_at: string;
   frame_type?: string;
@@ -755,7 +757,34 @@ export default function ScreensPage() {
           {screens.map((screen) => (
             <div key={screen.id} className="bg-white p-5 sm:p-6 rounded-xl shadow-md hover:shadow-lg transition-all border border-gray-100">
               <h3 className="text-lg sm:text-xl font-bold mb-2 text-gray-900">{screen.name}</h3>
-              <p className="text-sm sm:text-base text-gray-700 mb-4">{screen.location || t('screens_location_unknown')}</p>
+              <p className="text-sm sm:text-base text-gray-700 mb-3">{screen.location || t('screens_location_unknown')}</p>
+              {/* Yayın kodu: her kartta göster (kod varsa değer + kopyala, yoksa "atanmamış" + detay linki) */}
+              <div className="mb-3 p-3 bg-emerald-50 rounded-lg border border-emerald-200">
+                <p className="text-xs sm:text-sm text-emerald-800 font-medium mb-1">{t('screens_broadcast_code_title')}</p>
+                {(screen as Screen).broadcast_code ? (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg font-mono font-bold text-emerald-900">{(screen as Screen).broadcast_code}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard?.writeText(String((screen as Screen).broadcast_code));
+                          toast.showSuccess(t('screens_broadcast_code_copied'));
+                        }}
+                        className="px-2 py-1 text-xs bg-emerald-200 text-emerald-900 rounded hover:bg-emerald-300"
+                      >
+                        {t('screens_broadcast_code_copy')}
+                      </button>
+                    </div>
+                    <p className="text-xs text-emerald-700 mt-1">{t('screens_broadcast_code_desc')}</p>
+                  </>
+                ) : (
+                  <p className="text-xs text-emerald-700">
+                    {t('screens_broadcast_code_not_set')}{' '}
+                    <a href={localePath(`/screens/${screen.id}`)} className="underline font-medium">{t('screens_manage')}</a>
+                  </p>
+                )}
+              </div>
               <div className="mb-4 pb-4 border-b border-gray-100">
                 <p className="text-xs sm:text-sm text-gray-600 mb-2 font-medium">{t('screens_public_url')}</p>
                 <div className="flex items-center gap-2 min-w-0">
