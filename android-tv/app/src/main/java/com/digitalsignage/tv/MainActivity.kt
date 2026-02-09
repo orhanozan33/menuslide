@@ -106,6 +106,8 @@ class MainActivity : AppCompatActivity() {
         labelError = findViewById(R.id.label_error)
         progressLoading = findViewById(R.id.progress_loading)
         playerView = findViewById(R.id.player_view)
+        inputCode.setTextColor(android.graphics.Color.BLACK)
+        inputCode.setHintTextColor(android.graphics.Color.GRAY)
     }
 
     private fun keepScreenOn() {
@@ -281,7 +283,9 @@ class MainActivity : AppCompatActivity() {
                 .build()
             val response = client.newCall(request).execute()
             val json = response.body?.string() ?: ""
-            val obj = if (json.isNotEmpty()) try { JSONObject(json) } catch (_: Exception) { JSONObject() } else JSONObject()
+            Log.d(TAG, "resolve response: ${response.code} url=$resolveUrl body=${json.take(300)}")
+            val isJson = json.trimStart().startsWith("{")
+            val obj = if (json.isNotEmpty() && isJson) try { JSONObject(json) } catch (_: Exception) { JSONObject() } else JSONObject()
             if (!response.isSuccessful) {
                 val msg = obj.optString("message", "").ifEmpty { null }
                 Log.e(TAG, "resolve failed: ${response.code} $resolveUrl $msg")
@@ -292,16 +296,21 @@ class MainActivity : AppCompatActivity() {
                 val url = obj.getString("streamUrl").takeIf { it.isNotEmpty() }
                 if (url != null) return Pair(url, null)
             }
-            val err = obj.optString("error", "")
+            if (!isJson || json.isBlank()) {
+                Log.e(TAG, "resolve: body is not JSON (maybe HTML). url=$resolveUrl")
+                prefs.edit().remove(KEY_API_BASE).apply()
+                return Pair(null, getString(R.string.error_not_json))
+            }
+            val err = obj.optString("error", "").trim()
             val msg = obj.optString("message", "").ifEmpty {
-                when (err) {
+                when (err.uppercase()) {
                     "CODE_NOT_FOUND" -> getString(R.string.error_code_not_found)
                     "CODE_INACTIVE" -> getString(R.string.error_code_inactive)
                     "CONFIG_ERROR" -> getString(R.string.error_server_config)
                     else -> getString(R.string.error_invalid_response)
                 }
             }
-            if (err == "CONFIG_ERROR") prefs.edit().remove(KEY_API_BASE).apply()
+            if (err.equals("CONFIG_ERROR", ignoreCase = true)) prefs.edit().remove(KEY_API_BASE).apply()
             Pair(null, msg)
         } catch (e: Exception) {
             Log.e(TAG, "resolve error", e)

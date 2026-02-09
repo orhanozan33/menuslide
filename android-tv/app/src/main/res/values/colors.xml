@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="code_input_text">#FF000000</color>
+    <color name="code_input_hint">#FF666666</color>
+</resources>
