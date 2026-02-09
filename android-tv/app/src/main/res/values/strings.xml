@@ -7,6 +7,7 @@
     <string name="error_network">Bağlantı hatası. Tekrar denenecek.</string>
     <string name="error_invalid_response">Geçersiz yanıt. Kodu kontrol edin.</string>
     <string name="error_code_not_found">Bu kod ile ekran bulunamadı. Admin panel Ekranlar sayfasındaki 5 haneli kodu girin.</string>
+    <string name="error_code_inactive">Bu ekran pasif. Admin panel Ekranlar\'da ilgili TV\'yi Aktif yapın.</string>
     <string name="error_server_config">Sunucu ayarı hatası. Yönetici ile iletişime geçin.</string>
     <string name="error_no_stream">Yayın URL\'i alınamadı.</string>
 </resources>

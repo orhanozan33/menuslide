@@ -30,6 +30,11 @@ export async function handleLocal(
     return Response.json({ message: 'API path gerekli (örn. /api/proxy/auth/login)' }, { status: 400 });
   }
 
+  // Player: herkese açık, token gerekmez (TV uygulaması / tarayıcı kontrolü)
+  const isPlayerCheck = (resource === 'player' && sub === 'check') || pathSegments.join('/') === 'player/check';
+  if (isPlayerCheck && method === 'GET') return publicScreenHandlers.checkPlayerConfig();
+  if (resource === 'player' && sub === 'resolve' && method === 'POST') return publicScreenHandlers.resolvePlayer(request);
+
   // Auth login/register — token gerekmez, en başta ele al (giriş her zaman çalışsın)
   // Path bazen tek segment olarak gelir: "auth/login" -> resource="auth/login", sub undefined
   if (resource === 'auth' && sub === 'login' && method === 'POST') return authHandlers.postLogin(request);
@@ -46,12 +51,6 @@ export async function handleLocal(
   if (resource === 'public' && sub === 'screen' && id) {
     if (method === 'GET') return publicScreenHandlers.getScreenByToken(id, request);
     if (method === 'POST' && sub2 === 'heartbeat') return publicScreenHandlers.recordViewerHeartbeat(id, request);
-  }
-  if (resource === 'player' && sub === 'check' && method === 'GET') {
-    return publicScreenHandlers.checkPlayerConfig();
-  }
-  if (resource === 'player' && sub === 'resolve' && method === 'POST') {
-    return publicScreenHandlers.resolvePlayer(request);
   }
 
   // Kayıt talepleri: POST herkese açık, GET/PATCH/DELETE admin

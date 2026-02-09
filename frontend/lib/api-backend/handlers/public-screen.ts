@@ -382,11 +382,11 @@ export async function resolvePlayer(request: NextRequest): Promise<Response> {
   if (!code) return Response.json({ error: 'CODE_REQUIRED' }, { status: 400 });
 
   const supabase = getServerSupabase();
+  // Önce koda göre ekranı bul (is_active kontrolü ayrı: pasifse net mesaj verelim)
   const { data: screen, error: sbError } = await supabase
     .from('screens')
-    .select('public_slug, public_token')
+    .select('id, public_slug, public_token, is_active')
     .eq('broadcast_code', code)
-    .eq('is_active', true)
     .limit(1)
     .maybeSingle();
 
@@ -398,9 +398,19 @@ export async function resolvePlayer(request: NextRequest): Promise<Response> {
     );
   }
   if (!screen) {
-    return Response.json({ error: 'CODE_NOT_FOUND', message: 'Bu kod ile eşleşen ekran bulunamadı. Admin panel Ekranlar sayfasındaki kodu kullanın.' });
+    return Response.json({
+      error: 'CODE_NOT_FOUND',
+      message: 'Bu kod ile eşleşen ekran yok. Admin panel → Ekranlar sayfasındaki 5 haneli kodu aynen girin.',
+    });
   }
-  const slugOrToken = (screen as { public_slug?: string; public_token?: string }).public_slug || (screen as { public_token?: string }).public_token;
+  const scr = screen as { is_active?: boolean; public_slug?: string; public_token?: string };
+  if (scr.is_active === false) {
+    return Response.json({
+      error: 'CODE_INACTIVE',
+      message: 'Bu ekran şu an pasif. Admin panel → Ekranlar\'da ilgili TV\'yi Aktif yapın.',
+    });
+  }
+  const slugOrToken = scr.public_slug || scr.public_token;
   if (!slugOrToken) {
     return Response.json({ error: 'SCREEN_NO_URL', message: 'Ekran için yayın adresi tanımlı değil.' });
   }

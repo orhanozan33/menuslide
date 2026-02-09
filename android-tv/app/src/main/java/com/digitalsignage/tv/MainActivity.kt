@@ -227,10 +227,12 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** Config'ten API taban URL al (önbelleğe alır). IO thread'de çağrılmalı. */
-    private fun getApiBaseUrl(): String {
-        val cached = prefs.getString(KEY_API_BASE, null)?.trim()
-        if (!cached.isNullOrEmpty()) return cached.trimEnd('/')
+    /** Config'ten API taban URL al. forceRefresh=true ise önbelleği kullanmaz, her seferinde sunucudan çeker. */
+    private fun getApiBaseUrl(forceRefresh: Boolean = false): String {
+        if (!forceRefresh) {
+            val cached = prefs.getString(KEY_API_BASE, null)?.trim()
+            if (!cached.isNullOrEmpty()) return cached.trimEnd('/')
+        }
         return try {
             val configUrl = "$BOOTSTRAP_BASE/api/tv-app-config"
             val request = Request.Builder().url(configUrl).get().build()
@@ -247,11 +249,13 @@ class MainActivity : AppCompatActivity() {
             } else {
                 val fallback = "$BOOTSTRAP_BASE/api/proxy"
                 Log.w(TAG, "config failed ${response.code}, using $fallback")
+                prefs.edit().putString(KEY_API_BASE, fallback).apply()
                 fallback
             }
         } catch (e: Exception) {
             val fallback = "$BOOTSTRAP_BASE/api/proxy"
             Log.e(TAG, "config fetch error, using $fallback", e)
+            prefs.edit().putString(KEY_API_BASE, fallback).apply()
             fallback
         }
     }
@@ -259,7 +263,7 @@ class MainActivity : AppCompatActivity() {
     /** Returns Pair(streamUrl, errorMessage). streamUrl non-null = success; else errorMessage for user. */
     private fun resolveStreamUrl(code: String): Pair<String?, String?> {
         return try {
-            val apiBase = getApiBaseUrl()
+            val apiBase = getApiBaseUrl(forceRefresh = true)
             val resolveUrl = "$apiBase/player/resolve"
             val deviceId = getOrCreateDeviceId()
             val body = JSONObject().apply {
@@ -281,6 +285,7 @@ class MainActivity : AppCompatActivity() {
             if (!response.isSuccessful) {
                 val msg = obj.optString("message", "").ifEmpty { null }
                 Log.e(TAG, "resolve failed: ${response.code} $resolveUrl $msg")
+                prefs.edit().remove(KEY_API_BASE).apply()
                 return Pair(null, msg ?: getString(R.string.error_server_config))
             }
             if (obj.has("streamUrl")) {
@@ -291,13 +296,16 @@ class MainActivity : AppCompatActivity() {
             val msg = obj.optString("message", "").ifEmpty {
                 when (err) {
                     "CODE_NOT_FOUND" -> getString(R.string.error_code_not_found)
+                    "CODE_INACTIVE" -> getString(R.string.error_code_inactive)
                     "CONFIG_ERROR" -> getString(R.string.error_server_config)
                     else -> getString(R.string.error_invalid_response)
                 }
             }
+            if (err == "CONFIG_ERROR") prefs.edit().remove(KEY_API_BASE).apply()
             Pair(null, msg)
         } catch (e: Exception) {
             Log.e(TAG, "resolve error", e)
+            prefs.edit().remove(KEY_API_BASE).apply()
             Pair(null, getString(R.string.error_network))
         }
     }
