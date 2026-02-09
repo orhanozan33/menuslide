@@ -2074,10 +2074,12 @@ export default function SistemPage() {
                         try {
                           const raw = templatePreviewItem.canvas_json as Record<string, unknown>;
                           const safe = sanitizeCanvasJsonForFabricWithVideoRestore(raw);
-                          const reviver = (serialized: Record<string, unknown>, instance: Record<string, unknown>) => {
-                            if (serialized?.__videoSrc != null) (instance as Record<string, unknown>).__videoSrc = serialized.__videoSrc;
+                          const reviver = (serialized: Record<string, unknown>, instance: unknown) => {
+                            if (serialized?.__videoSrc != null && instance != null && typeof instance === 'object')
+                              (instance as Record<string, unknown>).__videoSrc = serialized.__videoSrc;
                           };
-                          await c.loadFromJSON(safe as object, reviver as (o: Record<string, unknown>, obj: import('fabric').FabricObject) => void);
+                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                          await c.loadFromJSON(safe as object, reviver as any);
                           c.setDimensions({ width: 1920, height: 1080 });
                           constrainAllObjects(c);
                           const cw = (c as { width?: number }).width ?? 1920;
