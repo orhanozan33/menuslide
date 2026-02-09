@@ -10,6 +10,27 @@ export class PublicLocalService {
   ) {}
 
   /**
+   * Yayın kodu (örn. 12345) ile display URL döndürür. TV uygulaması bu URL ile yayını açar.
+   */
+  async resolveStreamUrlByBroadcastCode(code: string): Promise<{ streamUrl: string } | null> {
+    const trimmed = String(code || '').trim();
+    if (!trimmed) return null;
+    const r = await this.database.query(
+      `SELECT s.public_slug, s.public_token FROM screens s
+       INNER JOIN businesses b ON s.business_id = b.id AND b.is_active = true
+       WHERE s.broadcast_code = $1 AND s.is_active = true`,
+      [trimmed]
+    );
+    if (r.rows.length === 0) return null;
+    const row = r.rows[0];
+    const slugOrToken = row.public_slug || row.public_token;
+    if (!slugOrToken) return null;
+    const baseUrl = process.env.FRONTEND_URL || process.env.CORS_ORIGIN || 'http://localhost:3000';
+    const streamUrl = `${baseUrl.replace(/\/$/, '')}/display/${slugOrToken}`;
+    return { streamUrl };
+  }
+
+  /**
    * Token/slug ile ekran id'sini döndürür (heartbeat için hafif sorgu)
    */
   async getScreenIdByToken(publicTokenOrSlug: string): Promise<string | null> {

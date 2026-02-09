@@ -1,4 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Digital Signage</string>
+    <string name="app_name">MenuSlide TV</string>
+    <string name="label_broadcast_code">Yayın Kodu</string>
+    <string name="hint_code">Kodu girin</string>
+    <string name="btn_start">Başlat</string>
+    <string name="error_network">Bağlantı hatası. Tekrar denenecek.</string>
+    <string name="error_invalid_response">Geçersiz yanıt. Kodu kontrol edin.</string>
+    <string name="error_no_stream">Yayın URL\'i alınamadı.</string>
 </resources>

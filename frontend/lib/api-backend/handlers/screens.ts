@@ -9,6 +9,10 @@ function generatePublicToken(): string {
   return randomBytes(32).toString('hex');
 }
 
+function generateBroadcastCode(): string {
+  return String(10000 + Math.floor(Math.random() * 90000));
+}
+
 function slugify(name: string): string {
   const map: Record<string, string> = { ç: 'c', Ç: 'c', ğ: 'g', Ğ: 'g', ı: 'i', İ: 'i', ö: 'o', Ö: 'o', ş: 's', Ş: 's', ü: 'u', Ü: 'u' };
   let s = name.split('').map((c) => map[c] ?? c).join('').toLowerCase().trim()
@@ -143,12 +147,19 @@ export async function create(request: NextRequest, user: JwtPayload): Promise<Re
     const name = body.name || 'TV1';
     const publicSlug = await uniqueSlugLocal(slugify(`${businessName} ${name}`));
     const allowMultiDevice = user.role === 'super_admin';
+    let broadcastCode = generateBroadcastCode();
+    for (let i = 0; i < 20; i++) {
+      const exists = await queryOne('SELECT 1 FROM screens WHERE broadcast_code = $1 LIMIT 1', [broadcastCode]);
+      if (!exists) break;
+      broadcastCode = generateBroadcastCode();
+    }
     const data = await insertLocal('screens', {
       business_id: businessId,
       name,
       location: body.location ?? null,
       public_token: generatePublicToken(),
       public_slug: publicSlug,
+      broadcast_code: broadcastCode,
       is_active: true,
       animation_type: 'fade',
       animation_duration: 500,
@@ -171,12 +182,19 @@ export async function create(request: NextRequest, user: JwtPayload): Promise<Re
   const combined = `${businessName} ${name}`;
   const publicSlug = await uniqueSlug(supabase, slugify(combined));
   const allowMultiDevice = user.role === 'super_admin';
+  let broadcastCode = generateBroadcastCode();
+  for (let i = 0; i < 20; i++) {
+    const { data: existing } = await supabase.from('screens').select('id').eq('broadcast_code', broadcastCode).limit(1).maybeSingle();
+    if (!existing) break;
+    broadcastCode = generateBroadcastCode();
+  }
   const { data, error } = await supabase.from('screens').insert({
     business_id: businessId,
     name,
     location: body.location ?? null,
     public_token: generatePublicToken(),
     public_slug: publicSlug,
+    broadcast_code: broadcastCode,
     is_active: true,
     animation_type: 'fade',
     animation_duration: 500,

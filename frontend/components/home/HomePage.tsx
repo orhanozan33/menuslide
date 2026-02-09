@@ -205,6 +205,9 @@ export function HomePage({ localePath }: HomePageProps) {
           <a href="#channels" className="text-sm text-white/60 hover:text-white transition-colors">
             {t('home_channels')}
           </a>
+          <a href="#download" className="text-sm text-white/60 hover:text-white transition-colors">
+            {t('home_download')}
+          </a>
           <a href="https://www.findpoint.ca" target="_blank" rel="noopener noreferrer" className="text-sm text-white/60 hover:text-white transition-colors">
             {t('home_service_web')}
           </a>
@@ -272,6 +275,7 @@ export function HomePage({ localePath }: HomePageProps) {
                 <a href="#features" className="px-4 py-3.5 min-h-[48px] flex items-center rounded-xl text-white/80 hover:bg-white/10 active:bg-white/15 touch-manipulation" onClick={() => setMobileNavOpen(false)}>{t('home_features')}</a>
                 <a href="#services" className="px-4 py-3.5 min-h-[48px] flex items-center rounded-xl text-white/80 hover:bg-white/10 active:bg-white/15 touch-manipulation" onClick={() => setMobileNavOpen(false)}>{t('home_services')}</a>
                 <a href="#channels" className="px-4 py-3.5 min-h-[48px] flex items-center rounded-xl text-white/80 hover:bg-white/10 active:bg-white/15 touch-manipulation" onClick={() => setMobileNavOpen(false)}>{t('home_channels')}</a>
+                <a href="#download" className="px-4 py-3.5 min-h-[48px] flex items-center rounded-xl text-white/80 hover:bg-white/10 active:bg-white/15 touch-manipulation" onClick={() => setMobileNavOpen(false)}>{t('home_download')}</a>
                 <a href="https://www.findpoint.ca" target="_blank" rel="noopener noreferrer" className="px-4 py-3.5 min-h-[48px] flex items-center rounded-xl text-white/80 hover:bg-white/10 active:bg-white/15 touch-manipulation" onClick={() => setMobileNavOpen(false)}>{t('home_service_web')}</a>
                 <Link href={localePath('/pricing')} className="px-4 py-3.5 min-h-[48px] flex items-center rounded-xl text-white/80 hover:bg-white/10 active:bg-white/15 touch-manipulation" onClick={() => setMobileNavOpen(false)}>{t('sidebar_pricing')}</Link>
                 <a href="#contact" className="px-4 py-3.5 min-h-[48px] flex items-center rounded-xl text-white/80 hover:bg-white/10 active:bg-white/15 touch-manipulation" onClick={() => setMobileNavOpen(false)}>{t('home_contact')}</a>
@@ -491,6 +495,28 @@ export function HomePage({ localePath }: HomePageProps) {
               <p className="text-white/50 text-sm leading-relaxed">{t('home_service_camera_desc')}</p>
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* İndirme - Android TV / Fire Stick uygulaması */}
+      <section id="download" className="py-10 sm:py-16 md:py-20 px-3 sm:px-6 md:px-12 bg-white/[0.02] border-y border-white/5 scroll-mt-20">
+        <div className="max-w-2xl mx-auto text-center">
+          <h2 className="text-xl sm:text-3xl font-bold text-white mb-2 sm:mb-4">
+            {t('home_download_title')}
+          </h2>
+          <p className="text-white/50 text-sm sm:text-base mb-8 px-1">
+            {t('home_download_desc')}
+          </p>
+          <a
+            href="/downloads/Menuslide.apk"
+            download
+            className="inline-flex items-center justify-center gap-2 font-semibold px-8 py-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-white shadow-xl shadow-emerald-500/25 transition-all touch-manipulation min-h-[52px]"
+          >
+            <svg className="w-6 h-6 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            {t('home_download_btn')}
+          </a>
         </div>
       </section>
 

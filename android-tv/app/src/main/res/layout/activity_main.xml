@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Ana ekran: TV kumandasına uygun tek ekran.
+  - Kayıtlı kod yoksa: kod giriş alanı + Başlat butonu
+  - Yayın oynarken: ExoPlayer tam ekran (bu layout'taki player alanı)
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#111111">
+
+    <!-- Kod giriş ekranı: büyük input + Başlat butonu -->
+    <LinearLayout
+        android:id="@+id/screen_code_input"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:padding="48dp"
+        android:visibility="gone"
+        tools:visibility="visible">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/label_broadcast_code"
+            android:textColor="#FFFFFF"
+            android:textSize="22sp"
+            android:layout_marginBottom="24dp" />
+
+        <EditText
+            android:id="@+id/input_code"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:maxLines="1"
+            android:inputType="textCapCharacters"
+            android:hint="@string/hint_code"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#888888"
+            android:background="@android:drawable/edit_text"
+            android:padding="12dp"
+            android:textSize="20sp"
+            android:imeOptions="actionDone"
+            android:nextFocusDown="@id/btn_start"
+            android:layout_marginBottom="32dp" />
+
+        <Button
+            android:id="@+id/btn_start"
+            android:layout_width="wrap_content"
+            android:layout_height="56dp"
+            android:minWidth="200dp"
+            android:text="@string/btn_start"
+            android:textSize="18sp"
+            android:focusable="true"
+            android:clickable="true"
+            android:backgroundTint="#22C55E" />
+
+        <TextView
+            android:id="@+id/label_error"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:textColor="#EF4444"
+            android:textSize="16sp"
+            android:visibility="gone"
+            android:gravity="center" />
+    </LinearLayout>
+
+    <!-- Yükleme göstergesi (API çağrısı / stream hazırlanırken) -->
+    <ProgressBar
+        android:id="@+id/progress_loading"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:visibility="gone" />
+
+    <!-- ExoPlayer tam ekran: UI gizlenir, sadece video -->
+    <view
+        class="androidx.media3.ui.PlayerView"
+        android:id="@+id/player_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone" />
+</FrameLayout>

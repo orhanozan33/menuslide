@@ -1,4 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android TV / Fire Stick uyumlu Video Player.
+  - INTERNET zorunlu (API + HLS/MP4 stream).
+  - WebView kullanılmaz.
+  - Landscape, tek activity.
+-->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.digitalsignage.tv">
 
@@ -10,8 +16,9 @@
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
-        android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
-        
+        android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+        android:usesCleartextTraffic="true">
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -25,5 +32,4 @@
             </intent-filter>
         </activity>
     </application>
-
 </manifest>

@@ -1,187 +1,343 @@
 package com.digitalsignage.tv
 
 import android.annotation.SuppressLint
-import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.View
 import android.view.WindowManager
-import android.webkit.WebChromeClient
-import android.webkit.WebResourceError
-import android.webkit.WebResourceRequest
-import android.webkit.WebView
-import android.webkit.WebViewClient
-import android.widget.Toast
+import android.widget.Button
+import android.widget.EditText
+import android.widget.ProgressBar
+import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.exoplayer.DefaultLoadControl
+import androidx.media3.exoplayer.DefaultLoadControl
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.ui.PlayerView
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.util.UUID
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import android.util.Log
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 
+/**
+ * Ana Activity: Yayın kodu tek sefer girilir, kaydedilir; sonra hep aynı yayın.
+ * - 5 dakikada bir watchdog: oynatma donmuş/kapanmışsa otomatik yayına döner.
+ * - Akıcı yayın: büyük buffer, otomatik retry.
+ */
 class MainActivity : AppCompatActivity() {
 
-    private lateinit var webView: WebView
-    private var reloadHandler: android.os.Handler? = null
-    private var connectionCheckHandler: android.os.Handler? = null
+    companion object {
+        private const val TAG = "MenuSlideTV"
+        private const val PREFS = "tv_player"
+        private const val KEY_BROADCAST_CODE = "broadcast_code"
+        private const val KEY_DEVICE_ID = "device_id"
+        private const val API_BASE = "https://api.menuslide.com"
+        private const val API_RESOLVE = "$API_BASE/player/resolve"
+        private const val WATCHDOG_INTERVAL_MS = 5 * 60 * 1000L // 5 dakika
+        private const val STUCK_THRESHOLD_MS = 90_000L // 1.5 dk oynatma yoksa yeniden başlat
+    }
 
-    // TODO: Configure this URL with your screen's public token
-    // Format: https://your-domain.com/display/{public_token}
-    private val DISPLAY_URL = "https://your-domain.com/display/YOUR_PUBLIC_TOKEN_HERE"
+    private val prefs by lazy { getSharedPreferences(PREFS, Context.MODE_PRIVATE) }
+    private val scope = CoroutineScope(Dispatchers.Main + Job())
+    private val mainHandler = Handler(Looper.getMainLooper())
 
-    // Auto-reload interval (5 minutes)
-    private val RELOAD_INTERVAL = 5 * 60 * 1000L
+    private lateinit var screenCodeInput: View
+    private lateinit var inputCode: EditText
+    private lateinit var btnStart: Button
+    private lateinit var labelError: TextView
+    private lateinit var progressLoading: ProgressBar
+    private lateinit var playerView: PlayerView
 
-    // Connection check interval (30 seconds)
-    private val CONNECTION_CHECK_INTERVAL = 30 * 1000L
+    private var exoPlayer: ExoPlayer? = null
+    private var resolveJob: Job? = null
+    private var currentStreamUrl: String? = null
+    private var lastPlayingTimeMs: Long = 0
+    private var watchdogRunnable: Runnable? = null
 
-    @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
 
-        // Fullscreen mode
-        window.decorView.systemUiVisibility = (
-            View.SYSTEM_UI_FLAG_FULLSCREEN
-            or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-            or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-        )
+        bindViews()
+        keepScreenOn()
+        applyFullscreenWhenPlaying(false)
 
-        // Keep screen on
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-
-        // Initialize WebView
-        webView = WebView(this)
-        setContentView(webView)
-
-        // Configure WebView settings
-        webView.settings.apply {
-            javaScriptEnabled = true
-            domStorageEnabled = true
-            databaseEnabled = true
-            setSupportZoom(false)
-            builtInZoomControls = false
-            displayZoomControls = false
-            loadWithOverviewMode = true
-            useWideViewPort = true
-            mediaPlaybackRequiresUserGesture = false
-            allowFileAccess = true
-            allowContentAccess = true
-        }
-
-        // Set WebView client
-        webView.webViewClient = object : WebViewClient() {
-            override fun onReceivedError(
-                view: WebView?,
-                request: WebResourceRequest?,
-                error: WebResourceError?
-            ) {
-                super.onReceivedError(view, request, error)
-                // Show error and attempt reload
-                showError("Connection error. Retrying...")
-                reloadPage()
-            }
-
-            override fun onPageFinished(view: WebView?, url: String?) {
-                super.onPageFinished(view, url)
-                // Page loaded successfully
-                hideError()
+        // Kod tek sefer: kayıtlı varsa bir daha sorma, direkt yayın
+        val savedCode = prefs.getString(KEY_BROADCAST_CODE, null)?.trim()
+        if (!savedCode.isNullOrEmpty()) {
+            showInputScreen(false)
+            showLoading(true)
+            resolveAndPlay(savedCode)
+            startWatchdog()
+        } else {
+            showInputScreen(true)
+            showLoading(false)
+            btnStart.setOnClickListener { onStartClicked() }
+            inputCode.setOnEditorActionListener { _, _, _ ->
+                onStartClicked()
+                true
             }
         }
-
-        // Set Chrome client for fullscreen support
-        webView.webChromeClient = WebChromeClient()
-
-        // Load the display URL
-        loadDisplayUrl()
-
-        // Setup auto-reload
-        setupAutoReload()
-
-        // Setup connection monitoring
-        setupConnectionMonitoring()
     }
 
-    private fun loadDisplayUrl() {
-        if (DISPLAY_URL.contains("YOUR_PUBLIC_TOKEN_HERE")) {
-            showError("Please configure DISPLAY_URL in MainActivity.kt")
+    private fun bindViews() {
+        screenCodeInput = findViewById(R.id.screen_code_input)
+        inputCode = findViewById(R.id.input_code)
+        btnStart = findViewById(R.id.btn_start)
+        labelError = findViewById(R.id.label_error)
+        progressLoading = findViewById(R.id.progress_loading)
+        playerView = findViewById(R.id.player_view)
+    }
+
+    private fun keepScreenOn() {
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+    }
+
+    @SuppressLint("InlinedApi")
+    private fun applyFullscreenWhenPlaying(playing: Boolean) {
+        if (playing) {
+            window.decorView.systemUiVisibility = (
+                View.SYSTEM_UI_FLAG_FULLSCREEN
+                or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+            )
+        } else {
+            window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+        }
+    }
+
+    private fun showInputScreen(show: Boolean) {
+        screenCodeInput.visibility = if (show) View.VISIBLE else View.GONE
+    }
+
+    private fun showLoading(show: Boolean) {
+        progressLoading.visibility = if (show) View.VISIBLE else View.GONE
+    }
+
+    private fun showError(message: String?) {
+        if (!message.isNullOrEmpty()) {
+            labelError.text = message
+            labelError.visibility = View.VISIBLE
+        } else {
+            labelError.visibility = View.GONE
+        }
+    }
+
+    private fun onStartClicked() {
+        val code = inputCode.text?.toString()?.trim().orEmpty()
+        if (code.isEmpty()) {
+            showError(getString(R.string.hint_code))
             return
         }
-        webView.loadUrl(DISPLAY_URL)
+        showError(null)
+        // 1 sefer girilen kod kalıcı kaydedilir, bir daha sorulmaz
+        prefs.edit().putString(KEY_BROADCAST_CODE, code).apply()
+        showLoading(true)
+        resolveAndPlay(code)
+        startWatchdog()
     }
 
-    private fun reloadPage() {
-        if (isNetworkAvailable()) {
-            webView.reload()
-        } else {
-            showError("No internet connection")
+    private fun startWatchdog() {
+        stopWatchdog()
+        watchdogRunnable = object : Runnable {
+            override fun run() {
+                checkAndRecoverPlayback()
+                mainHandler.postDelayed(this, WATCHDOG_INTERVAL_MS)
+            }
+        }
+        mainHandler.postDelayed(watchdogRunnable!!, WATCHDOG_INTERVAL_MS)
+    }
+
+    private fun stopWatchdog() {
+        watchdogRunnable?.let { mainHandler.removeCallbacks(it) }
+        watchdogRunnable = null
+    }
+
+    /**
+     * Her 5 dakikada bir: oynatma donmuş veya kapanmışsa otomatik yayına dön.
+     */
+    private fun checkAndRecoverPlayback() {
+        val code = prefs.getString(KEY_BROADCAST_CODE, null)?.trim() ?: return
+        val url = currentStreamUrl ?: return
+        val player = exoPlayer ?: run {
+            Log.w(TAG, "Watchdog: player null, restarting stream")
+            resolveAndPlay(code)
+            return
+        }
+        val state = player.playbackState
+        val playWhenReady = player.playWhenReady
+        val now = System.currentTimeMillis()
+        when (state) {
+            Player.STATE_READY -> if (playWhenReady) lastPlayingTimeMs = now
+            Player.STATE_BUFFERING -> { /* normal, keep lastPlayingTimeMs */ }
+            Player.STATE_IDLE, Player.STATE_ENDED -> {
+                if (now - lastPlayingTimeMs > STUCK_THRESHOLD_MS || state == Player.STATE_IDLE) {
+                    Log.w(TAG, "Watchdog: state=$state, restarting stream")
+                    releasePlayer()
+                    startPlayback(url)
+                }
+            }
+        }
+        if (playWhenReady && state != Player.STATE_IDLE && state != Player.STATE_ENDED) {
+            lastPlayingTimeMs = now
+        } else if (now - lastPlayingTimeMs > STUCK_THRESHOLD_MS && state != Player.STATE_READY) {
+            Log.w(TAG, "Watchdog: no progress for ${(now - lastPlayingTimeMs) / 1000}s, restarting")
+            releasePlayer()
+            resolveAndPlay(code)
         }
     }
 
-    private fun setupAutoReload() {
-        reloadHandler = android.os.Handler(android.os.Looper.getMainLooper())
-        reloadHandler?.postDelayed(object : Runnable {
-            override fun run() {
-                reloadPage()
-                reloadHandler?.postDelayed(this, RELOAD_INTERVAL)
+    private fun resolveAndPlay(code: String) {
+        resolveJob?.cancel()
+        resolveJob = scope.launch {
+            val streamUrl = withContext(Dispatchers.IO) { resolveStreamUrl(code) }
+            if (streamUrl != null) {
+                currentStreamUrl = streamUrl
+                startPlayback(streamUrl)
+                showInputScreen(false)
+                showLoading(false)
+                lastPlayingTimeMs = System.currentTimeMillis()
+            } else {
+                showLoading(false)
+                showInputScreen(true)
+                showError(getString(R.string.error_invalid_response))
             }
-        }, RELOAD_INTERVAL)
+        }
     }
 
-    private fun setupConnectionMonitoring() {
-        connectionCheckHandler = android.os.Handler(android.os.Looper.getMainLooper())
-        connectionCheckHandler?.postDelayed(object : Runnable {
-            override fun run() {
-                if (!isNetworkAvailable()) {
-                    showError("No internet connection")
-                } else {
-                    hideError()
-                    // If page seems stuck, reload
-                    if (webView.progress < 100) {
-                        reloadPage()
-                    }
-                }
-                connectionCheckHandler?.postDelayed(this, CONNECTION_CHECK_INTERVAL)
+    private fun resolveStreamUrl(code: String): String? {
+        return try {
+            val deviceId = getOrCreateDeviceId()
+            val body = JSONObject().apply {
+                put("code", code)
+                put("deviceId", deviceId)
+            }.toString()
+            val request = Request.Builder()
+                .url(API_RESOLVE)
+                .post(body.toRequestBody("application/json".toMediaType()))
+                .addHeader("Content-Type", "application/json")
+                .build()
+            val client = OkHttpClient.Builder().build()
+            val response = client.newCall(request).execute()
+            if (!response.isSuccessful) {
+                Log.e(TAG, "resolve failed: ${response.code}")
+                return null
             }
-        }, CONNECTION_CHECK_INTERVAL)
+            val json = response.body?.string() ?: return null
+            val obj = JSONObject(json)
+            if (obj.has("streamUrl")) {
+                obj.getString("streamUrl").takeIf { it.isNotEmpty() }
+            } else null
+        } catch (e: Exception) {
+            Log.e(TAG, "resolve error", e)
+            null
+        }
+    }
+
+    private fun getOrCreateDeviceId(): String {
+        var id = prefs.getString(KEY_DEVICE_ID, null)
+        if (id.isNullOrEmpty()) {
+            id = UUID.randomUUID().toString()
+            prefs.edit().putString(KEY_DEVICE_ID, id).apply()
+        }
+        return id
+    }
+
+    @UnstableApi
+    private fun startPlayback(streamUrl: String) {
+        releasePlayer()
+        val httpDataSourceFactory = DefaultHttpDataSource.Factory()
+            .setConnectTimeoutMs(15_000)
+            .setReadTimeoutMs(20_000)
+        val loadControl = DefaultLoadControl.Builder()
+            .setMinBufferMs(30_000)
+            .setMaxBufferMs(120_000)
+            .setBufferForPlaybackMs(5_000)
+            .setBufferForPlaybackAfterRebufferMs(5_000)
+            .build()
+        val mediaSourceFactory = DefaultMediaSourceFactory(this).setDataSourceFactory(httpDataSourceFactory)
+        exoPlayer = ExoPlayer.Builder(this)
+            .setMediaSourceFactory(mediaSourceFactory)
+            .setLoadControl(loadControl)
+            .build()
+            .also { player ->
+                playerView.player = player
+                playerView.useController = false
+                playerView.visibility = View.VISIBLE
+                applyFullscreenWhenPlaying(true)
+
+                player.setMediaItem(MediaItem.fromUri(streamUrl))
+                player.prepare()
+                player.playWhenReady = true
+                player.repeatMode = Player.REPEAT_MODE_ALL
+
+                player.addListener(object : Player.Listener {
+                    override fun onPlaybackStateChanged(playbackState: Int) {
+                        when (playbackState) {
+                            Player.STATE_READY -> lastPlayingTimeMs = System.currentTimeMillis()
+                            Player.STATE_BUFFERING -> { }
+                            Player.STATE_IDLE -> {
+                                if (isNetworkAvailable()) {
+                                    player.prepare()
+                                    player.playWhenReady = true
+                                }
+                            }
+                            Player.STATE_ENDED -> player.seekTo(0); player.play()
+                        }
+                    }
+                    override fun onPlayerError(error: PlaybackException) {
+                        Log.e(TAG, "playback error", error)
+                        if (isNetworkAvailable()) player.retry()
+                    }
+                })
+            }
     }
 
     private fun isNetworkAvailable(): Boolean {
-        val connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
-        val network = connectivityManager.activeNetwork ?: return false
-        val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
-        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
-               capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+        val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val network = cm.activeNetwork ?: return false
+        val cap = cm.getNetworkCapabilities(network) ?: return false
+        return cap.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+            cap.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
     }
 
-    private fun showError(message: String) {
-        // In a production app, you might want to show a custom error overlay
-        // For now, we'll just log it
-        android.util.Log.e("MainActivity", message)
-    }
-
-    private fun hideError() {
-        // Hide error overlay if shown
-    }
-
-    override fun onBackPressed() {
-        // Prevent back button from closing app in fullscreen mode
-        // Optionally, you can exit fullscreen or show a menu
-        super.onBackPressed()
+    private fun releasePlayer() {
+        exoPlayer?.release()
+        exoPlayer = null
+        playerView.player = null
+        playerView.visibility = View.GONE
     }
 
     override fun onDestroy() {
+        stopWatchdog()
+        resolveJob?.cancel()
+        releasePlayer()
         super.onDestroy()
-        reloadHandler?.removeCallbacksAndMessages(null)
-        connectionCheckHandler?.removeCallbacksAndMessages(null)
-        webView.destroy()
     }
 
-    override fun onPause() {
-        super.onPause()
-        webView.onPause()
-    }
-
-    override fun onResume() {
-        super.onResume()
-        webView.onResume()
-        // Reload if connection is available
-        if (isNetworkAvailable()) {
-            reloadPage()
-        }
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        super.onBackPressed()
     }
 }

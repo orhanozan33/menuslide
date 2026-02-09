@@ -1,99 +1,77 @@
-# Android TV App - Digital Signage Display
+# MenuSlide TV – Android TV / Fire Stick Video Player
 
-A WebView-based Android TV application for displaying digital signage menus.
+Production-ready Android TV uygulaması: tek seferlik yayın kodu girişi, API ile stream URL çözümleme, ExoPlayer ile tam ekran HLS/MP4 oynatma. Google Play Services kullanılmaz.
 
-## Overview
+## Özellikler
 
-This Android TV app loads the public display URL in a WebView, providing a native TV experience with:
-- Fullscreen display
-- Auto-reload on connection loss
-- TV-optimized navigation
-- Offline handling
+- **Tek ekran:** Kod yoksa büyük input + “Başlat”; kod varsa doğrudan yayın
+- **API:** `POST https://api.menuslide.com/player/resolve` → `{ "streamUrl": "..." }`
+- **ExoPlayer (Media3):** HLS/MP4 tam ekran, ağ kopunca otomatik tekrar bağlanma
+- **Kalıcı kod:** SharedPreferences; TV kapanıp açılınca aynı yayın otomatik başlar
+- **deviceId:** İlk açılışta UUID oluşturulup saklanır, API isteğinde gönderilir
 
-## Project Structure
+## Gereksinimler
+
+- Min SDK 21 (Android 5.0), Target SDK 34
+- Android TV / Android Stick / Amazon Fire Stick
+- Landscape, Internet izni
+
+## Proje yapısı
 
 ```
 android-tv/
 ├── app/
-│   ├── src/
-│   │   ├── main/
-│   │   │   ├── java/com/digitalsignage/tv/
-│   │   │   │   └── MainActivity.kt
-│   │   │   ├── res/
-│   │   │   │   ├── layout/
-│   │   │   │   │   └── activity_main.xml
-│   │   │   │   └── values/
-│   │   │   │       └── strings.xml
-│   │   │   └── AndroidManifest.xml
-│   │   └── build.gradle
-│   └── build.gradle
+│   ├── src/main/
+│   │   ├── AndroidManifest.xml
+│   │   ├── java/.../MainActivity.kt
+│   │   └── res/
+│   │       ├── layout/activity_main.xml
+│   │       └── values/strings.xml
+│   ├── build.gradle
+│   └── proguard-rules.pro
 ├── build.gradle
-├── settings.gradle
-└── README.md
+└── settings.gradle
 ```
 
-## Setup Instructions
-
-1. **Open in Android Studio**
-   - Open Android Studio
-   - Select "Open an existing project"
-   - Navigate to the `android-tv` directory
-
-2. **Configure Display URL**
-   - Edit `MainActivity.kt`
-   - Update `DISPLAY_URL` constant with your screen's public token URL
-   - Format: `https://your-domain.com/display/{public_token}`
-
-3. **Build and Deploy**
-   - Connect Android TV device or emulator
-   - Build and run the app
-   - The app will launch in fullscreen mode
-
-## Features
-
-- **WebView Display**: Loads the web-based menu display
-- **Fullscreen**: Automatically enters fullscreen mode
-- **Auto-reload**: Detects connection loss and reloads
-- **TV Optimized**: Designed for TV remote navigation
-
-## Future Enhancements
-
-- [ ] Offline caching
-- [ ] Push notifications for updates
-- [ ] Custom TV launcher integration
-- [ ] Performance optimizations
-- [ ] Analytics integration
-- [ ] Remote configuration
-
-## Requirements
-
-- Android TV device or emulator
-- Android SDK 21+ (Android 5.0 Lollipop)
-- Internet connection
-
-## Configuration
-
-The app can be configured by modifying constants in `MainActivity.kt`:
-
-- `DISPLAY_URL`: The public display URL
-- `RELOAD_INTERVAL`: Auto-reload interval in milliseconds
-- `CONNECTION_CHECK_INTERVAL`: Network check interval
-
-## Building
+## Derleme ve APK
 
 ```bash
-./gradlew assembleDebug
+cd android-tv
+./gradlew assembleRelease
 ```
 
-## Installation
+APK: `app/build/outputs/apk/release/app-release-unsigned.apk`  
+İmzalayıp ana sayfadaki indirme için **Menuslide.apk** adıyla kopyalayın:
 
 ```bash
-adb install app/build/outputs/apk/debug/app-debug.apk
+cp app/build/outputs/apk/release/app-release.apk ../frontend/public/downloads/Menuslide.apk
 ```
 
-## Notes
+Ana sayfa “İndir” butonu `/downloads/Menuslide.apk` dosyasına link verir.
 
-- The app requires internet connection to load menu content
-- WebView settings are optimized for TV display
-- JavaScript is enabled for dynamic content
-- DOM storage is enabled for caching
+## API örneği
+
+**İstek:**
+
+```http
+POST https://api.menuslide.com/player/resolve
+Content-Type: application/json
+
+{ "code": "ABC123", "deviceId": "uuid" }
+```
+
+**Yanıt:**
+
+```json
+{ "streamUrl": "https://cdn.menuslide.com/live/stream.m3u8" }
+```
+
+## Konfigürasyon
+
+- **API adresi:** `MainActivity.kt` içinde `API_BASE`
+- **Kod / deviceId:** Uygulama içinde SharedPreferences ile saklanır
+
+## Notlar
+
+- WebView kullanılmaz; Firebase/Play Services yok
+- Kurumsal / release kullanım için uygundur

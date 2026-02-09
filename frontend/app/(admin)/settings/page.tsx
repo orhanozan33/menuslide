@@ -61,6 +61,10 @@ export default function SettingsPage() {
   const [invoiceLayout, setInvoiceLayout] = useState<Record<string, string>>({});
   const [invoiceLayoutLoading, setInvoiceLayoutLoading] = useState(false);
   const [invoiceLayoutSaving, setInvoiceLayoutSaving] = useState(false);
+  const [tvAppConfig, setTvAppConfig] = useState<{ apiBaseUrl: string; downloadUrl: string; watchdogIntervalMinutes: number }>({ apiBaseUrl: '', downloadUrl: '/downloads/Menuslide.apk', watchdogIntervalMinutes: 5 });
+  const [tvAppConfigLoading, setTvAppConfigLoading] = useState(false);
+  const [tvAppConfigSaving, setTvAppConfigSaving] = useState(false);
+  const [showTvAppModal, setShowTvAppModal] = useState(false);
 
   useEffect(() => {
     loadUser();
@@ -72,6 +76,7 @@ export default function SettingsPage() {
       loadChannels();
       loadContactInfo();
       loadStripeStatus();
+      if (user?.role === 'super_admin') loadTvAppConfig();
     } else if (user) {
       router.replace(localePath('/dashboard'));
     }
@@ -307,6 +312,47 @@ export default function SettingsPage() {
     }
   };
 
+  const loadTvAppConfig = async () => {
+    setTvAppConfigLoading(true);
+    try {
+      const res = await fetch('/api/tv-app-config', { cache: 'no-store' });
+      const data = await res.json().catch(() => ({}));
+      setTvAppConfig({
+        apiBaseUrl: data.apiBaseUrl ?? '',
+        downloadUrl: data.downloadUrl ?? '/downloads/Menuslide.apk',
+        watchdogIntervalMinutes: typeof data.watchdogIntervalMinutes === 'number' ? data.watchdogIntervalMinutes : 5,
+      });
+    } catch {
+      setTvAppConfig({ apiBaseUrl: '', downloadUrl: '/downloads/Menuslide.apk', watchdogIntervalMinutes: 5 });
+    } finally {
+      setTvAppConfigLoading(false);
+    }
+  };
+
+  const saveTvAppConfig = async () => {
+    setTvAppConfigSaving(true);
+    try {
+      const token = sessionStorage.getItem('impersonation_token') || localStorage.getItem('auth_token');
+      const res = await fetch('/api/tv-app-config', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
+        body: JSON.stringify(tvAppConfig),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.message || t('settings_save_failed'));
+      }
+      toast.showSuccess(t('settings_tv_app_saved'));
+    } catch (e: any) {
+      toast.showError(e?.message || t('settings_save_failed'));
+    } finally {
+      setTvAppConfigSaving(false);
+    }
+  };
+
   const saveChannels = async () => {
     setChannelsSaving(true);
     try {
@@ -526,6 +572,28 @@ export default function SettingsPage() {
           <div className="mt-3 text-xs text-blue-600 font-medium">{t('btn_edit')} →</div>
         </button>
       </section>
+
+      {/* Android TV Uygulaması Ayarları — sadece super_admin */}
+      <section className="mb-10">
+        <h2 className="text-lg font-semibold text-gray-800 mb-4">{t('settings_tv_app_title')}</h2>
+        <p className="text-sm text-gray-600 mb-4">{t('settings_tv_app_desc')}</p>
+        {tvAppConfigLoading ? (
+          <div className="text-gray-500 py-4">{t('settings_loading')}</div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setShowTvAppModal(true)}
+            className="w-full text-left bg-white border-2 border-gray-200 rounded-xl p-5 hover:border-blue-400 hover:shadow-md transition-all"
+          >
+            <div className="text-sm text-gray-700 space-y-1">
+              <div><strong>API taban URL:</strong> {tvAppConfig.apiBaseUrl || '—'}</div>
+              <div><strong>İndirme linki:</strong> {tvAppConfig.downloadUrl}</div>
+              <div><strong>Watchdog:</strong> {tvAppConfig.watchdogIntervalMinutes} {t('settings_tv_app_minutes')}</div>
+            </div>
+            <div className="mt-3 text-xs text-blue-600 font-medium">{t('btn_edit')} →</div>
+          </button>
+        )}
+      </section>
       </>
       )}
 
@@ -596,6 +664,70 @@ export default function SettingsPage() {
               <button
                 type="button"
                 onClick={() => !contactSaving && setShowContactModal(false)}
+                className="px-4 py-2 text-sm bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+              >
+                {t('btn_cancel')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TV uygulaması ayarları modali */}
+      {showTvAppModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+          onClick={() => !tvAppConfigSaving && setShowTvAppModal(false)}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">{t('settings_tv_app_title')}</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('settings_tv_app_api_base')}</label>
+                <input
+                  type="url"
+                  value={tvAppConfig.apiBaseUrl}
+                  onChange={(e) => setTvAppConfig((p) => ({ ...p, apiBaseUrl: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"
+                  placeholder="https://api.menuslide.com veya https://siteniz.com"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('settings_tv_app_download_url')}</label>
+                <input
+                  type="text"
+                  value={tvAppConfig.downloadUrl}
+                  onChange={(e) => setTvAppConfig((p) => ({ ...p, downloadUrl: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"
+                  placeholder="/downloads/Menuslide.apk"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('settings_tv_app_watchdog')}</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={60}
+                  value={tvAppConfig.watchdogIntervalMinutes}
+                  onChange={(e) => setTvAppConfig((p) => ({ ...p, watchdogIntervalMinutes: parseInt(e.target.value, 10) || 5 }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 mt-6">
+              <button
+                type="button"
+                onClick={async () => { await saveTvAppConfig(); setShowTvAppModal(false); }}
+                disabled={tvAppConfigSaving}
+                className="flex-1 px-4 py-2 text-sm bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {tvAppConfigSaving ? t('common_saving') : t('btn_save')}
+              </button>
+              <button
+                type="button"
+                onClick={() => !tvAppConfigSaving && setShowTvAppModal(false)}
                 className="px-4 py-2 text-sm bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
               >
                 {t('btn_cancel')}

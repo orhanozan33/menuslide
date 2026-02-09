@@ -348,3 +348,32 @@ export async function recordViewerHeartbeat(token: string, request: NextRequest)
 
   return Response.json({ ok: true, allowed });
 }
+
+/** POST /player/resolve – TV uygulaması: yayın kodu (12345) ile display URL döner. Body: { code, deviceId } */
+export async function resolvePlayer(request: NextRequest): Promise<Response> {
+  let body: { code?: string; deviceId?: string } = {};
+  try {
+    body = await request.json();
+  } catch {
+    return Response.json({});
+  }
+  const code = typeof body?.code === 'string' ? body.code.trim() : '';
+  if (!code) return Response.json({});
+
+  const supabase = getServerSupabase();
+  const { data: screen } = await supabase
+    .from('screens')
+    .select('public_slug, public_token')
+    .eq('broadcast_code', code)
+    .eq('is_active', true)
+    .limit(1)
+    .maybeSingle();
+
+  if (!screen) return Response.json({});
+  const slugOrToken = (screen as { public_slug?: string; public_token?: string }).public_slug || (screen as { public_token?: string }).public_token;
+  if (!slugOrToken) return Response.json({});
+
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) || request.nextUrl?.origin || 'http://localhost:3000';
+  const streamUrl = `${baseUrl.replace(/\/$/, '')}/display/${slugOrToken}`;
+  return Response.json({ streamUrl });
+}

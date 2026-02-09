@@ -18,6 +18,22 @@ export class ScreensLocalService {
   }
 
   /**
+   * Generate unique 5-digit broadcast code (e.g. 12345) for TV app.
+   * Kullanıcı bu kodu TV uygulamasına girince ilgili ekran açılır.
+   */
+  private async generateBroadcastCode(): Promise<string> {
+    for (let attempt = 0; attempt < 100; attempt++) {
+      const code = String(10000 + Math.floor(Math.random() * 90000));
+      const result = await this.database.query(
+        'SELECT 1 FROM screens WHERE broadcast_code = $1',
+        [code]
+      );
+      if (result.rows.length === 0) return code;
+    }
+    return String(Date.now() % 90000 + 10000);
+  }
+
+  /**
    * Generate slug from screen name
    */
   private generateSlug(name: string): string {
@@ -165,14 +181,13 @@ export class ScreensLocalService {
     await this.checkBusinessAccess(createScreenDto.business_id, userId, userRole);
 
     const publicToken = this.generatePublicToken();
-    
+    const broadcastCode = await this.generateBroadcastCode();
     // Business bilgisini al
     const businessResult = await this.database.query(
       'SELECT name FROM businesses WHERE id = $1',
       [createScreenDto.business_id]
     );
     const businessName = businessResult.rows[0]?.name || 'business';
-    
     // Slug formatı: business-name-screen-name (örn: metro-pizza-tv3)
     const combinedName = `${businessName} ${createScreenDto.name}`;
     const publicSlug = await this.generateUniqueSlug(combinedName);
@@ -181,17 +196,18 @@ export class ScreensLocalService {
       ...createScreenDto,
       public_token: publicToken,
       public_slug: publicSlug,
+      broadcast_code: broadcastCode,
       animation_type: createScreenDto.animation_type || 'fade',
       animation_duration: createScreenDto.animation_duration || 500,
     };
 
     const result = await this.database.query(
       `INSERT INTO screens (
-        business_id, name, location, public_token, public_slug, is_active,
+        business_id, name, location, public_token, public_slug, broadcast_code, is_active,
         animation_type, animation_duration, language_code,
         font_family, primary_color, background_style, background_color,
         background_image_url, logo_url, template_id
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
       RETURNING *`,
       [
         screenData.business_id,
@@ -199,6 +215,7 @@ export class ScreensLocalService {
         screenData.location || null,
         screenData.public_token,
         screenData.public_slug,
+        screenData.broadcast_code,
         screenData.is_active ?? true,
         screenData.animation_type,
         screenData.animation_duration,
@@ -251,17 +268,18 @@ export class ScreensLocalService {
       const screenNumber = nextNumber + i;
       const name = `TV${screenNumber}`;
       const publicToken = this.generatePublicToken();
+      const broadcastCode = await this.generateBroadcastCode();
       const combinedName = `${businessName} ${name}`;
       const publicSlug = await this.generateUniqueSlug(combinedName);
 
       await this.database.query(
         `INSERT INTO screens (
-          business_id, name, location, public_token, public_slug, is_active,
+          business_id, name, location, public_token, public_slug, broadcast_code, is_active,
           animation_type, animation_duration, language_code,
           font_family, primary_color, background_style, background_color,
           background_image_url, logo_url, template_id
-        ) VALUES ($1, $2, NULL, $3, $4, true, 'fade', 500, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)`,
-        [businessId, name, publicToken, publicSlug]
+        ) VALUES ($1, $2, NULL, $3, $4, $5, true, 'fade', 500, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)`,
+        [businessId, name, publicToken, publicSlug, broadcastCode]
       );
     }
   }

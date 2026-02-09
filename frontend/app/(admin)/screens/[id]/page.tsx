@@ -205,6 +205,13 @@ export default function ScreenDetailPage() {
     }
   };
 
+  const copyBroadcastCode = () => {
+    if (screen?.broadcast_code) {
+      navigator.clipboard.writeText(String(screen.broadcast_code));
+      toast.showSuccess(t('screens_broadcast_code_copied'));
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -336,6 +343,25 @@ export default function ScreenDetailPage() {
               >
                 Copy URL
               </button>
+            </div>
+          </div>
+
+          <div className="mb-4 p-4 bg-emerald-50 rounded-lg border border-emerald-200">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">{t('screens_broadcast_code_title')}</h3>
+            <p className="text-sm text-gray-600 mb-2">{t('screens_broadcast_code_desc')}</p>
+            <div className="flex items-center gap-3">
+              <span className="text-2xl font-mono font-bold text-gray-900 tracking-widest bg-white px-4 py-2 rounded border border-emerald-200">
+                {screen.broadcast_code ?? '—'}
+              </span>
+              {screen.broadcast_code && (
+                <button
+                  type="button"
+                  onClick={copyBroadcastCode}
+                  className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-medium"
+                >
+                  {t('screens_broadcast_code_copy')}
+                </button>
+              )}
             </div>
           </div>
 

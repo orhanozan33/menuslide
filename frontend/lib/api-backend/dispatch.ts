@@ -47,6 +47,9 @@ export async function handleLocal(
     if (method === 'GET') return publicScreenHandlers.getScreenByToken(id, request);
     if (method === 'POST' && sub2 === 'heartbeat') return publicScreenHandlers.recordViewerHeartbeat(id, request);
   }
+  if (resource === 'player' && sub === 'resolve' && method === 'POST') {
+    return publicScreenHandlers.resolvePlayer(request);
+  }
 
   // Kayıt talepleri: POST herkese açık, GET/PATCH/DELETE admin
   if (resource === 'registration-requests') {

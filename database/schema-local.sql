@@ -68,6 +68,7 @@ CREATE TABLE IF NOT EXISTS screens (
     name TEXT NOT NULL,
     public_token TEXT NOT NULL UNIQUE,
     public_slug TEXT UNIQUE,
+    broadcast_code VARCHAR(10) UNIQUE,
     location TEXT,
     is_active BOOLEAN DEFAULT true,
     animation_type TEXT DEFAULT 'fade' CHECK (animation_type IN ('fade', 'slide', 'zoom')),
@@ -199,6 +200,7 @@ CREATE INDEX IF NOT EXISTS idx_menu_items_display_order ON menu_items(menu_id, d
 CREATE INDEX IF NOT EXISTS idx_screens_business_id ON screens(business_id);
 CREATE INDEX IF NOT EXISTS idx_screens_public_token ON screens(public_token);
 CREATE INDEX IF NOT EXISTS idx_screens_public_slug ON screens(public_slug);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_screens_broadcast_code ON screens(broadcast_code);
 CREATE INDEX IF NOT EXISTS idx_screen_menu_screen_id ON screen_menu(screen_id);
 CREATE INDEX IF NOT EXISTS idx_screen_menu_menu_id ON screen_menu(menu_id);
 CREATE INDEX IF NOT EXISTS idx_menu_schedules_screen_id ON menu_schedules(screen_id);
