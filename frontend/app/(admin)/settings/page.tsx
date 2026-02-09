@@ -79,7 +79,7 @@ export default function SettingsPage() {
       loadChannels();
       loadContactInfo();
       loadStripeStatus();
-      if (user?.role === 'super_admin') loadTvAppConfig();
+      if (user?.role === 'super_admin' || user?.role === 'admin') loadTvAppConfig();
     } else if (user) {
       router.replace(localePath('/dashboard'));
     }
@@ -576,7 +576,7 @@ export default function SettingsPage() {
         </button>
       </section>
 
-      {/* Android TV Uygulaması Ayarları — sadece super_admin */}
+      {/* Android TV Uygulaması Ayarları — admin ve super_admin */}
       <section className="mb-10">
         <h2 className="text-lg font-semibold text-gray-800 mb-4">{t('settings_tv_app_title')}</h2>
         <p className="text-sm text-gray-600 mb-4">{t('settings_tv_app_desc')}</p>

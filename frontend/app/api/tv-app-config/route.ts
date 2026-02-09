@@ -37,10 +37,9 @@ export async function GET() {
 export async function PATCH(request: NextRequest) {
   try {
     const authHeader = request.headers.get('authorization');
-    const token = authHeader?.replace(/^Bearer\s+/i, '') ?? null;
-    const user = token ? await verifyToken(token) : null;
-    if (user?.role !== 'super_admin') {
-      return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    const user = await verifyToken(authHeader ?? null);
+    if (user?.role !== 'super_admin' && user?.role !== 'admin') {
+      return NextResponse.json({ message: 'Sadece admin veya süper admin düzenleyebilir.' }, { status: 403 });
     }
     const body = await request.json();
     const supabase = getServerSupabase();

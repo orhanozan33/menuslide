@@ -86,4 +86,16 @@ cp keystore.properties.example keystore.properties
 ./scripts/setup-and-build-android-apk.sh
 ```
 
-Bu kez çıkan APK imzalı olur (`app-release.apk`); script bunu yine `frontend/public/downloads/Menuslide.apk` olarak kopyalar.
+Bu kez çıkan APK imzalı olur (`app-release.apk`); script bunu yine `frontend/public/downloads/Menuslide.apk` olarak kopyalar. Bu dosyayı Ayarlar > Android TV > "APK'yı depolamaya yükle" ile Supabase'e yükleyin.
+
+---
+
+## 5. "Paket bozuk" / "Package is corrupt" hatası
+
+Bu uyarı genelde **imzasız** APK yüklendiğinde çıkar. Çözüm:
+
+1. **İmzalı APK üretin** (yukarıdaki Bölüm 4’ü uygulayın: keystore + `keystore.properties` + derleme).
+2. Oluşan **imzalı** `Menuslide.apk` dosyasını Supabase’e yükleyin (Ayarlar > Android TV > APK’yı depolamaya yükle).
+3. Kullanıcıların indirdiği APK artık imzalı olacağı için "Paket bozuk" hatası kaybolur.
+
+İmzasız APK yalnızca debug / test için uygundur; dağıtım ve indirme linki için mutlaka imzalı release kullanın.

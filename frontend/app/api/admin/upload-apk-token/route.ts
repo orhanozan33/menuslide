@@ -12,8 +12,11 @@ export async function GET(request: Request) {
   try {
     const authHeader = request.headers.get('authorization');
     const user = await verifyToken(authHeader ?? null);
-    if (user?.role !== 'super_admin') {
-      return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    if (!user) {
+      return NextResponse.json({ message: 'Oturum gerekli. Giriş yapın.' }, { status: 401 });
+    }
+    if (user.role !== 'super_admin' && user.role !== 'admin') {
+      return NextResponse.json({ message: 'Sadece admin veya süper admin APK yükleyebilir.' }, { status: 403 });
     }
 
     const supabase = getServerSupabase();
