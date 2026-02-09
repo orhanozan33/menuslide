@@ -91,9 +91,11 @@ export default function Sidebar({ user, mobileOpen = false, onMobileClose }: Sid
     { titleKey: 'sidebar_dashboard', href: 'dashboard', icon: '📊', roles: ['super_admin', 'admin', 'business_user'] },
     { titleKey: 'sidebar_menus', href: 'menus', icon: '🍽️', roles: ['super_admin', 'admin', 'business_user'] },
     { titleKey: 'sidebar_screens', href: 'screens', icon: '📺', roles: ['super_admin', 'admin', 'business_user'] },
+    { titleKey: 'sidebar_sistem', href: 'sistem', icon: '🔧', roles: ['super_admin', 'admin', 'business_user'] },
+    { titleKey: 'sidebar_full_editor_templates', href: 'templates/full-editor', icon: '🖼️', roles: ['super_admin', 'admin'] },
+    { titleKey: 'sidebar_editor', href: 'editor', icon: '✏️', roles: ['super_admin', 'admin', 'business_user'] },
     { titleKey: 'sidebar_templates_system', href: 'templates/system', icon: '🎨', roles: ['super_admin', 'admin', 'business_user'] },
     { titleKey: 'sidebar_templates_mine', href: 'templates/mine', icon: '📋', roles: ['business_user'] },
-    { titleKey: 'sidebar_editor', href: 'editor', icon: '✏️', roles: ['super_admin', 'admin', 'business_user'] },
     { titleKey: 'sidebar_library', href: 'library', icon: '📚', roles: ['super_admin', 'admin'] },
     { titleKey: 'sidebar_uploads', href: 'user-uploads', icon: '📤', roles: ['super_admin', 'admin', 'business_user'] },
     { titleKey: 'sidebar_pricing', href: 'pricing', icon: '💰', roles: ['super_admin', 'admin', 'business_user'] },
@@ -114,6 +116,7 @@ export default function Sidebar({ user, mobileOpen = false, onMobileClose }: Sid
     'screens': 'screens',
     'templates/system': 'templates',
     'templates/mine': 'templates',
+    'templates/full-editor': 'templates',
     'editor': 'editor',
     'library': 'library',
     'user-uploads': 'user-uploads',
@@ -123,6 +126,7 @@ export default function Sidebar({ user, mobileOpen = false, onMobileClose }: Sid
     'users': 'users',
     'settings/stripe': 'stripe',
     'settings': 'settings',
+    'sistem': 'sistem',
   };
 
   const filteredMenuItems = menuItems.filter(item => {

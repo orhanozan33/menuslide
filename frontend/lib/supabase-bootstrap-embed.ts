@@ -1,6 +1,6 @@
 // Auto-generated. Do not edit. Run ./scripts/build-supabase-bootstrap.sh to regenerate.
 export const bootstrapSql = `-- Supabase bootstrap: tüm şema + migration'lar (tek seferde çalıştırılabilir)
--- Üretim: 2026-02-06 03:35:19 UTC
+-- Üretim: 2026-02-08 22:56:35 UTC
 
 -- === schema-local.sql ===
 -- Digital Signage / Online Menu Management System
@@ -339,11 +339,13 @@ INSERT INTO languages (code, name, is_default, is_active) VALUES
     ('pt', 'Portuguese', false, true)
 ON CONFLICT (code) DO NOTHING;
 
--- Insert default plans (1 ekran = 14.99$, yıllık %15 indirim)
+-- Insert default plans (1 ekran = 12.99$, yıllık %10 indirim, fiyat sonu .99): 1-3, 1-5, 1-7, 1-10, Sınırsız
 INSERT INTO plans (name, display_name, max_screens, price_monthly, price_yearly, is_active) VALUES
-    ('basic', '1 Screen', 1, 14.99, 152.90, true),
-    ('pro', '5 Screens', 5, 74.95, 764.49, true),
-    ('enterprise', 'Enterprise Plan', -1, 149.99, 1529.89, true)
+    ('1-3-screens', '1-3 Ekran', 3, 38.99, 420.99, true),
+    ('1-5-screens', '1-5 Ekran', 5, 64.99, 701.99, true),
+    ('1-7-screens', '1-7 Ekran', 7, 90.99, 982.99, true),
+    ('1-10-screens', '1-10 Ekran', 10, 129.99, 1403.99, true),
+    ('enterprise', 'Sınırsız', -1, 194.99, 2105.99, true)
 ON CONFLICT (name) DO NOTHING;
 
 -- === templates-schema.sql ===
@@ -1452,6 +1454,51 @@ CREATE INDEX IF NOT EXISTS idx_content_library_uploaded_by ON content_library(up
 
 COMMENT ON COLUMN content_library.uploaded_by IS 'Bu içeriği yükleyen kullanıcı (NULL = admin/sistem)';
 
+-- === migration-full-editor-categories-templates.sql ===
+-- Full Editor: PosterMyWall tarzı kategori ve şablon tabloları
+-- Kategoriler: name, description, image_url_1, image_url_2
+-- Şablonlar: name, canvas_json, preview_image, category_id, created_by, sales, uses
+
+CREATE TABLE IF NOT EXISTS full_editor_categories (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name TEXT NOT NULL,
+    description TEXT,
+    image_url_1 TEXT,
+    image_url_2 TEXT,
+    display_order INTEGER DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS full_editor_templates (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name TEXT NOT NULL,
+    canvas_json JSONB NOT NULL DEFAULT '{}',
+    preview_image TEXT,
+    category_id UUID REFERENCES full_editor_categories(id) ON DELETE SET NULL,
+    created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    sales INTEGER DEFAULT 0,
+    uses INTEGER DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_full_editor_templates_category ON full_editor_templates(category_id);
+CREATE INDEX IF NOT EXISTS idx_full_editor_templates_created_by ON full_editor_templates(created_by);
+CREATE INDEX IF NOT EXISTS idx_full_editor_categories_order ON full_editor_categories(display_order);
+
+CREATE OR REPLACE FUNCTION update_full_editor_templates_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS update_full_editor_templates_updated_at ON full_editor_templates;
+CREATE TRIGGER update_full_editor_templates_updated_at
+    BEFORE UPDATE ON full_editor_templates
+    FOR EACH ROW EXECUTE FUNCTION update_full_editor_templates_updated_at();
+
 -- === migration-add-video-content-type.sql ===
 -- Migration: Add 'video' content type to template_block_contents
 
@@ -2286,60 +2333,71 @@ UPDATE plans SET display_name = 'Enterprise' WHERE max_screens = -1;
 -- Planlar: 1-3, 1-5, 1-7, 1-10 ekran + Sınırsız (15 TV üzerinden hesaplanır)
 -- TV başı 12.99 USD, yıllık %10 indirim
 
--- 1-3 ekran: 3 * 12.99 = 38.97
+-- 1-3 ekran: 3 * 12.99 → 38.99
 UPDATE plans SET
-  display_name = '1-3 Screens',
+  display_name = '1-3 Ekran',
   name = '1-3-screens',
-  price_monthly = 38.97,
-  price_yearly = ROUND(38.97 * 12 * 0.9, 2),
+  price_monthly = 38.99,
+  price_yearly = 420.99,
   is_active = true
 WHERE max_screens = 3;
 
--- 1-5 ekran: 5 * 12.99 = 64.95
+-- 1-5 ekran: 5 * 12.99 → 64.99
 UPDATE plans SET
-  display_name = '1-5 Screens',
+  display_name = '1-5 Ekran',
   name = '1-5-screens',
-  price_monthly = 64.95,
-  price_yearly = ROUND(64.95 * 12 * 0.9, 2),
+  price_monthly = 64.99,
+  price_yearly = 701.99,
   is_active = true
 WHERE max_screens = 5;
 
--- 1-7 ekran: 7 * 12.99 = 90.93
+-- 1-7 ekran: 7 * 12.99 → 90.99
 UPDATE plans SET
-  display_name = '1-7 Screens',
+  display_name = '1-7 Ekran',
   name = '1-7-screens',
-  price_monthly = 90.93,
-  price_yearly = ROUND(90.93 * 12 * 0.9, 2),
+  price_monthly = 90.99,
+  price_yearly = 982.99,
   is_active = true
 WHERE max_screens = 7;
 
--- 1-10 ekran: 10 * 12.99 = 129.90
+-- 1-10 ekran: 10 * 12.99 → 129.99
 UPDATE plans SET
-  display_name = '1-10 Screens',
+  display_name = '1-10 Ekran',
   name = '1-10-screens',
-  price_monthly = 129.90,
-  price_yearly = ROUND(129.90 * 12 * 0.9, 2),
+  price_monthly = 129.99,
+  price_yearly = 1403.99,
   is_active = true
 WHERE max_screens = 10;
 
--- Sınırsız: 15 TV üzerinden = 15 * 12.99 = 194.85
+-- Sınırsız: 15 TV üzerinden → 194.99
 UPDATE plans SET
-  display_name = 'Unlimited (15 TVs)',
+  display_name = 'Sınırsız',
   name = 'enterprise',
-  price_monthly = 194.85,
-  price_yearly = ROUND(194.85 * 12 * 0.9, 2),
+  price_monthly = 194.99,
+  price_yearly = 2105.99,
   is_active = true
 WHERE max_screens = -1;
 
--- 1-7 planı yoksa ekle
+-- Eksik planları ekle
 INSERT INTO plans (name, display_name, max_screens, price_monthly, price_yearly, is_active)
-SELECT '1-7-screens', '1-7 Screens', 7, 90.93, ROUND(90.93 * 12 * 0.9, 2), true
+SELECT '1-3-screens', '1-3 Ekran', 3, 38.99, 420.99, true
+WHERE NOT EXISTS (SELECT 1 FROM plans WHERE max_screens = 3);
+
+INSERT INTO plans (name, display_name, max_screens, price_monthly, price_yearly, is_active)
+SELECT '1-5-screens', '1-5 Ekran', 5, 64.99, 701.99, true
+WHERE NOT EXISTS (SELECT 1 FROM plans WHERE max_screens = 5);
+
+INSERT INTO plans (name, display_name, max_screens, price_monthly, price_yearly, is_active)
+SELECT '1-7-screens', '1-7 Ekran', 7, 90.99, 982.99, true
 WHERE NOT EXISTS (SELECT 1 FROM plans WHERE max_screens = 7);
 
--- 1-10 planı yoksa ekle
 INSERT INTO plans (name, display_name, max_screens, price_monthly, price_yearly, is_active)
-SELECT '1-10-screens', '1-10 Screens', 10, 129.90, ROUND(129.90 * 12 * 0.9, 2), true
+SELECT '1-10-screens', '1-10 Ekran', 10, 129.99, 1403.99, true
 WHERE NOT EXISTS (SELECT 1 FROM plans WHERE max_screens = 10);
+
+INSERT INTO plans (name, display_name, max_screens, price_monthly, price_yearly, is_active)
+SELECT 'enterprise', 'Sınırsız', -1, 194.99, 2105.99, true
+WHERE NOT EXISTS (SELECT 1 FROM plans WHERE max_screens = -1);
 
 -- Diğer planları (1, 2, 4 ekran vb.) listede gösterme
 UPDATE plans SET is_active = false WHERE max_screens IN (0, 1, 2, 4, 6, 8, 9);
@@ -3021,6 +3079,37 @@ BEGIN
   END IF;
 END $$;
 
+-- === migration-add-import-columns.sql ===
+-- Yerel → Supabase import uyumluluğu: Export'taki sütunlar Supabase'de yoksa ekle.
+-- content_library.source (yerelde var, bootstrap'ta yoktu)
+ALTER TABLE content_library ADD COLUMN IF NOT EXISTS source TEXT;
+-- screen_template_rotations.template_type, digital_menu_template_id (yerelde var, bootstrap'ta yoktu)
+ALTER TABLE screen_template_rotations ADD COLUMN IF NOT EXISTS template_type TEXT;
+ALTER TABLE screen_template_rotations ADD COLUMN IF NOT EXISTS digital_menu_template_id UUID;
+-- menu_items: yerelde olan sütunlar (tags, upsell, variants, sayfa vb.) yoksa menu_items INSERT'leri patlar, paketler/ürünler gelmez
+ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS tags JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS upsell_items JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS variants JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS time_slots JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS tv_featured BOOLEAN DEFAULT false;
+ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS category_name TEXT;
+ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS page_index INTEGER DEFAULT 0;
+-- templates: export'ta kullanılan sütunlar (bootstrap'ta yoksa INSERT "column does not exist" verir, hiç şablon girmez)
+ALTER TABLE templates ADD COLUMN IF NOT EXISTS ai_generated BOOLEAN DEFAULT false;
+ALTER TABLE templates ADD COLUMN IF NOT EXISTS ai_generation_params JSONB;
+ALTER TABLE templates ADD COLUMN IF NOT EXISTS scope TEXT DEFAULT 'system';
+ALTER TABLE templates ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE templates ADD COLUMN IF NOT EXISTS business_id UUID REFERENCES businesses(id) ON DELETE SET NULL;
+ALTER TABLE templates ADD COLUMN IF NOT EXISTS animated_zone_config JSONB;
+ALTER TABLE templates ADD COLUMN IF NOT EXISTS canvas_design JSONB;
+-- templates.name UNIQUE kaldır: yerelde aynı isimde şablon olunca ikinci INSERT patlamasın, tüm şablonlar girsin
+ALTER TABLE templates DROP CONSTRAINT IF EXISTS templates_name_key;
+-- template_blocks: yerelde olan sütunlar yoksa INSERT patlar, düzenleme sayfasında "0 blok" kalır
+ALTER TABLE template_blocks ADD COLUMN IF NOT EXISTS z_index INTEGER DEFAULT 0;
+ALTER TABLE template_blocks ADD COLUMN IF NOT EXISTS animation_type TEXT DEFAULT 'fade';
+ALTER TABLE template_blocks ADD COLUMN IF NOT EXISTS animation_duration INTEGER DEFAULT 500;
+ALTER TABLE template_blocks ADD COLUMN IF NOT EXISTS animation_delay INTEGER DEFAULT 0;
+ALTER TABLE template_blocks ADD COLUMN IF NOT EXISTS style_config JSONB DEFAULT '{}'::jsonb;
 -- === supabase-run-migrations.sql ===
 -- ============================================================
 -- Supabase'de çalıştır: users tablosunda eksik sütunları ekle

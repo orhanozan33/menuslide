@@ -357,33 +357,59 @@ export async function getTemplateRotations(screenId: string, user: JwtPayload): 
     const screen = await checkScreenAccessLocal(screenId, user);
     if (!screen) return Response.json({ message: 'Not found or access denied' }, { status: 404 });
     const rotations = await queryLocal(
-      'SELECT str.*, t.id as t_id, t.display_name as t_display_name, t.description as t_description, t.block_count as t_block_count FROM screen_template_rotations str LEFT JOIN templates t ON t.id = str.template_id WHERE str.screen_id = $1 AND str.is_active = true ORDER BY str.display_order',
+      `SELECT str.*, t.id as t_id, t.display_name as t_display_name, t.name as t_name, t.description as t_description, t.block_count as t_block_count,
+       fet.id as fet_id, fet.name as fet_name
+       FROM screen_template_rotations str
+       LEFT JOIN templates t ON t.id = str.template_id
+       LEFT JOIN full_editor_templates fet ON fet.id = str.full_editor_template_id
+       WHERE str.screen_id = $1 AND str.is_active = true ORDER BY str.display_order`,
       [screenId]
     );
-    const list = rotations.map((r: Record<string, unknown> & { t_id?: string; t_display_name?: string; t_description?: string; t_block_count?: number }) => ({
-      ...r,
-      template: r.t_id != null ? { id: r.t_id, display_name: r.t_display_name, description: r.t_description, block_count: r.t_block_count } : null,
-    }));
+    const list = rotations.map((r: Record<string, unknown> & { t_id?: string; t_display_name?: string; t_name?: string; t_description?: string; t_block_count?: number; fet_id?: string; fet_name?: string }) => {
+      let template: { id: string; display_name?: string; name?: string; description?: string; block_count?: number } | null = null;
+      if (r.t_id != null) {
+        template = { id: r.t_id, display_name: r.t_display_name, name: r.t_name, description: r.t_description, block_count: r.t_block_count };
+      } else if (r.fet_id != null) {
+        template = { id: r.fet_id, display_name: r.fet_name, name: r.fet_name, block_count: 1 };
+      }
+      return { ...r, template };
+    });
     return Response.json(list);
   }
   const supabase = getServerSupabase();
   const screen = await checkScreenAccess(supabase, screenId, user);
   if (!screen) return Response.json({ message: 'Not found or access denied' }, { status: 404 });
-  const { data: rotations } = await supabase.from('screen_template_rotations').select('*, template:templates(id, display_name, description, block_count)').eq('screen_id', screenId).eq('is_active', true).order('display_order', { ascending: true });
+  let { data: rotations } = await supabase.from('screen_template_rotations').select('*, template:templates(id, display_name, name, description, block_count)').eq('screen_id', screenId).eq('is_active', true).order('display_order', { ascending: true });
+  const feIds = (rotations ?? []).map((r: Record<string, unknown>) => (r as { full_editor_template_id?: string }).full_editor_template_id).filter(Boolean) as string[];
+  if (feIds.length > 0) {
+    const { data: feTemplates } = await supabase.from('full_editor_templates').select('id, name').in('id', feIds);
+    const feMap = new Map((feTemplates ?? []).map((t: { id: string; name?: string }) => [t.id, t]));
+    rotations = (rotations ?? []).map((r: Record<string, unknown> & { template?: unknown; full_editor_template_id?: string }) => {
+      let template = r.template;
+      if (!template && r.full_editor_template_id) {
+        const fet = feMap.get(r.full_editor_template_id);
+        if (fet) template = { id: fet.id, display_name: fet.name, name: fet.name, block_count: 1 };
+      }
+      return { ...r, template };
+    });
+  }
   return Response.json(rotations ?? []);
 }
 
+type PublishTemplate = { template_id?: string; display_duration?: number; template_type?: string; full_editor_template_id?: string };
+
 /** POST /screens/:id/publish-templates */
 export async function publishTemplates(screenId: string, request: NextRequest, user: JwtPayload): Promise<Response> {
-  let body: { templates?: { template_id: string; display_duration?: number }[]; frame_type?: string; ticker_text?: string; ticker_style?: string } = {};
+  let body: { templates?: PublishTemplate[]; frame_type?: string; ticker_text?: string; ticker_style?: string; template_transition_effect?: string } = {};
   try {
     body = await request.json();
   } catch {
     return Response.json({ message: 'Invalid JSON' }, { status: 400 });
   }
-  const templates = body.templates ?? [];
+  const templates = (body.templates ?? []) as PublishTemplate[];
   if (templates.length === 0) return Response.json({ message: 'At least one template required' }, { status: 400 });
   const first = templates[0];
+  const isFirstFullEditor = first.template_type === 'full_editor' || !!first.full_editor_template_id;
 
   if (useLocalDb()) {
     const screen = await checkScreenAccessLocal(screenId, user);
@@ -391,37 +417,69 @@ export async function publishTemplates(screenId: string, request: NextRequest, u
     if (!(await isSubscriptionActiveLocal(screen.business_id))) return Response.json({ message: 'Subscription expired or payment failed. Renew your subscription to broadcast.' }, { status: 403 });
     await runLocal('DELETE FROM screen_template_rotations WHERE screen_id = $1', [screenId]);
     await runLocal('DELETE FROM screen_blocks WHERE screen_id = $1', [screenId]);
-    await updateLocal('screens', screenId, { template_id: first.template_id, is_active: true });
-    const tBlocks = await queryLocal<{ id: string; block_index: number; position_x?: number; position_y?: number; width?: number; height?: number }>('SELECT id, block_index, position_x, position_y, width, height FROM template_blocks WHERE template_id = $1 ORDER BY block_index', [first.template_id]);
-    for (const tb of tBlocks) {
-      await insertLocal('screen_blocks', {
-        screen_id: screenId,
-        template_block_id: tb.id,
-        display_order: tb.block_index,
-        is_active: true,
-        position_x: tb.position_x,
-        position_y: tb.position_y,
-        width: tb.width,
-        height: tb.height,
-      });
+    await updateLocal('screens', screenId, { template_id: isFirstFullEditor ? null : first.template_id ?? null, is_active: true });
+    if (!isFirstFullEditor && first.template_id) {
+      const tBlocks = await queryLocal<{ id: string; block_index: number; position_x?: number; position_y?: number; width?: number; height?: number }>('SELECT id, block_index, position_x, position_y, width, height FROM template_blocks WHERE template_id = $1 ORDER BY block_index', [first.template_id]);
+      for (const tb of tBlocks) {
+        await insertLocal('screen_blocks', {
+          screen_id: screenId,
+          template_block_id: tb.id,
+          display_order: tb.block_index,
+          is_active: true,
+          position_x: tb.position_x,
+          position_y: tb.position_y,
+          width: tb.width,
+          height: tb.height,
+        });
+      }
     }
     for (let i = 0; i < templates.length; i++) {
-      await insertLocal('screen_template_rotations', { screen_id: screenId, template_id: templates[i].template_id, display_duration: templates[i].display_duration ?? 10, display_order: i, is_active: true });
+      const t = templates[i];
+      const isFe = t.template_type === 'full_editor' || !!t.full_editor_template_id;
+      const row: Record<string, unknown> = {
+        screen_id: screenId,
+        template_id: isFe ? null : (t.template_id ?? null),
+        display_duration: t.display_duration ?? 10,
+        display_order: i,
+        is_active: true,
+      };
+      if (isFe && t.full_editor_template_id) {
+        row.template_type = 'full_editor';
+        row.full_editor_template_id = t.full_editor_template_id;
+      }
+      await insertLocal('screen_template_rotations', row);
     }
     const frameUpdates: Record<string, unknown> = {};
     if (body.frame_type !== undefined) frameUpdates.frame_type = body.frame_type;
     if (body.ticker_text !== undefined) frameUpdates.ticker_text = body.ticker_text;
     if (body.ticker_style !== undefined) frameUpdates.ticker_style = body.ticker_style;
+    if (body.template_transition_effect !== undefined) frameUpdates.template_transition_effect = body.template_transition_effect;
     if (Object.keys(frameUpdates).length > 0) await updateLocal('screens', screenId, frameUpdates);
     const sb = getServerSupabase();
     await sb.from('screen_template_rotations').delete().eq('screen_id', screenId);
     await sb.from('screen_blocks').delete().eq('screen_id', screenId);
-    await sb.from('screens').update({ template_id: first.template_id, is_active: true }).eq('id', screenId);
-    for (const tb of tBlocks) {
-      await sb.from('screen_blocks').insert({ screen_id: screenId, template_block_id: tb.id, display_order: tb.block_index, is_active: true, position_x: tb.position_x, position_y: tb.position_y, width: tb.width, height: tb.height });
+    await sb.from('screens').update({ template_id: isFirstFullEditor ? null : first.template_id ?? null, is_active: true }).eq('id', screenId);
+    if (!isFirstFullEditor && first.template_id) {
+      const tBlocks = await queryLocal<{ id: string; block_index: number; position_x?: number; position_y?: number; width?: number; height?: number }>('SELECT id, block_index, position_x, position_y, width, height FROM template_blocks WHERE template_id = $1 ORDER BY block_index', [first.template_id]);
+      for (const tb of tBlocks) {
+        await sb.from('screen_blocks').insert({ screen_id: screenId, template_block_id: tb.id, display_order: tb.block_index, is_active: true, position_x: tb.position_x, position_y: tb.position_y, width: tb.width, height: tb.height });
+      }
     }
     for (let i = 0; i < templates.length; i++) {
-      await sb.from('screen_template_rotations').insert({ screen_id: screenId, template_id: templates[i].template_id, display_duration: templates[i].display_duration ?? 10, display_order: i, is_active: true });
+      const t = templates[i];
+      const isFe = t.template_type === 'full_editor' || !!t.full_editor_template_id;
+      const rot: Record<string, unknown> = {
+        screen_id: screenId,
+        template_id: isFe ? null : (t.template_id ?? null),
+        display_duration: t.display_duration ?? 10,
+        display_order: i,
+        is_active: true,
+      };
+      if (isFe && t.full_editor_template_id) {
+        rot.template_type = 'full_editor';
+        rot.full_editor_template_id = t.full_editor_template_id;
+      }
+      await sb.from('screen_template_rotations').insert(rot);
     }
     if (Object.keys(frameUpdates).length > 0) await sb.from('screens').update(frameUpdates).eq('id', screenId);
     return Response.json({ message: 'Templates published successfully', count: templates.length });
@@ -434,34 +492,44 @@ export async function publishTemplates(screenId: string, request: NextRequest, u
   if (!active) return Response.json({ message: 'Subscription expired or payment failed. Renew your subscription to broadcast.' }, { status: 403 });
   await supabase.from('screen_template_rotations').delete().eq('screen_id', screenId);
   await supabase.from('screen_blocks').delete().eq('screen_id', screenId);
-  await supabase.from('screens').update({ template_id: first.template_id, is_active: true }).eq('id', screenId);
-  const { data: tBlocks } = await supabase.from('template_blocks').select('id, block_index, position_x, position_y, width, height').eq('template_id', first.template_id).order('block_index', { ascending: true });
-  for (const tb of tBlocks ?? []) {
-    const row = tb as { id: string; block_index: number; position_x?: number; position_y?: number; width?: number; height?: number };
-    await supabase.from('screen_blocks').insert({
-      screen_id: screenId,
-      template_block_id: row.id,
-      display_order: row.block_index,
-      is_active: true,
-      position_x: row.position_x ?? 0,
-      position_y: row.position_y ?? 0,
-      width: row.width ?? 100,
-      height: row.height ?? 100,
-    });
+  await supabase.from('screens').update({ template_id: isFirstFullEditor ? null : first.template_id ?? null, is_active: true }).eq('id', screenId);
+  if (!isFirstFullEditor && first.template_id) {
+    const { data: tBlocks } = await supabase.from('template_blocks').select('id, block_index, position_x, position_y, width, height').eq('template_id', first.template_id).order('block_index', { ascending: true });
+    for (const tb of tBlocks ?? []) {
+      const row = tb as { id: string; block_index: number; position_x?: number; position_y?: number; width?: number; height?: number };
+      await supabase.from('screen_blocks').insert({
+        screen_id: screenId,
+        template_block_id: row.id,
+        display_order: row.block_index,
+        is_active: true,
+        position_x: row.position_x ?? 0,
+        position_y: row.position_y ?? 0,
+        width: row.width ?? 100,
+        height: row.height ?? 100,
+      });
+    }
   }
   for (let i = 0; i < templates.length; i++) {
-    await supabase.from('screen_template_rotations').insert({
+    const t = templates[i];
+    const isFe = t.template_type === 'full_editor' || !!t.full_editor_template_id;
+    const rot: Record<string, unknown> = {
       screen_id: screenId,
-      template_id: templates[i].template_id,
-      display_duration: templates[i].display_duration ?? 10,
+      template_id: isFe ? null : (t.template_id ?? null),
+      display_duration: t.display_duration ?? 10,
       display_order: i,
       is_active: true,
-    });
+    };
+    if (isFe && t.full_editor_template_id) {
+      rot.template_type = 'full_editor';
+      rot.full_editor_template_id = t.full_editor_template_id;
+    }
+    await supabase.from('screen_template_rotations').insert(rot);
   }
   const frameUpdates: Record<string, unknown> = {};
   if (body.frame_type !== undefined) frameUpdates.frame_type = body.frame_type;
   if (body.ticker_text !== undefined) frameUpdates.ticker_text = body.ticker_text;
   if (body.ticker_style !== undefined) frameUpdates.ticker_style = body.ticker_style;
+  if (body.template_transition_effect !== undefined) frameUpdates.template_transition_effect = body.template_transition_effect;
   if (Object.keys(frameUpdates).length > 0) {
     await supabase.from('screens').update(frameUpdates).eq('id', screenId);
   }

@@ -6,6 +6,7 @@ import { apiClient } from '@/lib/api';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 import { useToast } from '@/lib/ToastContext';
 import { resolveMediaUrl } from '@/lib/resolveMediaUrl';
+import { FullEditorPreviewThumb } from '@/components/FullEditorPreviewThumb';
 import { TemplateDisplay } from '@/components/display/TemplateDisplay';
 import { TemplatesLibraryBody } from '../../[locale]/(admin)/templates/TemplatesLibraryBody';
 
@@ -191,7 +192,25 @@ export function TemplatesLibraryContent({
         } catch (err: any) {
           console.warn('System scope failed:', err);
         }
-        setSystemTemplates(systemData);
+        try {
+          const fullEditorRes = await fetch('/api/full-editor/templates?scope=system');
+          const fullEditorData = (await fullEditorRes.json()) || [];
+          const fullEditorList = Array.isArray(fullEditorData) ? fullEditorData : [];
+          const mapped = fullEditorList.map((t: any) => ({
+            id: t.id,
+            name: t.name,
+            display_name: t.name,
+            description: 'Full Editor tasarımı',
+            block_count: 1,
+            preview_image_url: t.preview_image || null,
+            is_full_editor: true,
+            canvas_json: t.canvas_json,
+          }));
+          systemData = [...systemData, ...mapped];
+        } catch (err: any) {
+          console.warn('Full editor templates failed:', err);
+        }
+        setSystemTemplates([...systemData].sort((a, b) => (Number(a.block_count) || 999) - (Number(b.block_count) || 999)));
       }
 
       let userData: any[] = [];
@@ -210,7 +229,28 @@ export function TemplatesLibraryContent({
             userData = [];
           }
         }
-        setUserTemplates(userData);
+        try {
+          const feUserParam = (userRole === 'super_admin' || userRole === 'admin') && effectiveUserId ? `&user_id=${effectiveUserId}` : '';
+          const fullEditorUserRes = await fetch(`/api/full-editor/templates?scope=user${feUserParam}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const fullEditorUserData = (await fullEditorUserRes.json()) || [];
+          const fullEditorUserList = Array.isArray(fullEditorUserData) ? fullEditorUserData : [];
+          const mapped = fullEditorUserList.map((t: any) => ({
+            id: t.id,
+            name: t.name,
+            display_name: t.name,
+            description: 'Full Editor tasarımı',
+            block_count: 1,
+            preview_image_url: t.preview_image || null,
+            is_full_editor: true,
+            canvas_json: t.canvas_json,
+          }));
+          userData = [...userData, ...mapped];
+        } catch (err: any) {
+          console.warn('Full editor user templates failed:', err);
+        }
+        setUserTemplates([...userData].sort((a, b) => (Number(a.block_count) || 999) - (Number(b.block_count) || 999)));
       }
 
       const allTemplates = [...systemData, ...userData];
@@ -367,6 +407,30 @@ export function TemplatesLibraryContent({
     if (useThisLoadingId !== null) return;
     try {
       setUseThisLoadingId(template.id);
+      if (template.is_full_editor) {
+        const token = typeof window !== 'undefined' ? (sessionStorage.getItem('impersonation_token') || localStorage.getItem('auth_token')) : null;
+        const res = await fetch('/api/full-editor/templates/duplicate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          body: JSON.stringify({
+            id: template.id,
+            name: `${template.display_name || template.name} ${t('editor_copy_suffix')}`,
+          }),
+        });
+        if (!res.ok) {
+          const j = await res.json().catch(() => ({}));
+          throw new Error((j as { message?: string; error?: string }).message || (j as { error?: string }).error || 'Template not found');
+        }
+        const newTemplate = await res.json();
+        const newId = newTemplate?.id;
+        if (newId) {
+          router.push(`${localePath('/sistem')}?templateId=${newId}`);
+        } else {
+          toast.showSuccess(t('templates_use_success'));
+          loadTemplates();
+        }
+        return;
+      }
       const newTemplate = await apiClient(`/templates/${template.id}/duplicate`, {
         method: 'POST',
         body: {
@@ -430,17 +494,14 @@ export function TemplatesLibraryContent({
     setDeleteConfirmTemplate(null);
 
     const templateId = String(template.id);
-    const apiUrl = '/api/proxy';
     const token = typeof window !== 'undefined' ? (sessionStorage.getItem('impersonation_token') || localStorage.getItem('auth_token')) : null;
+    const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
 
     try {
-      const res = await fetch(`${apiUrl}/templates/${templateId}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      });
+      const isFullEditor = !!template.is_full_editor;
+      const res = isFullEditor
+        ? await fetch(`/api/full-editor/templates?id=${encodeURIComponent(templateId)}`, { method: 'DELETE', headers })
+        : await fetch(`/api/proxy/templates/${templateId}`, { method: 'DELETE', headers });
       const text = await res.text();
       let data: { message?: string; error?: string } = {};
       try {
@@ -466,11 +527,25 @@ export function TemplatesLibraryContent({
   const handleRenameTemplate = async (template: any) => {
     const newName = prompt(t('templates_rename_prompt'), template.display_name || template.name || '');
     if (newName == null || String(newName).trim() === '') return;
+    const trimmed = String(newName).trim();
     try {
-      await apiClient(`/templates/${template.id}`, {
-        method: 'PATCH',
-        body: { display_name: String(newName).trim() },
-      });
+      if (template.is_full_editor) {
+        const token = typeof window !== 'undefined' ? (sessionStorage.getItem('impersonation_token') || localStorage.getItem('auth_token')) : null;
+        const res = await fetch('/api/full-editor/templates', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          body: JSON.stringify({ id: template.id, name: trimmed }),
+        });
+        if (!res.ok) {
+          const j = await res.json().catch(() => ({}));
+          throw new Error((j as { error?: string; detail?: string }).error || (j as { message?: string }).message || res.statusText);
+        }
+      } else {
+        await apiClient(`/templates/${template.id}`, {
+          method: 'PATCH',
+          body: { display_name: trimmed },
+        });
+      }
       toast.showSuccess(t('templates_rename_success'));
       loadTemplates();
     } catch (err: any) {
@@ -552,6 +627,14 @@ export function TemplatesLibraryContent({
           loading="lazy"
           decoding="async"
         />
+      );
+    }
+
+    if (template.is_full_editor && template.canvas_json && typeof template.canvas_json === 'object') {
+      return (
+        <div className="w-full h-full flex items-center justify-center">
+          <FullEditorPreviewThumb canvasJson={template.canvas_json} />
+        </div>
       );
     }
 

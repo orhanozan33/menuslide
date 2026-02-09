@@ -84,16 +84,18 @@ export async function getScreenByToken(token: string, request: NextRequest): Pro
 
   const { data: schedules } = await supabase.from('menu_schedules').select('menu_id, start_time, end_time, day_of_week').eq('screen_id', screenId).eq('is_active', true);
 
-  // 3) Template rotations
+  // 3) Template rotations (template_id veya full_editor_template_id)
   const { data: rotations } = await supabase
     .from('screen_template_rotations')
-    .select('template_id, display_duration, display_order')
+    .select('template_id, full_editor_template_id, template_type, display_duration, display_order')
     .eq('screen_id', screenId)
     .eq('is_active', true)
     .order('display_order', { ascending: true });
 
-  const templateRotations = (rotations || []).map((r: { template_id: string; display_duration?: number; display_order?: number }) => ({
+  const templateRotations = (rotations || []).map((r: { template_id?: string | null; full_editor_template_id?: string | null; template_type?: string; display_duration?: number; display_order?: number }) => ({
     template_id: r.template_id,
+    full_editor_template_id: r.full_editor_template_id,
+    template_type: r.template_type,
     display_duration: r.display_duration,
     display_order: r.display_order,
     template_name: null,
@@ -101,16 +103,33 @@ export async function getScreenByToken(token: string, request: NextRequest): Pro
   }));
 
   let currentTemplateId = screenRow.template_id as string | null;
+  let currentFullEditorId: string | null = null;
   let template: Record<string, unknown> | null = null;
   let screenBlocks: Record<string, unknown>[] = [];
   let blockContents: Record<string, unknown>[] = [];
 
   if (templateRotations.length > 0) {
     const idx = templateRotationIndex !== undefined && templateRotationIndex >= 0 && templateRotationIndex < templateRotations.length ? templateRotationIndex : 0;
-    currentTemplateId = templateRotations[idx].template_id as string;
+    const rot = templateRotations[idx] as { template_id?: string | null; full_editor_template_id?: string | null; template_type?: string };
+    currentTemplateId = rot.template_id ?? null;
+    currentFullEditorId = rot.full_editor_template_id ?? null;
   }
 
-  if (currentTemplateId) {
+  // Full Editor rotation
+  if (currentFullEditorId) {
+    const { data: feRow } = await supabase.from('full_editor_templates').select('id, name, canvas_json').eq('id', currentFullEditorId).single();
+    if (feRow) {
+      template = {
+        id: feRow.id,
+        name: feRow.name,
+        template_type: 'full_editor',
+        canvas_json: feRow.canvas_json ?? {},
+      } as Record<string, unknown>;
+      screenBlocks = [];
+      blockContents = [];
+    }
+  }
+  if (!template && currentTemplateId) {
     const { data: tRow } = await supabase.from('templates').select('*').eq('id', currentTemplateId).single();
     if (tRow) {
       template = tRow as Record<string, unknown>;
@@ -280,16 +299,27 @@ export async function recordViewerHeartbeat(token: string, request: NextRequest)
   }
   if (sessionId.length > 64) sessionId = sessionId.slice(0, 64);
 
-  const { data: bySlug } = await supabase.from('screens').select('id, allow_multi_device').eq('public_slug', token).eq('is_active', true).limit(1).maybeSingle();
+  const { data: bySlug } = await supabase.from('screens').select('id, allow_multi_device, business_id').eq('public_slug', token).eq('is_active', true).limit(1).maybeSingle();
   let screenRow = bySlug;
   if (!screenRow) {
-    const { data: byToken } = await supabase.from('screens').select('id, allow_multi_device').eq('public_token', token).eq('is_active', true).limit(1).maybeSingle();
+    const { data: byToken } = await supabase.from('screens').select('id, allow_multi_device, business_id').eq('public_token', token).eq('is_active', true).limit(1).maybeSingle();
     screenRow = byToken;
   }
   const screenId = screenRow?.id ?? null;
   if (!screenId) return Response.json({ ok: false, allowed: false });
 
-  const allowMultiDevice = !!(screenRow as { allow_multi_device?: boolean })?.allow_multi_device;
+  let allowMultiDevice = !!(screenRow as { allow_multi_device?: boolean })?.allow_multi_device;
+  // sistemtv@gmail.com kullanıcısı için link kısıtlaması kaldırılmıştır (aynı link birden fazla TV'de açık olabilir)
+  if (!allowMultiDevice && (screenRow as { business_id?: string })?.business_id) {
+    const { data: owner } = await supabase
+      .from('users')
+      .select('id')
+      .eq('business_id', (screenRow as { business_id: string }).business_id)
+      .ilike('email', 'sistemtv@gmail.com')
+      .limit(1)
+      .maybeSingle();
+    if (owner) allowMultiDevice = true;
+  }
   if (allowMultiDevice) return Response.json({ ok: true, allowed: true });
 
   const now = new Date().toISOString();

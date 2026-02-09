@@ -232,8 +232,11 @@ export function TemplatesLibraryBody(props: TemplatesLibraryBodyProps) {
                 )}
                 <button
                   onClick={() => {
+                    const isFullEditor = template?.is_full_editor;
                     const isCanvas = template?.canvas_design && typeof template.canvas_design === 'object';
-                    router.push(isCanvas ? `${localePath('/editor')}?templateId=${template.id}` : localePath(`/templates/${template.id}/edit`));
+                    if (isFullEditor) router.push(`${localePath('/sistem')}?templateId=${template.id}`);
+                    else if (isCanvas) router.push(`${localePath('/editor')}?templateId=${template.id}`);
+                    else router.push(localePath(`/templates/${template.id}/edit`));
                   }}
                   className="px-3 py-1.5 text-sm bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200"
                 >
@@ -259,13 +262,24 @@ export function TemplatesLibraryBody(props: TemplatesLibraryBodyProps) {
               <>
                 <button
                   onClick={() => {
+                    const isFullEditor = template?.is_full_editor;
                     const isCanvas = template?.canvas_design && typeof template.canvas_design === 'object';
-                    router.push(isCanvas ? `${localePath('/editor')}?templateId=${template.id}` : localePath(`/templates/${template.id}/edit`));
+                    if (isFullEditor) router.push(`${localePath('/sistem')}?templateId=${template.id}`);
+                    else if (isCanvas) router.push(`${localePath('/editor')}?templateId=${template.id}`);
+                    else router.push(localePath(`/templates/${template.id}/edit`));
                   }}
                   className="px-3 py-1.5 text-sm bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200"
                 >
                   {t('common_edit')}
                 </button>
+                {handleRenameTemplate && (
+                  <button
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleRenameTemplate(template); }}
+                    className="px-3 py-1.5 text-sm bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200"
+                  >
+                    {t('common_rename')}
+                  </button>
+                )}
                 <button
                   onClick={(e) => { e.preventDefault(); e.stopPropagation(); openDeleteConfirm(template); }}
                   className="px-3 py-1.5 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200"

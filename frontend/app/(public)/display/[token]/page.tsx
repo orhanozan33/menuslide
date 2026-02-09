@@ -16,6 +16,11 @@ const CanvasDisplay = dynamic(
   { ssr: false },
 );
 
+const FullEditorDisplay = dynamic(
+  () => import('@/components/display/FullEditorDisplay').then((m) => ({ default: m.FullEditorDisplay })),
+  { ssr: false },
+);
+
 import { TemplateDisplay } from '@/components/display/TemplateDisplay';
 import { DisplayFrame } from '@/components/display/DisplayFrame';
 import { TickerTape } from '@/components/display/TickerTape';
@@ -587,6 +592,32 @@ export default function DisplayPage() {
           />
           </DisplayFrame>
           <TickerTape text={tickerText} style={(displayData.screen as any)?.ticker_style || 'default'} />
+        </div>
+        <FullScreenButton />
+      </EmbedFitWrapper>
+    );
+  }
+
+  // Full Editor şablonu: canvas_json (Fabric) ile render et
+  if (displayData?.template?.template_type === 'full_editor' && displayData?.template?.canvas_json) {
+    const tickerText = (screenData.screen as any)?.ticker_text || '';
+    const tickerStyle = (screenData.screen as any)?.ticker_style || 'default';
+    const frameType = (displayData.screen as any)?.frame_type || 'none';
+    const hideBottomFrame = !!tickerText;
+    return (
+      <EmbedFitWrapper>
+        <div className="fixed inset-0 flex flex-col bg-black overflow-hidden">
+          <div className="flex-1 min-h-0 w-full overflow-hidden relative">
+            <DisplayFrame frameType={frameType} hideBottomFrame={hideBottomFrame} className="absolute inset-0 w-full h-full">
+              <FullEditorDisplay
+                key={templateRenewKey}
+                canvasJson={displayData.template.canvas_json as object}
+              />
+            </DisplayFrame>
+          </div>
+          <div className="flex-shrink-0">
+            <TickerTape key="ticker" text={tickerText} style={tickerStyle} />
+          </div>
         </div>
         <FullScreenButton />
       </EmbedFitWrapper>

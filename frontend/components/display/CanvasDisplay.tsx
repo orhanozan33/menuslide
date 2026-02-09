@@ -34,10 +34,16 @@ function useImage(src: string | undefined): HTMLImageElement | undefined {
   return img;
 }
 
+const DESIGN_W_DEFAULT = 800;
+const DESIGN_H_DEFAULT = 450;
+
 interface CanvasDesign {
   shapes?: Array<Record<string, unknown>>;
   backgroundColor?: string;
   layoutType?: string;
+  /** Editördeki canvas boyutu (CanvasDesignEditor: 800×450). TV 1920×1080'e scale edilir. */
+  designWidth?: number;
+  designHeight?: number;
 }
 
 interface CanvasDisplayProps {
@@ -225,6 +231,10 @@ function CanvasDisplayInner({ canvasDesign, className }: CanvasDisplayProps) {
 
   const shapes = Array.isArray(canvasDesign.shapes) ? canvasDesign.shapes : [];
   const backgroundColor = canvasDesign.backgroundColor ?? '#1e293b';
+  const designW = Number(canvasDesign.designWidth) || DESIGN_W_DEFAULT;
+  const designH = Number(canvasDesign.designHeight) || DESIGN_H_DEFAULT;
+  const scaleX = CANVAS_W / designW;
+  const scaleY = CANVAS_H / designH;
 
   return (
     <div
@@ -254,7 +264,8 @@ function CanvasDisplayInner({ canvasDesign, className }: CanvasDisplayProps) {
       >
         <Stage width={CANVAS_W} height={CANVAS_H} style={{ display: 'block' }}>
           <Layer ref={layerRef}>
-          <Rect x={0} y={0} width={CANVAS_W} height={CANVAS_H} fill={backgroundColor} listening={false} />
+          <Group scaleX={scaleX} scaleY={scaleY}>
+          <Rect x={0} y={0} width={designW} height={designH} fill={backgroundColor} listening={false} />
           {shapes.map((s) => {
             const type = String(s.type ?? '');
             const key = String(s.id ?? Math.random());
@@ -272,6 +283,7 @@ function CanvasDisplayInner({ canvasDesign, className }: CanvasDisplayProps) {
             }
             return null;
           })}
+          </Group>
         </Layer>
         </Stage>
       </div>

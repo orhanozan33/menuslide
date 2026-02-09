@@ -1,11 +1,17 @@
 'use client';
 
 import React, { useMemo, useState, useCallback } from 'react';
+import dynamic from 'next/dynamic';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 import { resolveMediaUrl } from '@/lib/resolveMediaUrl';
 import { DisplayFrame } from './DisplayFrame';
 import { VideoRotationPlayer } from './VideoRotationPlayer';
 import { ImageRotationPlayer, type ImageRotationItem } from './ImageRotationPlayer';
+
+const FullEditorDisplay = dynamic(
+  () => import('./FullEditorDisplay').then((m) => ({ default: m.FullEditorDisplay })),
+  { ssr: false },
+);
 
 interface ScreenData {
   screen: {
@@ -236,6 +242,18 @@ export function TemplateDisplay({
   const frameType = (screenData?.screen?.frame_type as string) || 'none';
   const tickerText = (screenData?.screen?.ticker_text as string) || '';
   const hideBottomFrame = !!tickerText;
+
+  // Full Editor şablonu: blok yok, canvas_json ile render et (geçiş sırasında "Şablon yükleniyor" yerine)
+  const template = screenData?.template as { template_type?: string; canvas_json?: object } | undefined;
+  if ((blockCount === 0 || blocksToRender.length === 0) && template?.template_type === 'full_editor' && template?.canvas_json && typeof template.canvas_json === 'object') {
+    return (
+      <div className={`${positionClass} w-full h-full bg-black overflow-hidden flex flex-col`}>
+        <DisplayFrame frameType={frameType} hideBottomFrame={hideBottomFrame} className="flex-1 min-h-0 overflow-hidden">
+          <FullEditorDisplay canvasJson={template.canvas_json} />
+        </DisplayFrame>
+      </div>
+    );
+  }
 
   if (blockCount === 0 || blocksToRender.length === 0) {
     return (

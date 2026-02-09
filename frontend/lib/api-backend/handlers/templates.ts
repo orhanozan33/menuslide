@@ -25,7 +25,7 @@ export async function create(request: NextRequest, user: JwtPayload): Promise<Re
     is_active: body.is_active ?? true,
     scope,
     is_system: isAdmin,
-    created_by: isAdmin ? null : user.userId,
+    created_by: user.userId,
   };
 
   if (useLocalDb()) {
@@ -197,6 +197,9 @@ export async function findByScope(scope: string, request: NextRequest, user: Jwt
   if (useLocalDb()) {
     let sql = 'SELECT * FROM templates WHERE scope = $1 AND is_active = true';
     const params: unknown[] = [scope];
+    if (scope === 'system') {
+      sql += ' AND created_by IS NOT NULL';
+    }
     if (scope === 'user' && businessId) {
       params.push(businessId);
       sql += ` AND business_id = $${params.length}`;
@@ -206,7 +209,7 @@ export async function findByScope(scope: string, request: NextRequest, user: Jwt
       sql += ` AND created_by = $${params.length}`;
     } else if (user.role !== 'super_admin' && user.role !== 'admin') {
       params.push(targetUserId);
-      sql += ` AND (created_by = $${params.length} OR scope = 'system')`;
+      sql += ` AND (created_by = $${params.length} OR (scope = 'system' AND created_by IS NOT NULL))`;
     }
     sql += ' ORDER BY block_count ASC, name ASC';
     const data = await queryLocal(sql, params);
@@ -215,9 +218,10 @@ export async function findByScope(scope: string, request: NextRequest, user: Jwt
 
   const supabase = getServerSupabase();
   let q = supabase.from('templates').select('*').eq('scope', scope).eq('is_active', true);
+  if (scope === 'system') q = q.not('created_by', 'is', null);
   if (scope === 'user' && businessId) q = q.eq('business_id', businessId);
   if (scope === 'user' && targetUserId) q = q.eq('created_by', targetUserId);
-  else if (user.role !== 'super_admin' && user.role !== 'admin') q = q.or(`created_by.eq.${targetUserId},scope.eq.system`);
+  else if (user.role !== 'super_admin' && user.role !== 'admin') q = q.or(`created_by.eq.${targetUserId},and(scope.eq.system,created_by.not.is.null)`);
   const { data, error } = await q.order('block_count', { ascending: true }).order('name', { ascending: true });
   if (error) {
     if (error.message?.includes('could not find the table') || error.message?.includes('schema cache') || error.code === '42P01') {
@@ -467,7 +471,7 @@ export async function copyToSystem(id: string, request: NextRequest, user: JwtPa
       is_active: true,
       scope: 'system',
       is_system: true,
-      created_by: null,
+      created_by: user.userId,
       business_id: null,
       canvas_design: orig.canvas_design ?? null,
     }) as { id: string };
@@ -542,7 +546,7 @@ export async function copyToSystem(id: string, request: NextRequest, user: JwtPa
     is_active: true,
     scope: 'system',
     is_system: true,
-    created_by: null,
+    created_by: user.userId,
     business_id: null,
     canvas_design: o.canvas_design ?? null,
   }).select().single();

@@ -47,6 +47,7 @@ MIGRATION_FILES=(
   "$DB/migration-add-template-transition-effect.sql"
   "$DB/migration-add-ticker-style.sql"
   "$DB/migration-add-uploaded-by-to-content-library.sql"
+  "$DB/migration-full-editor-categories-templates.sql"
   "$DB/migration-add-video-content-type.sql"
   "$DB/migration-add-video-to-screen-block-contents.sql"
   "$DB/migration-add-video-type-to-content-library.sql"

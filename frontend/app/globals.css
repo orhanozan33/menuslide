@@ -5,6 +5,10 @@
 @tailwind utilities;
 
 :root {
+  --background: #ffffff;
+  --foreground: #171717;
+  --muted: #737373;
+  --border: #e5e5e5;
   --foreground-rgb: 0, 0, 0;
   --background-start-rgb: 214, 219, 220;
   --background-end-rgb: 255, 255, 255;
@@ -12,20 +16,24 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
+    --background: #0f172a;
+    --foreground: #ededed;
+    --muted: #94a3b8;
+    --border: #1e293b;
     --foreground-rgb: 255, 255, 255;
-    --background-start-rgb: 0, 0, 0;
-    --background-end-rgb: 0, 0, 0;
+    --background-start-rgb: 15, 23, 42;
+    --background-end-rgb: 15, 23, 42;
   }
 }
 
 body {
-  color: rgb(var(--foreground-rgb));
   background: linear-gradient(
       to bottom,
       transparent,
       rgb(var(--background-end-rgb))
     )
-    rgb(var(--background-start-rgb));
+    var(--background);
+  color: var(--foreground);
 }
 
 /* Tüm input ve textarea alanlarındaki yazılar siyah, arka plan beyaz olsun */

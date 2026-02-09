@@ -10,6 +10,17 @@ import { useConfirm } from '@/lib/ConfirmContext';
 import { FRAME_OPTIONS } from '@/components/display/DisplayFrame';
 import { TICKER_STYLES, TICKER_SYMBOLS } from '@/components/display/TickerTape';
 
+const TRANSITION_OPTIONS = [
+  { value: 'fade', labelKey: 'screens_trans_fade' },
+  { value: 'slide-left', labelKey: 'screens_trans_slide_left' },
+  { value: 'slide-right', labelKey: 'screens_trans_slide_right' },
+  { value: 'zoom', labelKey: 'screens_trans_zoom' },
+  { value: 'flip', labelKey: 'screens_trans_flip' },
+  { value: 'car-pull', labelKey: 'screens_trans_car_pull' },
+  { value: 'curtain', labelKey: 'screens_trans_curtain' },
+  { value: 'wipe', labelKey: 'screens_trans_wipe' },
+] as const;
+
 interface Screen {
   id: string;
   name: string;
@@ -21,6 +32,7 @@ interface Screen {
   frame_type?: string;
   ticker_text?: string;
   ticker_style?: string;
+  template_transition_effect?: string;
   /** Son 2 dakikada bu ekran linkini açan benzersiz cihaz sayısı (heartbeat) */
   active_viewer_count?: number;
   templateRotations?: Array<{
@@ -51,11 +63,14 @@ interface Template {
   display_name: string;
   description?: string;
   block_count: number;
+  is_full_editor?: boolean;
 }
 
 interface SelectedTemplate {
   template_id: string;
   display_duration: number;
+  template_type?: 'block' | 'full_editor';
+  full_editor_template_id?: string;
 }
 
 export default function ScreensPage() {
@@ -81,6 +96,7 @@ export default function ScreensPage() {
   const [publishFrameType, setPublishFrameType] = useState<string>('none');
   const [publishTickerText, setPublishTickerText] = useState<string>('');
   const [publishTickerStyle, setPublishTickerStyle] = useState<string>('default');
+  const [publishTransitionEffect, setPublishTransitionEffect] = useState<string>('fade');
   const [fixingNames, setFixingNames] = useState(false);
   const [subscriptionActive, setSubscriptionActive] = useState(true);
   
@@ -440,9 +456,27 @@ export default function ScreensPage() {
 
   const loadTemplates = async () => {
     try {
-      // Sadece kullanıcının "Benim Şablonlarım" şablonları
+      const token = typeof window !== 'undefined' ? (sessionStorage.getItem('impersonation_token') || localStorage.getItem('auth_token')) : null;
       const userRes = await apiClient('/templates/scope/user').catch(() => []);
-      const templatesArray = Array.isArray(userRes) ? userRes : [];
+      let templatesArray: Template[] = Array.isArray(userRes) ? userRes : [];
+      try {
+        const feRes = await fetch('/api/full-editor/templates?scope=user', {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        const feData = (await feRes.json()) || [];
+        const feList = Array.isArray(feData) ? feData : [];
+        const mapped = feList.map((t: { id: string; name: string }) => ({
+          id: t.id,
+          name: t.name,
+          display_name: t.name,
+          description: 'Full Editor tasarımı',
+          block_count: 1,
+          is_full_editor: true,
+        }));
+        templatesArray = [...templatesArray, ...mapped];
+      } catch {
+        /* ignore */
+      }
       setTemplates(templatesArray);
     } catch (error) {
       console.error('Error loading templates:', error);
@@ -456,11 +490,13 @@ export default function ScreensPage() {
       screen.templateRotations?.map((r) => ({
         template_id: r.template_id,
         display_duration: r.display_duration ?? 5,
+        template_type: 'block' as const,
       })) ?? [];
     setSelectedTemplates(current);
     setPublishFrameType(screen.frame_type || 'none');
     setPublishTickerText(screen.ticker_text || '');
     setPublishTickerStyle(screen.ticker_style || 'default');
+    setPublishTransitionEffect(screen.template_transition_effect || 'fade');
     setShowPublishModal(true);
   };
 
@@ -480,13 +516,18 @@ export default function ScreensPage() {
     }
   };
 
-  const handleTemplateToggle = (templateId: string) => {
+  const handleTemplateToggle = (templateId: string, isFullEditor?: boolean) => {
     setSelectedTemplates((prev) => {
       const exists = prev.find((t) => t.template_id === templateId);
       if (exists) {
         return prev.filter((t) => t.template_id !== templateId);
       } else {
-        return [...prev, { template_id: templateId, display_duration: 5 }];
+        return [...prev, {
+          template_id: templateId,
+          display_duration: 5,
+          template_type: isFullEditor ? 'full_editor' : 'block',
+          full_editor_template_id: isFullEditor ? templateId : undefined,
+        }];
       }
     });
   };
@@ -516,6 +557,7 @@ export default function ScreensPage() {
           frame_type: publishFrameType,
           ticker_text: publishTickerText,
           ticker_style: publishTickerStyle,
+          template_transition_effect: publishTransitionEffect,
         }),
       });
       toast.showSuccess(t('screens_published_success'));
@@ -712,7 +754,7 @@ export default function ScreensPage() {
                     {screen.templateRotations.map((rotation, index) => (
                       <div key={rotation.id} className="text-xs text-blue-800 flex items-center justify-between">
                         <span className="font-medium">
-                          {index + 1}. {rotation.template?.name ?? (rotation.template as any)?.display_name ?? 'Template'}
+                          {index + 1}. {(rotation.template as any)?.display_name ?? rotation.template?.name ?? 'Template'}
                         </span>
                         <span className="text-blue-600 font-medium">
                           {rotation.display_duration}s
@@ -858,6 +900,18 @@ export default function ScreensPage() {
                     ))}
                   </select>
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">{t('screens_transition_effect')}</label>
+                  <select
+                    value={publishTransitionEffect}
+                    onChange={(e) => setPublishTransitionEffect(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+                  >
+                    {TRANSITION_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{t(opt.labelKey)}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               {templates.length === 0 ? (
@@ -891,7 +945,7 @@ export default function ScreensPage() {
                               <input
                                 type="checkbox"
                                 checked={isSelected}
-                                onChange={() => handleTemplateToggle(template.id)}
+                                onChange={() => handleTemplateToggle(template.id, template.is_full_editor)}
                                 className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
                               />
                               <div>
@@ -939,6 +993,7 @@ export default function ScreensPage() {
                   setPublishFrameType('none');
                   setPublishTickerText('');
                   setPublishTickerStyle('default');
+                  setPublishTransitionEffect('fade');
                 }}
                 className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors font-medium"
               >

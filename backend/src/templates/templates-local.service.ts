@@ -192,6 +192,8 @@ export class TemplatesLocalService {
       shapes: dto.shapes,
       backgroundColor: dto.backgroundColor,
       layoutType: dto.layoutType,
+      designWidth: dto.designWidth ?? 800,
+      designHeight: dto.designHeight ?? 450,
     });
 
     const result = await this.database.query(

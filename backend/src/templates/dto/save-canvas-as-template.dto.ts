@@ -34,4 +34,12 @@ export class SaveCanvasAsTemplateDto {
   @IsOptional()
   @IsString()
   preview_image_url?: string;
+
+  /** Editördeki canvas genişliği (CanvasDesignEditor: 800). TV 1920×1080'e scale edilir. */
+  @IsOptional()
+  designWidth?: number;
+
+  /** Editördeki canvas yüksekliği (CanvasDesignEditor: 450). */
+  @IsOptional()
+  designHeight?: number;
 }

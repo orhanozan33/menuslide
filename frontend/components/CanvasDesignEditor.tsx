@@ -1206,7 +1206,7 @@ export default function CanvasDesignEditor({ templateId }: CanvasDesignEditorPro
         await apiClient(`/templates/${templateId}`, {
           method: 'PATCH',
           body: {
-            canvas_design: { shapes, backgroundColor, layoutType },
+            canvas_design: { shapes, backgroundColor, layoutType, designWidth: CANVAS_W, designHeight: CANVAS_H },
             preview_image_url: previewUrl,
           },
         });
@@ -1222,6 +1222,8 @@ export default function CanvasDesignEditor({ templateId }: CanvasDesignEditorPro
             layoutType,
             scope: 'user',
             preview_image_url: previewUrl,
+            designWidth: CANVAS_W,
+            designHeight: CANVAS_H,
           },
         });
       }
@@ -1274,6 +1276,8 @@ export default function CanvasDesignEditor({ templateId }: CanvasDesignEditorPro
             scope,
             target_user_id: scope === 'user' && targetUserId ? targetUserId : undefined,
             preview_image_url: previewUrl,
+            designWidth: CANVAS_W,
+            designHeight: CANVAS_H,
           },
         });
         setShowSaveAsModal(false);
