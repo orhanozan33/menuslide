@@ -349,19 +349,40 @@ export async function recordViewerHeartbeat(token: string, request: NextRequest)
   return Response.json({ ok: true, allowed });
 }
 
+/** GET /player/check – Tarayıcıdan: broadcast_code yapılandırması var mı? (hata ayıklama) */
+export async function checkPlayerConfig(): Promise<Response> {
+  try {
+    const supabase = getServerSupabase();
+    const { count, error } = await supabase
+      .from('screens')
+      .select('*', { count: 'exact', head: true })
+      .not('broadcast_code', 'is', null);
+    if (error) {
+      const hint =
+        error.message?.includes('broadcast_code') || (error as { code?: string }).code === '42703'
+          ? "broadcast_code sütunu yok. Supabase SQL Editor'da database/migration-supabase-tv-app.sql çalıştırın."
+          : error.message;
+      return Response.json({ configured: false, hint });
+    }
+    return Response.json({ configured: true, screensWithCode: count ?? 0 });
+  } catch (e) {
+    return Response.json({ configured: false, hint: (e as Error).message });
+  }
+}
+
 /** POST /player/resolve – TV uygulaması: yayın kodu (12345) ile display URL döner. Body: { code, deviceId } */
 export async function resolvePlayer(request: NextRequest): Promise<Response> {
-  let body: { code?: string; deviceId?: string } = {};
+  let body: { code?: string | number; deviceId?: string } = {};
   try {
     body = await request.json();
   } catch {
-    return Response.json({});
+    return Response.json({ error: 'INVALID_JSON' }, { status: 400 });
   }
-  const code = typeof body?.code === 'string' ? body.code.trim() : '';
-  if (!code) return Response.json({});
+  const code = String(body?.code ?? '').trim();
+  if (!code) return Response.json({ error: 'CODE_REQUIRED' }, { status: 400 });
 
   const supabase = getServerSupabase();
-  const { data: screen } = await supabase
+  const { data: screen, error: sbError } = await supabase
     .from('screens')
     .select('public_slug, public_token')
     .eq('broadcast_code', code)
@@ -369,9 +390,20 @@ export async function resolvePlayer(request: NextRequest): Promise<Response> {
     .limit(1)
     .maybeSingle();
 
-  if (!screen) return Response.json({});
+  if (sbError) {
+    console.error('[player/resolve] Supabase error:', sbError.message);
+    return Response.json(
+      { error: 'CONFIG_ERROR', message: 'broadcast_code sütunu veya ekran tablosu eksik olabilir. Migration çalıştırıldı mı?' },
+      { status: 503 }
+    );
+  }
+  if (!screen) {
+    return Response.json({ error: 'CODE_NOT_FOUND', message: 'Bu kod ile eşleşen ekran bulunamadı. Admin panel Ekranlar sayfasındaki kodu kullanın.' });
+  }
   const slugOrToken = (screen as { public_slug?: string; public_token?: string }).public_slug || (screen as { public_token?: string }).public_token;
-  if (!slugOrToken) return Response.json({});
+  if (!slugOrToken) {
+    return Response.json({ error: 'SCREEN_NO_URL', message: 'Ekran için yayın adresi tanımlı değil.' });
+  }
 
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) || request.nextUrl?.origin || 'http://localhost:3000';
   const streamUrl = `${baseUrl.replace(/\/$/, '')}/display/${slugOrToken}`;

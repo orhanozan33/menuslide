@@ -212,17 +212,17 @@ class MainActivity : AppCompatActivity() {
     private fun resolveAndPlay(code: String) {
         resolveJob?.cancel()
         resolveJob = scope.launch {
-            val streamUrl = withContext(Dispatchers.IO) { resolveStreamUrl(code) }
-            if (streamUrl != null) {
-                currentStreamUrl = streamUrl
-                startPlayback(streamUrl)
+            val (url, errorMsg) = withContext(Dispatchers.IO) { resolveStreamUrl(code) }
+            if (!url.isNullOrEmpty()) {
+                currentStreamUrl = url
+                startPlayback(url)
                 showInputScreen(false)
                 showLoading(false)
                 lastPlayingTimeMs = System.currentTimeMillis()
             } else {
                 showLoading(false)
                 showInputScreen(true)
-                showError(getString(R.string.error_invalid_response))
+                showError(errorMsg ?: getString(R.string.error_invalid_response))
             }
         }
     }
@@ -256,7 +256,8 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun resolveStreamUrl(code: String): String? {
+    /** Returns Pair(streamUrl, errorMessage). streamUrl non-null = success; else errorMessage for user. */
+    private fun resolveStreamUrl(code: String): Pair<String?, String?> {
         return try {
             val apiBase = getApiBaseUrl()
             val resolveUrl = "$apiBase/player/resolve"
@@ -275,18 +276,29 @@ class MainActivity : AppCompatActivity() {
                 .readTimeout(20, java.util.concurrent.TimeUnit.SECONDS)
                 .build()
             val response = client.newCall(request).execute()
+            val json = response.body?.string() ?: ""
+            val obj = if (json.isNotEmpty()) try { JSONObject(json) } catch (_: Exception) { JSONObject() } else JSONObject()
             if (!response.isSuccessful) {
-                Log.e(TAG, "resolve failed: ${response.code} $resolveUrl")
-                return null
+                val msg = obj.optString("message", "").ifEmpty { null }
+                Log.e(TAG, "resolve failed: ${response.code} $resolveUrl $msg")
+                return Pair(null, msg ?: getString(R.string.error_server_config))
             }
-            val json = response.body?.string() ?: return null
-            val obj = JSONObject(json)
             if (obj.has("streamUrl")) {
-                obj.getString("streamUrl").takeIf { it.isNotEmpty() }
-            } else null
+                val url = obj.getString("streamUrl").takeIf { it.isNotEmpty() }
+                if (url != null) return Pair(url, null)
+            }
+            val err = obj.optString("error", "")
+            val msg = obj.optString("message", "").ifEmpty {
+                when (err) {
+                    "CODE_NOT_FOUND" -> getString(R.string.error_code_not_found)
+                    "CONFIG_ERROR" -> getString(R.string.error_server_config)
+                    else -> getString(R.string.error_invalid_response)
+                }
+            }
+            Pair(null, msg)
         } catch (e: Exception) {
             Log.e(TAG, "resolve error", e)
-            null
+            Pair(null, getString(R.string.error_network))
         }
     }
 

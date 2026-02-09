@@ -69,8 +69,12 @@ Content-Type: application/json
 
 ## Konfigürasyon
 
-- **API adresi:** `MainActivity.kt` içinde `API_BASE`
+- **API adresi:** Uygulama açılışta `https://menuslide.com/api/tv-app-config` üzerinden alır; Ayarlar’da “API taban URL” kaydedilir.
 - **Kod / deviceId:** Uygulama içinde SharedPreferences ile saklanır
+
+## Masaüstü ikonu (launcher logo)
+
+Kurulumdan sonra TV/cihaz ana ekranında görünen ikon: `app/src/main/res/mipmap-*/ic_launcher.png`. Kendi logonuzu (MenuSlide) göstermek için bu dosyaları logonuzla değiştirin (önerilen boyutlar: mdpi 48×48, hdpi 72×72, xhdpi 96×96, xxhdpi 144×144, xxxhdpi 192×192 px).
 
 ## Notlar
 
