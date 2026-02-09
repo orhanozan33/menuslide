@@ -67,9 +67,9 @@ async function isSubscriptionActive(supabase: ReturnType<typeof getServerSupabas
   return true;
 }
 
-const SUPER_ADMIN_MAX_SCREENS = 5;
+const SUPER_ADMIN_MAX_SCREENS = 50;
 
-/** Abonelik ve ekran limiti kontrolü. super_admin için sabit 5 ekran limiti. */
+/** Abonelik ve ekran limiti kontrolü. super_admin için işletme başına ekran limiti. */
 async function canCreateScreen(businessId: string, user: JwtPayload): Promise<{ ok: boolean; message?: string }> {
   if (user.role === 'super_admin') {
     try {
