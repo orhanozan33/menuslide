@@ -109,25 +109,24 @@ export default function Sidebar({ user, mobileOpen = false, onMobileClose }: Sid
     { titleKey: 'sidebar_how_to_use', href: 'how-to-use', icon: '📖', roles: ['super_admin', 'admin', 'business_user'] },
   ];
 
-  // Admin sidebar: href -> yetki sayfa anahtarı (settings/stripe -> stripe)
+  // Admin sidebar: href -> yetki sayfa anahtarı (settings/stripe -> stripe). Her key tek olmalı.
   const hrefToPermissionKey: Record<string, string> = {
-    'dashboard': 'dashboard',
-    'menus': 'menus',
-    'screens': 'screens',
-    'sistem': 'sistem',
+    dashboard: 'dashboard',
+    menus: 'menus',
+    screens: 'screens',
+    sistem: 'sistem',
     'templates/system': 'templates',
     'templates/mine': 'templates',
     'templates/full-editor': 'full_editor',
-    'editor': 'editor',
-    'library': 'library',
+    editor: 'editor',
+    library: 'library',
     'user-uploads': 'user-uploads',
-    'pricing': 'pricing',
-    'reports': 'reports',
+    pricing: 'pricing',
+    reports: 'reports',
     'registration-requests': 'registration_requests',
-    'users': 'users',
+    users: 'users',
     'settings/stripe': 'stripe',
-    'settings': 'settings',
-    'sistem': 'sistem',
+    settings: 'settings',
   };
 
   const filteredMenuItems = menuItems.filter(item => {
