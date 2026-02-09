@@ -15,7 +15,7 @@ export function FullEditorDisplay({ canvasJson }: { canvasJson: object }) {
     canvasEl.height = 1080;
     el.appendChild(canvasEl);
 
-    let canvas: { loadFromJSON: (j: object) => Promise<void>; backgroundColor?: string; renderAll: () => void } | null = null;
+    let canvas: import('fabric').Canvas | null = null;
 
     (async () => {
       try {
