@@ -411,7 +411,9 @@ export default function EditUserPage() {
     { key: 'dashboard', titleKey: 'sidebar_dashboard' },
     { key: 'menus', titleKey: 'sidebar_menus' },
     { key: 'screens', titleKey: 'sidebar_screens' },
+    { key: 'sistem', titleKey: 'sidebar_sistem' },
     { key: 'templates', titleKey: 'sidebar_templates' },
+    { key: 'full_editor', titleKey: 'sidebar_full_editor_templates' },
     { key: 'editor', titleKey: 'sidebar_editor' },
     { key: 'library', titleKey: 'sidebar_library' },
     { key: 'user-uploads', titleKey: 'sidebar_uploads' },
@@ -425,6 +427,18 @@ export default function EditUserPage() {
 
   /** Sayfa bazlı detaylı yetkiler: super adminin yapabildiği her şey – yapabilir/yapamaz, görüntüleyebilir/görüntüleyemez */
   const PAGE_ACTIONS: Record<string, { key: string; label: string }[]> = {
+    sistem: [
+      { key: 'view', label: 'Full Editor sayfasını görüntüleyebilir (sidebar)' },
+      { key: 'edit_design', label: 'Tasarım düzenleyebilir' },
+      { key: 'save_template', label: 'Şablon kaydedebilir' },
+    ],
+    full_editor: [
+      { key: 'view', label: 'Full Editor şablonları sayfasını görüntüleyebilir (sidebar)' },
+      { key: 'view_list', label: 'Şablon listesini görüntüleyebilir' },
+      { key: 'template_create', label: 'Şablon oluşturabilir' },
+      { key: 'template_edit', label: 'Şablon düzenleyebilir' },
+      { key: 'template_delete', label: 'Şablon silebilir' },
+    ],
     dashboard: [
       { key: 'view', label: 'Sayfayı görüntüleyebilir (sidebar)' },
       { key: 'view_stats', label: 'Özet istatistikleri görüntüleyebilir' },

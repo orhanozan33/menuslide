@@ -145,7 +145,8 @@ export default function AdminLayoutClient({
 
   // Admin sayfa erişimi: yetkisi olmayan sayfaya girerse dashboard'a yönlendir
   const pathToPermissionKey: Record<string, string> = {
-    'dashboard': 'dashboard', 'menus': 'menus', 'screens': 'screens', 'templates': 'templates',
+    'dashboard': 'dashboard', 'menus': 'menus', 'screens': 'screens', 'sistem': 'sistem',
+    'templates': 'templates', 'templates/full-editor': 'full_editor',
     'editor': 'editor', 'library': 'library', 'user-uploads': 'user-uploads', 'pricing': 'pricing',
     'reports': 'reports', 'registration-requests': 'registration_requests', 'users': 'users',
     'settings/stripe': 'stripe', 'settings': 'settings',

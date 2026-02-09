@@ -232,11 +232,24 @@ export default function SistemPage() {
         }
         else if (layout === '4x2-8') { for (let row=0;row<2;row++) for (let col=0;col<4;col++) addBlock(col*(cw/4), row*(ch/2), cw/4, ch/2); }
         else {
-          const text = new fabric.FabricText('RIVER BAR', { fontSize: 56, left: 80, top: 60, fill: '#ffffff', fontFamily: 'sans-serif' });
+          let siteName = (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_SITE_NAME) || (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_APP_NAME) || 'Menümüz';
+          let contactLine = '';
+          try {
+            const contactRes = await fetch('/api/contact-info', { cache: 'no-store' });
+            const contactData = await contactRes.json().catch(() => ({}));
+            const phone = contactData.phone?.trim() || '';
+            const appUrl = (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_APP_URL) ? String(process.env.NEXT_PUBLIC_APP_URL).replace(/\/$/, '') : (typeof window !== 'undefined' ? window.location.origin : '');
+            const parts = [phone];
+            if (appUrl) parts.push(appUrl.replace(/^https?:\/\//, ''));
+            contactLine = parts.filter(Boolean).join('  •  ') || 'İletişim bilgileri Ayarlar\'dan ekleyebilirsiniz';
+          } catch {
+            contactLine = typeof window !== 'undefined' ? `${window.location.origin}` : 'İletişim';
+          }
+          const text = new fabric.FabricText(siteName, { fontSize: 56, left: 80, top: 60, fill: '#ffffff', fontFamily: 'sans-serif' });
           fabricCanvas.add(text);
-          const sub = new fabric.FabricText('Cocktails Menu', { fontSize: 28, left: 80, top: 130, fill: '#ffffff', fontStyle: 'italic' });
+          const sub = new fabric.FabricText('Menü', { fontSize: 28, left: 80, top: 130, fill: '#ffffff', fontStyle: 'italic' });
           fabricCanvas.add(sub);
-          const contact = new fabric.FabricText('+5555 555 555 // www.riverbar.com', { fontSize: 16, left: 80, top: 180, fill: '#9ca3af' });
+          const contact = new fabric.FabricText(contactLine, { fontSize: 16, left: 80, top: 180, fill: '#9ca3af' });
           fabricCanvas.add(contact);
         }
         fabricCanvas.renderAll();
@@ -735,17 +748,24 @@ export default function SistemPage() {
 
   type LayoutType = 'bar' | 'restoran' | 'cafe';
 
-  const getLayoutObjects = useCallback((type: LayoutType, cw: number, ch: number): { type: string; text: string; left: number; top: number; fontSize?: number; fill?: string; originX?: 'center' }[] => {
+  const getLayoutObjects = useCallback((
+    type: LayoutType,
+    cw: number,
+    ch: number,
+    opts?: { siteName?: string; contactLine?: string }
+  ): { type: string; text: string; left: number; top: number; fontSize?: number; fill?: string; originX?: 'center' }[] => {
     const cx = cw / 2;
+    const siteName = opts?.siteName ?? 'Menümüz';
+    const contactLine = opts?.contactLine ?? 'İletişim';
     const item = (text: string, top: number, fontSize: number, fill = '#ffffff') =>
       ({ type: 'text' as const, text, left: cx, top, fontSize, fill, originX: 'center' as const });
-    const contact = { type: 'text' as const, text: '+5555 555 555  •  www.example.com', left: cx, top: ch * 0.18, fontSize: Math.round(ch * 0.015), fill: '#94a3b8', originX: 'center' as const };
+    const contact = { type: 'text' as const, text: contactLine, left: cx, top: ch * 0.18, fontSize: Math.round(ch * 0.015), fill: '#94a3b8', originX: 'center' as const };
     if (type === 'bar') {
       const y0 = ch * 0.22;
       const dy = ch * 0.042;
       return [
-        item('RIVER BAR', ch * 0.05, Math.round(ch * 0.045), '#ffffff'),
-        item('Cocktails Menu', ch * 0.1, Math.round(ch * 0.022), '#ffffff'),
+        item(siteName, ch * 0.05, Math.round(ch * 0.045), '#ffffff'),
+        item('Menü', ch * 0.1, Math.round(ch * 0.022), '#ffffff'),
         contact,
         item('Margarita ......... $9', y0, Math.round(ch * 0.02)),
         item('Mojito ............. $8', y0 + dy, Math.round(ch * 0.02)),
@@ -763,8 +783,8 @@ export default function SistemPage() {
       const y0 = ch * 0.22;
       const dy = ch * 0.042;
       return [
-        item('LE GOURMET', ch * 0.05, Math.round(ch * 0.045), '#ffffff'),
-        item('Restaurant Menu', ch * 0.1, Math.round(ch * 0.022), '#ffffff'),
+        item(siteName, ch * 0.05, Math.round(ch * 0.045), '#ffffff'),
+        item('Menü', ch * 0.1, Math.round(ch * 0.022), '#ffffff'),
         contact,
         item('Starters', y0, Math.round(ch * 0.02), '#fbbf24'),
         item('Soup .............. $8', y0 + dy, Math.round(ch * 0.018)),
@@ -784,8 +804,8 @@ export default function SistemPage() {
       const y0 = ch * 0.22;
       const dy = ch * 0.042;
       return [
-        item('COFFEE HOUR', ch * 0.05, Math.round(ch * 0.045), '#ffffff'),
-        item('Cafe Menu', ch * 0.1, Math.round(ch * 0.022), '#ffffff'),
+        item(siteName, ch * 0.05, Math.round(ch * 0.045), '#ffffff'),
+        item('Menü', ch * 0.1, Math.round(ch * 0.022), '#ffffff'),
         contact,
         item('Hot Drinks', y0, Math.round(ch * 0.02), '#fbbf24'),
         item('Espresso ......... $4', y0 + dy, Math.round(ch * 0.018)),
@@ -801,7 +821,7 @@ export default function SistemPage() {
         item('Muffin ............. $4', y0 + dy * 11, Math.round(ch * 0.018)),
       ];
     }
-    return [item('Menu', ch * 0.1, Math.round(ch * 0.045)), contact];
+    return [item(siteName, ch * 0.1, Math.round(ch * 0.045)), contact];
   }, []);
 
   const generateLayout = useCallback(async (layoutType: LayoutType = 'bar') => {
@@ -823,7 +843,20 @@ export default function SistemPage() {
       const cw = (canvas as { width?: number }).width ?? 1920;
       const ch = (canvas as { height?: number }).height ?? 1080;
       if (objects.length === 0) {
-        objects = getLayoutObjects(layoutType, cw, ch);
+        let siteName = (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_SITE_NAME) || (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_APP_NAME) || 'Menümüz';
+        let contactLine = '';
+        try {
+          const contactRes = await fetch('/api/contact-info', { cache: 'no-store' });
+          const contactData = await contactRes.json().catch(() => ({}));
+          const phone = contactData.phone?.trim() || '';
+          const appUrl = (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_APP_URL) ? String(process.env.NEXT_PUBLIC_APP_URL).replace(/\/$/, '') : (typeof window !== 'undefined' ? window.location.origin : '');
+          const parts = [phone];
+          if (appUrl) parts.push(appUrl.replace(/^https?:\/\//, ''));
+          contactLine = parts.filter(Boolean).join('  •  ') || 'İletişim bilgileri Ayarlar\'dan ekleyebilirsiniz';
+        } catch {
+          contactLine = typeof window !== 'undefined' ? window.location.origin.replace(/^https?:\/\//, '') : 'İletişim';
+        }
+        objects = getLayoutObjects(layoutType, cw, ch, { siteName, contactLine });
       }
       const fabric = await import('fabric');
       const padding = 80;
