@@ -35,16 +35,17 @@ android-tv/
 
 ## Derleme ve APK
 
+**Tek komut (APK üretir ve web indirme klasörüne kopyalar):**
 ```bash
 cd android-tv
-./gradlew assembleRelease
+./build-and-copy-apk.sh
 ```
+*(Java JDK 17 ve Android SDK gerekli; ANDROID_HOME tanımlı olmalı.)*
 
-APK: `app/build/outputs/apk/release/app-release-unsigned.apk`  
-İmzalayıp ana sayfadaki indirme için **Menuslide.apk** adıyla kopyalayın:
-
+Veya adım adım:
 ```bash
-cp app/build/outputs/apk/release/app-release.apk ../frontend/public/downloads/Menuslide.apk
+./gradlew assembleRelease
+cp app/build/outputs/apk/release/app-release-unsigned.apk ../frontend/public/downloads/Menuslide.apk
 ```
 
 Ana sayfa “İndir” butonu `/downloads/Menuslide.apk` dosyasına link verir.

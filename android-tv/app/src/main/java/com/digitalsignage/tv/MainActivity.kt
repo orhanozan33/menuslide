@@ -17,7 +17,6 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
-import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
@@ -271,10 +270,7 @@ class MainActivity : AppCompatActivity() {
             .setConnectTimeoutMs(15_000)
             .setReadTimeoutMs(20_000)
         val loadControl = DefaultLoadControl.Builder()
-            .setMinBufferMs(30_000)
-            .setMaxBufferMs(120_000)
-            .setBufferForPlaybackMs(5_000)
-            .setBufferForPlaybackAfterRebufferMs(5_000)
+            .setBufferDurationsMs(30_000, 120_000, 5_000, 5_000)
             .build()
         val mediaSourceFactory = DefaultMediaSourceFactory(this).setDataSourceFactory(httpDataSourceFactory)
         exoPlayer = ExoPlayer.Builder(this)
@@ -303,12 +299,12 @@ class MainActivity : AppCompatActivity() {
                                     player.playWhenReady = true
                                 }
                             }
-                            Player.STATE_ENDED -> player.seekTo(0); player.play()
+                            Player.STATE_ENDED -> { player.seekTo(0); player.play() }
                         }
                     }
                     override fun onPlayerError(error: PlaybackException) {
                         Log.e(TAG, "playback error", error)
-                        if (isNetworkAvailable()) player.retry()
+                        if (isNetworkAvailable()) player.prepare()
                     }
                 })
             }

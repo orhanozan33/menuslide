@@ -1,0 +1,10 @@
+# Keystore ve şifreler (gizli)
+keystore.properties
+*.keystore
+*.jks
+
+# Build
+/build
+app/build
+.gradle
+local.properties
