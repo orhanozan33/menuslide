@@ -396,11 +396,11 @@ export async function getTemplateRotations(screenId: string, user: JwtPayload): 
   return Response.json(rotations ?? []);
 }
 
-type PublishTemplate = { template_id?: string; display_duration?: number; template_type?: string; full_editor_template_id?: string };
+type PublishTemplate = { template_id?: string; display_duration?: number; template_type?: string; full_editor_template_id?: string; transition_effect?: string; transition_duration?: number };
 
 /** POST /screens/:id/publish-templates */
 export async function publishTemplates(screenId: string, request: NextRequest, user: JwtPayload): Promise<Response> {
-  let body: { templates?: PublishTemplate[]; frame_type?: string; ticker_text?: string; ticker_style?: string; template_transition_effect?: string } = {};
+  let body: { templates?: PublishTemplate[]; frame_type?: string; ticker_text?: string; ticker_style?: string } = {};
   try {
     body = await request.json();
   } catch {
@@ -442,6 +442,8 @@ export async function publishTemplates(screenId: string, request: NextRequest, u
         display_duration: t.display_duration ?? 10,
         display_order: i,
         is_active: true,
+        transition_effect: t.transition_effect ?? 'fade',
+        transition_duration: t.transition_duration ?? 1400,
       };
       if (isFe && t.full_editor_template_id) {
         row.template_type = 'full_editor';
@@ -453,16 +455,19 @@ export async function publishTemplates(screenId: string, request: NextRequest, u
     if (body.frame_type !== undefined) frameUpdates.frame_type = body.frame_type;
     if (body.ticker_text !== undefined) frameUpdates.ticker_text = body.ticker_text;
     if (body.ticker_style !== undefined) frameUpdates.ticker_style = body.ticker_style;
-    if (body.template_transition_effect !== undefined) frameUpdates.template_transition_effect = body.template_transition_effect;
     if (Object.keys(frameUpdates).length > 0) await updateLocal('screens', screenId, frameUpdates);
     const sb = getServerSupabase();
-    await sb.from('screen_template_rotations').delete().eq('screen_id', screenId);
-    await sb.from('screen_blocks').delete().eq('screen_id', screenId);
-    await sb.from('screens').update({ template_id: isFirstFullEditor ? null : first.template_id ?? null, is_active: true }).eq('id', screenId);
+    let sbRes = await sb.from('screen_template_rotations').delete().eq('screen_id', screenId);
+    if (sbRes.error) return Response.json({ message: sbRes.error.message || 'Failed to clear rotations' }, { status: 500 });
+    sbRes = await sb.from('screen_blocks').delete().eq('screen_id', screenId);
+    if (sbRes.error) return Response.json({ message: sbRes.error.message || 'Failed to clear blocks' }, { status: 500 });
+    sbRes = await sb.from('screens').update({ template_id: isFirstFullEditor ? null : first.template_id ?? null, is_active: true }).eq('id', screenId);
+    if (sbRes.error) return Response.json({ message: sbRes.error.message || 'Failed to update screen' }, { status: 500 });
     if (!isFirstFullEditor && first.template_id) {
       const tBlocks = await queryLocal<{ id: string; block_index: number; position_x?: number; position_y?: number; width?: number; height?: number }>('SELECT id, block_index, position_x, position_y, width, height FROM template_blocks WHERE template_id = $1 ORDER BY block_index', [first.template_id]);
       for (const tb of tBlocks) {
-        await sb.from('screen_blocks').insert({ screen_id: screenId, template_block_id: tb.id, display_order: tb.block_index, is_active: true, position_x: tb.position_x, position_y: tb.position_y, width: tb.width, height: tb.height });
+        sbRes = await sb.from('screen_blocks').insert({ screen_id: screenId, template_block_id: tb.id, display_order: tb.block_index, is_active: true, position_x: tb.position_x, position_y: tb.position_y, width: tb.width, height: tb.height });
+        if (sbRes.error) return Response.json({ message: sbRes.error.message || 'Failed to insert screen block' }, { status: 500 });
       }
     }
     for (let i = 0; i < templates.length; i++) {
@@ -474,14 +479,20 @@ export async function publishTemplates(screenId: string, request: NextRequest, u
         display_duration: t.display_duration ?? 10,
         display_order: i,
         is_active: true,
+        transition_effect: t.transition_effect ?? 'fade',
+        transition_duration: t.transition_duration ?? 1400,
       };
       if (isFe && t.full_editor_template_id) {
         rot.template_type = 'full_editor';
         rot.full_editor_template_id = t.full_editor_template_id;
       }
-      await sb.from('screen_template_rotations').insert(rot);
+      sbRes = await sb.from('screen_template_rotations').insert(rot);
+      if (sbRes.error) return Response.json({ message: sbRes.error.message || 'Template yayınlanamadı.' }, { status: 500 });
     }
-    if (Object.keys(frameUpdates).length > 0) await sb.from('screens').update(frameUpdates).eq('id', screenId);
+    if (Object.keys(frameUpdates).length > 0) {
+      sbRes = await sb.from('screens').update(frameUpdates).eq('id', screenId);
+      if (sbRes.error) return Response.json({ message: sbRes.error.message || 'Failed to update screen options' }, { status: 500 });
+    }
     return Response.json({ message: 'Templates published successfully', count: templates.length });
   }
 
@@ -490,14 +501,17 @@ export async function publishTemplates(screenId: string, request: NextRequest, u
   if (!screen) return Response.json({ message: 'Not found or access denied' }, { status: 404 });
   const active = await isSubscriptionActive(supabase, screen.business_id);
   if (!active) return Response.json({ message: 'Subscription expired or payment failed. Renew your subscription to broadcast.' }, { status: 403 });
-  await supabase.from('screen_template_rotations').delete().eq('screen_id', screenId);
-  await supabase.from('screen_blocks').delete().eq('screen_id', screenId);
-  await supabase.from('screens').update({ template_id: isFirstFullEditor ? null : first.template_id ?? null, is_active: true }).eq('id', screenId);
+  let res = await supabase.from('screen_template_rotations').delete().eq('screen_id', screenId);
+  if (res.error) return Response.json({ message: res.error.message || 'Failed to clear rotations' }, { status: 500 });
+  res = await supabase.from('screen_blocks').delete().eq('screen_id', screenId);
+  if (res.error) return Response.json({ message: res.error.message || 'Failed to clear blocks' }, { status: 500 });
+  res = await supabase.from('screens').update({ template_id: isFirstFullEditor ? null : first.template_id ?? null, is_active: true }).eq('id', screenId);
+  if (res.error) return Response.json({ message: res.error.message || 'Failed to update screen' }, { status: 500 });
   if (!isFirstFullEditor && first.template_id) {
     const { data: tBlocks } = await supabase.from('template_blocks').select('id, block_index, position_x, position_y, width, height').eq('template_id', first.template_id).order('block_index', { ascending: true });
     for (const tb of tBlocks ?? []) {
       const row = tb as { id: string; block_index: number; position_x?: number; position_y?: number; width?: number; height?: number };
-      await supabase.from('screen_blocks').insert({
+      res = await supabase.from('screen_blocks').insert({
         screen_id: screenId,
         template_block_id: row.id,
         display_order: row.block_index,
@@ -507,6 +521,7 @@ export async function publishTemplates(screenId: string, request: NextRequest, u
         width: row.width ?? 100,
         height: row.height ?? 100,
       });
+      if (res.error) return Response.json({ message: res.error.message || 'Failed to insert screen block' }, { status: 500 });
     }
   }
   for (let i = 0; i < templates.length; i++) {
@@ -518,20 +533,28 @@ export async function publishTemplates(screenId: string, request: NextRequest, u
       display_duration: t.display_duration ?? 10,
       display_order: i,
       is_active: true,
+      transition_effect: t.transition_effect ?? 'fade',
+      transition_duration: t.transition_duration ?? 1400,
     };
     if (isFe && t.full_editor_template_id) {
       rot.template_type = 'full_editor';
       rot.full_editor_template_id = t.full_editor_template_id;
     }
-    await supabase.from('screen_template_rotations').insert(rot);
+    res = await supabase.from('screen_template_rotations').insert(rot);
+    if (res.error) {
+      return Response.json(
+        { message: res.error.message || 'Template yayınlanamadı. Veritabanı migration\'larını çalıştırdığınızdan emin olun (transition_effect, full_editor_template_id).' },
+        { status: 500 }
+      );
+    }
   }
   const frameUpdates: Record<string, unknown> = {};
   if (body.frame_type !== undefined) frameUpdates.frame_type = body.frame_type;
   if (body.ticker_text !== undefined) frameUpdates.ticker_text = body.ticker_text;
   if (body.ticker_style !== undefined) frameUpdates.ticker_style = body.ticker_style;
-  if (body.template_transition_effect !== undefined) frameUpdates.template_transition_effect = body.template_transition_effect;
   if (Object.keys(frameUpdates).length > 0) {
-    await supabase.from('screens').update(frameUpdates).eq('id', screenId);
+    res = await supabase.from('screens').update(frameUpdates).eq('id', screenId);
+    if (res.error) return Response.json({ message: res.error.message || 'Failed to update screen options' }, { status: 500 });
   }
   return Response.json({ message: 'Templates published successfully', count: templates.length });
 }

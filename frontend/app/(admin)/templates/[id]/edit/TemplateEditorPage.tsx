@@ -107,7 +107,7 @@ function getDiscountBlockStyles(layer: { blockColor?: string; discountBlockStyle
   };
 }
 
-import { FONT_GROUPS, FONT_OPTIONS, TEXT_ICON_OPTIONS, GOOGLE_FONT_FAMILIES } from '@/lib/editor-fonts';
+import { FONT_GROUPS, FONT_OPTIONS, TEXT_ICON_OPTIONS, GOOGLE_FONT_CHUNKS, getGoogleFontsUrl } from '@/lib/editor-fonts';
 import { makeColorTransparent } from '@/lib/image-transparency';
 
 /** Arka plan kaldır: API dene, 501 / Vercel uyumsuzluğu ise tarayıcıda çalıştır */
@@ -300,14 +300,18 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
   // Google Fonts yükle (tasarım editörü ile aynı fontlar)
   useEffect(() => {
     if (typeof document === 'undefined') return;
-    const id = 'google-fonts-template-editor';
-    if (document.getElementById(id)) return;
-    const link = document.createElement('link');
-    link.id = id;
-    link.rel = 'stylesheet';
-    link.href = `https://fonts.googleapis.com/css2?${GOOGLE_FONT_FAMILIES.map((f) => `family=${f}`).join('&')}&display=swap`;
-    document.head.appendChild(link);
-    return () => { link.remove(); };
+    const idPrefix = 'google-fonts-template-editor-';
+    if (document.getElementById(idPrefix + '0')) return;
+    const links: HTMLLinkElement[] = [];
+    GOOGLE_FONT_CHUNKS.forEach((chunk, i) => {
+      const link = document.createElement('link');
+      link.id = idPrefix + i;
+      link.rel = 'stylesheet';
+      link.href = getGoogleFontsUrl(chunk);
+      document.head.appendChild(link);
+      links.push(link);
+    });
+    return () => links.forEach((l) => l.remove());
   }, []);
 
   // ESC tuşu ile tam ekran önizlemeyi kapat

@@ -1,8 +1,8 @@
 'use client';
 
+import React, { useEffect, useState, useRef } from 'react';
 import dynamic from 'next/dynamic';
-import { useEffect, useState, useRef } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
 const MenuViewer = dynamic(
@@ -39,26 +39,33 @@ function useInIframe() {
   return inIframe;
 }
 
-function EmbedFitWrapper({ children }: { children: React.ReactNode }) {
+const EmbedFitWrapper = React.forwardRef<HTMLDivElement, { children: React.ReactNode }>(function EmbedFitWrapper({ children }, ref) {
   const inIframe = useInIframe();
   const [scale, setScale] = useState(1);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const update = () => {
-      const w = window.innerWidth;
-      const h = window.innerHeight;
-      // Cover: tam ekran doldur, siyah bant kalmasın (önceki: Math.min = contain)
-      setScale(Math.max(w / EMBED_WIDTH, h / EMBED_HEIGHT));
+      const el = document.fullscreenElement;
+      const w = el ? el.clientWidth : window.innerWidth;
+      const h = el ? el.clientHeight : window.innerHeight;
+      let s = Math.max(w / EMBED_WIDTH, h / EMBED_HEIGHT);
+      // Tam ekranda sağ/sol kırpılmayı önlemek için güvenlik payı (hiç kırpılma kalmasın)
+      if (el) s *= 0.92;
+      setScale(s);
     };
     update();
     window.addEventListener('resize', update);
-    return () => window.removeEventListener('resize', update);
+    document.addEventListener('fullscreenchange', update);
+    return () => {
+      window.removeEventListener('resize', update);
+      document.removeEventListener('fullscreenchange', update);
+    };
   }, []);
 
-  // Cover modu: içerik viewport'u tam doldurur, overflow clip edilir
   return (
     <div
+      ref={ref}
       style={{
         position: 'fixed' as const,
         inset: 0,
@@ -81,11 +88,11 @@ function EmbedFitWrapper({ children }: { children: React.ReactNode }) {
       </div>
     </div>
   );
-}
+});
 
 const EXIT_BUTTON_HIDE_AFTER_MS = 4000; // Tam ekranda buton göründükten sonra tekrar gizleme süresi
 
-function FullScreenButton() {
+function FullScreenButton({ fullscreenTargetRef }: { fullscreenTargetRef?: React.RefObject<HTMLDivElement | null> }) {
   const inIframe = useInIframe();
   const { t } = useTranslation();
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -146,7 +153,8 @@ function FullScreenButton() {
       if (document.fullscreenElement) {
         await document.exitFullscreen();
       } else {
-        await document.documentElement.requestFullscreen();
+        const target = fullscreenTargetRef?.current ?? document.documentElement;
+        await target.requestFullscreen();
       }
     } catch (err) {
       console.error('Fullscreen error:', err);
@@ -195,6 +203,7 @@ interface TemplateRotation {
   display_duration: number;
   display_order: number;
   transition_effect?: string;
+  transition_duration?: number;
   template_name: string;
   block_count: number;
 }
@@ -248,8 +257,11 @@ interface ScreenData {
 
 export default function DisplayPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const token = (params?.token ?? '') as string;
   const { t, localePath } = useTranslation();
+  const previewIndexParam = searchParams?.get('previewIndex');
+  const previewIndex = previewIndexParam != null && /^\d+$/.test(previewIndexParam) ? parseInt(previewIndexParam, 10) : null;
 
   const [screenData, setScreenData] = useState<ScreenData | null>(null);
   const [currentMenuIndex, setCurrentMenuIndex] = useState(0);
@@ -270,19 +282,22 @@ export default function DisplayPage() {
   const loadInProgressRef = useRef(false);
   const retryCountRef = useRef(0);
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const displayContainerRef = useRef<HTMLDivElement>(null);
 
   const POLL_INTERVAL_MS = 60_000; // 60s - tek interval, 1000 TV için ölçeklenebilir
   const MAX_BACKOFF_MS = 60_000;
   const HEARTBEAT_INTERVAL_MS = 45_000;
 
   useEffect(() => {
-    loadScreenData();
-    const pollInterval = setInterval(loadScreenData, POLL_INTERVAL_MS);
+    const initialRotation = previewIndex != null && previewIndex >= 0 ? previewIndex : undefined;
+    loadScreenData(initialRotation);
+    if (previewIndex != null) return;
+    const pollInterval = setInterval(() => loadScreenData(), POLL_INTERVAL_MS);
     return () => {
       clearInterval(pollInterval);
       if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
     };
-  }, [token]);
+  }, [token, previewIndex]);
 
   // Heartbeat: ilk yayınlayan izinli, diğer cihazlar blok (allowed: false)
   useEffect(() => {
@@ -309,15 +324,16 @@ export default function DisplayPage() {
     return () => clearInterval(interval);
   }, [token]);
 
-  const loadScreenData = async () => {
+  const loadScreenData = async (initialRotationIndex?: number) => {
     if (loadInProgressRef.current) return;
     loadInProgressRef.current = true;
     try {
       const rotationIdx =
-        screenData?.templateRotations?.length &&
-        screenData.templateRotations.length > 0
-          ? Math.min(currentTemplateIndexRef.current, screenData.templateRotations.length - 1)
-          : undefined;
+        initialRotationIndex !== undefined && initialRotationIndex >= 0
+          ? initialRotationIndex
+          : screenData?.templateRotations?.length && screenData.templateRotations.length > 0
+            ? Math.min(currentTemplateIndexRef.current, screenData.templateRotations.length - 1)
+            : undefined;
       const query = rotationIdx !== undefined ? `?rotationIndex=${rotationIdx}` : '';
       const url = `/api/public-screen/${encodeURIComponent(token)}${query}`;
       const res = await fetch(url, { cache: 'no-store' });
@@ -341,9 +357,13 @@ export default function DisplayPage() {
       setCurrentItemIndex(0);
 
       if (data.templateRotations && data.templateRotations.length > 0) {
-        const idx = Math.min(currentTemplateIndexRef.current, data.templateRotations.length - 1);
+        const idx =
+          initialRotationIndex !== undefined && initialRotationIndex >= 0
+            ? Math.min(initialRotationIndex, data.templateRotations.length - 1)
+            : Math.min(currentTemplateIndexRef.current, data.templateRotations.length - 1);
         setCurrentTemplateData(data);
         currentTemplateIndexRef.current = idx;
+        setCurrentTemplateIndex(idx);
       } else {
         setCurrentTemplateData(data);
       }
@@ -458,8 +478,9 @@ export default function DisplayPage() {
     return () => clearInterval(timer);
   }, [screenData, currentMenuIndex, currentItemIndex]);
 
-  // Template rotation: tek şablon ise display_duration sonunda yenile; 2+ şablon ise süreyle dönüş
+  // Template rotation: tek şablon ise display_duration sonunda yenile; 2+ şablon ise süreyle dönüş (önizleme modunda dönme)
   useEffect(() => {
+    if (previewIndex != null) return;
     if (!screenData?.templateRotations || screenData.templateRotations.length === 0) {
       if (screenData && !currentTemplateData) {
         setCurrentTemplateData(screenData);
@@ -491,9 +512,10 @@ export default function DisplayPage() {
       return;
     }
     const durationMs = (currentRotation.display_duration || 5) * 1000;
-    const transitionDuration = 1400;
+    const nextIndex = (currentTemplateIndex + 1) % screenData.templateRotations!.length;
+    const nextRot = screenData.templateRotations![nextIndex] as { transition_duration?: number } | undefined;
+    const transitionDuration = nextRot?.transition_duration ?? 1400;
     const timer = setTimeout(async () => {
-      const nextIndex = (currentTemplateIndex + 1) % screenData.templateRotations!.length;
       try {
         const res = await fetch(`/api/public-screen/${encodeURIComponent(token)}?rotationIndex=${nextIndex}`, { cache: 'no-store' });
         const raw = res.ok ? await res.json() : null;
@@ -514,11 +536,11 @@ export default function DisplayPage() {
       }
     }, durationMs);
     return () => clearTimeout(timer);
-  }, [currentTemplateIndex, currentTemplateData, screenData, token]);
+  }, [currentTemplateIndex, currentTemplateData, screenData, token, previewIndex]);
 
   if (viewAllowed === false) {
     return (
-      <EmbedFitWrapper>
+      <EmbedFitWrapper ref={displayContainerRef}>
         <div className="fixed inset-0 bg-black" />
       </EmbedFitWrapper>
     );
@@ -526,7 +548,7 @@ export default function DisplayPage() {
 
   if (loading || (screenData && viewAllowed === null)) {
     return (
-      <EmbedFitWrapper>
+      <EmbedFitWrapper ref={displayContainerRef}>
         <div className="fixed inset-0 flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white">
           <div className="text-6xl font-light animate-pulse">
             {businessName || t('display_loading')}
@@ -538,7 +560,7 @@ export default function DisplayPage() {
 
   if (error || !screenData) {
     return (
-      <EmbedFitWrapper>
+      <EmbedFitWrapper ref={displayContainerRef}>
         <div className="fixed inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white">
           <div className="text-2xl md:text-5xl font-light text-center px-4">{error || t('display_screen_not_found')}</div>
         </div>
@@ -548,15 +570,46 @@ export default function DisplayPage() {
 
   // If template is set, render template layout (veya geçiş animasyonu); dijital menü slotu ise MenuViewer
   const displayData = currentTemplateData || screenData;
-  const rotationEffect = screenData.templateRotations?.[nextTemplateIndex]?.transition_effect;
+  const nextRotation = screenData.templateRotations?.[nextTemplateIndex];
+  const rotationEffect = nextRotation?.transition_effect;
   const transitionEffect = rotationEffect || (screenData.screen as any).template_transition_effect || 'fade';
+  const transitionDurationMs = nextRotation?.transition_duration ?? 1400;
+
+  // Geçiş animasyonu: Full Editor / blok fark etmeksizin tüm şablon tiplerinde uygula (dijital menü hariç)
+  if (isTransitioning && nextTemplateData && currentTemplateData && !nextTemplateData.digitalMenuData) {
+    const tickerText = (screenData.screen as any)?.ticker_text || '';
+    const tickerStyle = (screenData.screen as any)?.ticker_style || 'default';
+    return (
+      <EmbedFitWrapper ref={displayContainerRef}>
+        <div className="fixed inset-0 flex flex-col bg-black overflow-hidden">
+          <div className="flex-1 min-h-0 relative overflow-hidden">
+            <TemplateTransition
+              inline
+              effect={transitionEffect}
+              currentData={currentTemplateData}
+              nextData={nextTemplateData}
+              duration={transitionDurationMs}
+              animationType={currentTemplateData.screen?.animation_type || 'fade'}
+              animationDuration={currentTemplateData.screen?.animation_duration || 500}
+            />
+          </div>
+          {tickerText && String(tickerText).trim() ? (
+            <div className="flex-shrink-0">
+              <TickerTape key="ticker" text={tickerText} style={tickerStyle} />
+            </div>
+          ) : null}
+        </div>
+        <FullScreenButton fullscreenTargetRef={displayContainerRef} />
+      </EmbedFitWrapper>
+    );
+  }
 
   // Dijital menü slotu (rotasyonda template_type=digital_menu)
   if (displayData?.digitalMenuData) {
     const frameType = (displayData.screen as any)?.frame_type || 'none';
     const tickerText = (displayData.screen as any)?.ticker_text || '';
     return (
-      <EmbedFitWrapper>
+      <EmbedFitWrapper ref={displayContainerRef}>
         <div className="fixed inset-0 w-full h-full overflow-hidden bg-black flex flex-col">
           <DisplayFrame frameType={frameType} hideBottomFrame={!!tickerText} className="flex-1 min-h-0 overflow-hidden">
             <MenuViewer
@@ -593,7 +646,7 @@ export default function DisplayPage() {
           </DisplayFrame>
           <TickerTape text={tickerText} style={(displayData.screen as any)?.ticker_style || 'default'} />
         </div>
-        <FullScreenButton />
+        <FullScreenButton fullscreenTargetRef={displayContainerRef} />
       </EmbedFitWrapper>
     );
   }
@@ -605,7 +658,7 @@ export default function DisplayPage() {
     const frameType = (displayData.screen as any)?.frame_type || 'none';
     const hideBottomFrame = !!tickerText;
     return (
-      <EmbedFitWrapper>
+      <EmbedFitWrapper ref={displayContainerRef}>
         <div className="fixed inset-0 flex flex-col bg-black overflow-hidden">
           <div className="flex-1 min-h-0 w-full overflow-hidden relative">
             <DisplayFrame frameType={frameType} hideBottomFrame={hideBottomFrame} className="absolute inset-0 w-full h-full">
@@ -619,7 +672,7 @@ export default function DisplayPage() {
             <TickerTape key="ticker" text={tickerText} style={tickerStyle} />
           </div>
         </div>
-        <FullScreenButton />
+        <FullScreenButton fullscreenTargetRef={displayContainerRef} />
       </EmbedFitWrapper>
     );
   }
@@ -631,7 +684,7 @@ export default function DisplayPage() {
     const frameType = (displayData.screen as any)?.frame_type || 'none';
     const hideBottomFrame = !!tickerText;
     return (
-      <EmbedFitWrapper>
+      <EmbedFitWrapper ref={displayContainerRef}>
         <div className="fixed inset-0 flex flex-col bg-black overflow-hidden">
           <div className="flex-1 min-h-0 w-full overflow-hidden relative">
             <DisplayFrame frameType={frameType} hideBottomFrame={hideBottomFrame} className="absolute inset-0 w-full h-full">
@@ -646,7 +699,7 @@ export default function DisplayPage() {
             <TickerTape key="ticker" text={tickerText} style={tickerStyle} />
           </div>
         </div>
-        <FullScreenButton />
+        <FullScreenButton fullscreenTargetRef={displayContainerRef} />
       </EmbedFitWrapper>
     );
   }
@@ -655,7 +708,7 @@ export default function DisplayPage() {
     const tickerText = (screenData.screen as any)?.ticker_text || '';
     const tickerStyle = (screenData.screen as any)?.ticker_style || 'default';
     return (
-      <EmbedFitWrapper>
+      <EmbedFitWrapper ref={displayContainerRef}>
         <div className="fixed inset-0 flex flex-col bg-black overflow-hidden">
           <div className="flex-1 min-h-0 relative overflow-hidden">
             {isTransitioning && nextTemplateData && currentTemplateData && !nextTemplateData.digitalMenuData ? (
@@ -664,7 +717,7 @@ export default function DisplayPage() {
                 effect={transitionEffect}
                 currentData={currentTemplateData}
                 nextData={nextTemplateData}
-                duration={1400}
+                duration={transitionDurationMs}
                 animationType={displayData.screen.animation_type || 'fade'}
                 animationDuration={displayData.screen.animation_duration || 500}
               />
@@ -684,14 +737,14 @@ export default function DisplayPage() {
             </div>
           ) : null}
         </div>
-        <FullScreenButton />
+        <FullScreenButton fullscreenTargetRef={displayContainerRef} />
       </EmbedFitWrapper>
     );
   }
 
   if (!screenData.menus || screenData.menus.length === 0) {
     return (
-      <EmbedFitWrapper>
+      <EmbedFitWrapper ref={displayContainerRef}>
         <div className="fixed inset-0 flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white">
           <div className="text-5xl font-light">{t('display_no_menus')}</div>
         </div>
@@ -704,7 +757,7 @@ export default function DisplayPage() {
 
   if (!currentItem) {
     return (
-      <EmbedFitWrapper>
+      <EmbedFitWrapper ref={displayContainerRef}>
         <div className="fixed inset-0 flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white">
           <div className="text-5xl font-light">{t('display_no_items')}</div>
         </div>
@@ -716,7 +769,7 @@ export default function DisplayPage() {
   const animationDuration = screenData.screen.animation_duration || 500;
 
   return (
-    <EmbedFitWrapper>
+    <EmbedFitWrapper ref={displayContainerRef}>
       <style jsx global>{`
         @keyframes fadeIn {
           from { opacity: 0; transform: translateY(20px); }
@@ -856,7 +909,7 @@ export default function DisplayPage() {
         <div className="absolute inset-0 pointer-events-none opacity-5">
           <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.1),transparent_50%)]"></div>
         </div>
-        <FullScreenButton />
+        <FullScreenButton fullscreenTargetRef={displayContainerRef} />
       </div>
     </EmbedFitWrapper>
   );
@@ -923,6 +976,58 @@ function TemplateTransition({
         [data-effect="wipe"] .transition-next { animation: wipeIn var(--dur) ease-in-out forwards; }
         @keyframes wipeOut { to { clip-path: inset(0 0 0 100%); } }
         @keyframes wipeIn { from { clip-path: inset(0 0 0 100%); } to { clip-path: inset(0 0 0 0); } }
+        [data-effect="slide-up"] .transition-current { animation: slideOutUp var(--dur) ease-in-out forwards; }
+        [data-effect="slide-up"] .transition-next { animation: slideInFromDown var(--dur) ease-in-out forwards; }
+        @keyframes slideOutUp { to { transform: translateY(-100%); } }
+        @keyframes slideInFromDown { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        [data-effect="slide-down"] .transition-current { animation: slideOutDown var(--dur) ease-in-out forwards; }
+        [data-effect="slide-down"] .transition-next { animation: slideInFromUp var(--dur) ease-in-out forwards; }
+        @keyframes slideOutDown { to { transform: translateY(100%); } }
+        @keyframes slideInFromUp { from { transform: translateY(-100%); } to { transform: translateY(0); } }
+        [data-effect="bounce"] .transition-current { animation: bounceOut var(--dur) ease-in-out forwards; }
+        [data-effect="bounce"] .transition-next { animation: bounceIn var(--dur) ease-in-out forwards; }
+        @keyframes bounceOut { to { opacity: 0; transform: scale(0.7); } }
+        @keyframes bounceIn { from { opacity: 0; transform: scale(0.3); } 60% { transform: scale(1.05); } to { opacity: 1; transform: scale(1); } }
+        [data-effect="rotate"] .transition-current { animation: rotateOut var(--dur) ease-in-out forwards; transform-origin: center center; }
+        [data-effect="rotate"] .transition-next { animation: rotateIn var(--dur) ease-in-out forwards; transform-origin: center center; }
+        @keyframes rotateOut { to { opacity: 0; transform: rotate(-180deg) scale(0.5); } }
+        @keyframes rotateIn { from { opacity: 0; transform: rotate(180deg) scale(0.5); } to { opacity: 1; transform: rotate(0) scale(1); } }
+        [data-effect="blur"] .transition-current { animation: blurOut var(--dur) ease forwards; }
+        [data-effect="blur"] .transition-next { animation: blurIn var(--dur) ease forwards; }
+        @keyframes blurOut { to { opacity: 0; filter: blur(20px); } }
+        @keyframes blurIn { from { opacity: 0; filter: blur(20px); } to { opacity: 1; filter: blur(0); } }
+        [data-effect="cross-zoom"] .transition-current { animation: crossZoomOut var(--dur) ease forwards; transform-origin: center center; }
+        [data-effect="cross-zoom"] .transition-next { animation: crossZoomIn var(--dur) ease forwards; transform-origin: center center; }
+        @keyframes crossZoomOut { to { opacity: 0; transform: scale(2); } }
+        @keyframes crossZoomIn { from { opacity: 0; transform: scale(0.3); } to { opacity: 1; transform: scale(1); } }
+        [data-effect="cube"] .transition-current { animation: cubeOut var(--dur) ease-in-out forwards; transform-origin: right center; }
+        [data-effect="cube"] .transition-next { animation: cubeIn var(--dur) ease-in-out forwards; transform-origin: left center; }
+        @keyframes cubeOut { to { opacity: 0; transform: perspective(1200px) rotateY(90deg); } }
+        @keyframes cubeIn { from { opacity: 0; transform: perspective(1200px) rotateY(-90deg); } to { opacity: 1; transform: perspective(1200px) rotateY(0); } }
+        [data-effect="card-flip"] .transition-current { animation: cardFlipOut var(--dur) ease-in-out forwards; transform-origin: center center; }
+        [data-effect="card-flip"] .transition-next { animation: cardFlipIn var(--dur) ease-in-out forwards; transform-origin: center center; }
+        @keyframes cardFlipOut { to { opacity: 0; transform: perspective(1200px) rotateX(-90deg); } }
+        @keyframes cardFlipIn { from { opacity: 0; transform: perspective(1200px) rotateX(90deg); } to { opacity: 1; transform: perspective(1200px) rotateX(0); } }
+        [data-effect="split"] .transition-current { animation: splitOut var(--dur) ease-in-out forwards; transform-origin: center center; }
+        [data-effect="split"] .transition-next { animation: splitIn var(--dur) ease-in-out forwards; transform-origin: center center; }
+        @keyframes splitOut { to { opacity: 0; clip-path: inset(0 50% 0 50%); transform: scale(0.95); } }
+        @keyframes splitIn { from { opacity: 0; clip-path: inset(0 50% 0 50%); transform: scale(1.05); } to { opacity: 1; clip-path: inset(0 0 0 0); transform: scale(1); } }
+        [data-effect="door"] .transition-current { animation: doorOut var(--dur) ease-in-out forwards; }
+        [data-effect="door"] .transition-next { animation: doorIn var(--dur) ease-in-out forwards; }
+        @keyframes doorOut { to { clip-path: polygon(50% 0, 50% 0, 50% 100%, 50% 100%); opacity: 0; } }
+        @keyframes doorIn { from { clip-path: polygon(50% 0, 50% 0, 50% 100%, 50% 100%); opacity: 0; } to { clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%); opacity: 1; } }
+        [data-effect="pixelate"] .transition-current { animation: pixelateOut var(--dur) ease forwards; }
+        [data-effect="pixelate"] .transition-next { animation: pixelateIn var(--dur) ease forwards; }
+        @keyframes pixelateOut { to { opacity: 0; filter: blur(20px); transform: scale(0.6); } }
+        @keyframes pixelateIn { from { opacity: 0; filter: blur(15px); transform: scale(1.4); } to { opacity: 1; filter: blur(0); transform: scale(1); } }
+        [data-effect="glitch"] .transition-current { animation: glitchOut var(--dur) ease-in-out forwards; }
+        [data-effect="glitch"] .transition-next { animation: glitchIn var(--dur) ease-in-out forwards; }
+        @keyframes glitchOut { 0% { transform: translate(0, 0); opacity: 1; } 25% { transform: translate(-8px, 2px); opacity: 0.9; } 50% { transform: translate(6px, -2px); opacity: 0.85; } 75% { transform: translate(-4px, 1px); opacity: 0.5; } 100% { transform: translate(15px, 0); opacity: 0; } }
+        @keyframes glitchIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
+        [data-effect="slide-zoom"] .transition-current { animation: slideZoomOut var(--dur) ease-in-out forwards; transform-origin: left center; }
+        [data-effect="slide-zoom"] .transition-next { animation: slideZoomIn var(--dur) ease-in-out forwards; transform-origin: right center; }
+        @keyframes slideZoomOut { to { opacity: 0; transform: translateX(-100%) scale(0.7); } }
+        @keyframes slideZoomIn { from { opacity: 0; transform: translateX(100%) scale(0.7); } to { opacity: 1; transform: translateX(0) scale(1); } }
       `}</style>
       <div className={wrapClass} data-effect={effect}>
         <div className="transition-current">

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef } from 'react';
+import { sanitizeCanvasJsonForFabric } from '@/components/FullEditorPreviewThumb';
 
 /** Full Editor (Fabric) canvas_json'ı TV display için render eder */
 export function FullEditorDisplay({ canvasJson }: { canvasJson: object }) {
@@ -16,12 +17,13 @@ export function FullEditorDisplay({ canvasJson }: { canvasJson: object }) {
     el.appendChild(canvasEl);
 
     let canvas: import('fabric').Canvas | null = null;
+    const safeJson = sanitizeCanvasJsonForFabric(canvasJson as Record<string, unknown>) as object;
 
     (async () => {
       try {
         const fabric = await import('fabric');
         canvas = new fabric.Canvas(canvasEl, { width: 1920, height: 1080, selection: false });
-        await canvas.loadFromJSON(canvasJson as object);
+        await canvas.loadFromJSON(safeJson);
         const bg = (canvas as { backgroundColor?: string }).backgroundColor;
         if (typeof bg === 'string') canvas.backgroundColor = bg;
         // TV yayınında seçim çerçevesi, tutamaçlar ve konumlandırma kontrolleri gizlensin

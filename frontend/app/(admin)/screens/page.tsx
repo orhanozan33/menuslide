@@ -9,16 +9,30 @@ import { useToast } from '@/lib/ToastContext';
 import { useConfirm } from '@/lib/ConfirmContext';
 import { FRAME_OPTIONS } from '@/components/display/DisplayFrame';
 import { TICKER_STYLES, TICKER_SYMBOLS } from '@/components/display/TickerTape';
+import { TransitionPreviewModal } from '@/components/display/TransitionPreviewModal';
 
 const TRANSITION_OPTIONS = [
   { value: 'fade', labelKey: 'screens_trans_fade' },
   { value: 'slide-left', labelKey: 'screens_trans_slide_left' },
   { value: 'slide-right', labelKey: 'screens_trans_slide_right' },
+  { value: 'slide-up', labelKey: 'screens_trans_slide_up' },
+  { value: 'slide-down', labelKey: 'screens_trans_slide_down' },
   { value: 'zoom', labelKey: 'screens_trans_zoom' },
+  { value: 'slide-zoom', labelKey: 'screens_trans_slide_zoom' },
   { value: 'flip', labelKey: 'screens_trans_flip' },
   { value: 'car-pull', labelKey: 'screens_trans_car_pull' },
   { value: 'curtain', labelKey: 'screens_trans_curtain' },
   { value: 'wipe', labelKey: 'screens_trans_wipe' },
+  { value: 'split', labelKey: 'screens_trans_split' },
+  { value: 'door', labelKey: 'screens_trans_door' },
+  { value: 'pixelate', labelKey: 'screens_trans_pixelate' },
+  { value: 'glitch', labelKey: 'screens_trans_glitch' },
+  { value: 'bounce', labelKey: 'screens_trans_bounce' },
+  { value: 'rotate', labelKey: 'screens_trans_rotate' },
+  { value: 'blur', labelKey: 'screens_trans_blur' },
+  { value: 'cross-zoom', labelKey: 'screens_trans_cross_zoom' },
+  { value: 'cube', labelKey: 'screens_trans_cube' },
+  { value: 'card-flip', labelKey: 'screens_trans_card_flip' },
 ] as const;
 
 interface Screen {
@@ -38,8 +52,11 @@ interface Screen {
   templateRotations?: Array<{
     id: string;
     template_id: string;
+    full_editor_template_id?: string | null;
     display_duration: number;
     display_order: number;
+    transition_effect?: string;
+    transition_duration?: number;
     template: {
       id: string;
       name: string;
@@ -71,6 +88,8 @@ interface SelectedTemplate {
   display_duration: number;
   template_type?: 'block' | 'full_editor';
   full_editor_template_id?: string;
+  transition_effect?: string;
+  transition_duration?: number;
 }
 
 export default function ScreensPage() {
@@ -96,9 +115,14 @@ export default function ScreensPage() {
   const [publishFrameType, setPublishFrameType] = useState<string>('none');
   const [publishTickerText, setPublishTickerText] = useState<string>('');
   const [publishTickerStyle, setPublishTickerStyle] = useState<string>('default');
-  const [publishTransitionEffect, setPublishTransitionEffect] = useState<string>('fade');
   const [fixingNames, setFixingNames] = useState(false);
   const [subscriptionActive, setSubscriptionActive] = useState(true);
+  const [transitionPreview, setTransitionPreview] = useState<{
+    url: string;
+    effect: string;
+    durationMs: number;
+    templateName: string;
+  } | null>(null);
   
   // Ref to store checkAndCreateScreens function to avoid circular dependency
   const checkAndCreateScreensRef = useRef<((currentScreens?: Screen[]) => Promise<void>) | null>(null);
@@ -488,15 +512,17 @@ export default function ScreensPage() {
     await loadTemplates();
     const current =
       screen.templateRotations?.map((r) => ({
-        template_id: r.template_id,
+        template_id: r.template_id || (r as { full_editor_template_id?: string }).full_editor_template_id || '',
         display_duration: r.display_duration ?? 5,
-        template_type: 'block' as const,
+        template_type: (r as { full_editor_template_id?: string }).full_editor_template_id ? ('full_editor' as const) : ('block' as const),
+        full_editor_template_id: (r as { full_editor_template_id?: string }).full_editor_template_id ?? undefined,
+        transition_effect: (r as { transition_effect?: string }).transition_effect ?? 'fade',
+        transition_duration: (r as { transition_duration?: number }).transition_duration ?? 1400,
       })) ?? [];
     setSelectedTemplates(current);
     setPublishFrameType(screen.frame_type || 'none');
     setPublishTickerText(screen.ticker_text || '');
     setPublishTickerStyle(screen.ticker_style || 'default');
-    setPublishTransitionEffect(screen.template_transition_effect || 'fade');
     setShowPublishModal(true);
   };
 
@@ -527,6 +553,8 @@ export default function ScreensPage() {
           display_duration: 5,
           template_type: isFullEditor ? 'full_editor' : 'block',
           full_editor_template_id: isFullEditor ? templateId : undefined,
+          transition_effect: 'fade',
+          transition_duration: 1400,
         }];
       }
     });
@@ -536,6 +564,22 @@ export default function ScreensPage() {
     setSelectedTemplates((prev) =>
       prev.map((t) =>
         t.template_id === templateId ? { ...t, display_duration: duration } : t
+      )
+    );
+  };
+
+  const handleTransitionEffectChange = (templateId: string, value: string) => {
+    setSelectedTemplates((prev) =>
+      prev.map((t) =>
+        t.template_id === templateId ? { ...t, transition_effect: value } : t
+      )
+    );
+  };
+
+  const handleTransitionDurationChange = (templateId: string, value: number) => {
+    setSelectedTemplates((prev) =>
+      prev.map((t) =>
+        t.template_id === templateId ? { ...t, transition_duration: value } : t
       )
     );
   };
@@ -557,7 +601,6 @@ export default function ScreensPage() {
           frame_type: publishFrameType,
           ticker_text: publishTickerText,
           ticker_style: publishTickerStyle,
-          template_transition_effect: publishTransitionEffect,
         }),
       });
       toast.showSuccess(t('screens_published_success'));
@@ -900,18 +943,6 @@ export default function ScreensPage() {
                     ))}
                   </select>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">{t('screens_transition_effect')}</label>
-                  <select
-                    value={publishTransitionEffect}
-                    onChange={(e) => setPublishTransitionEffect(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
-                  >
-                    {TRANSITION_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>{t(opt.labelKey)}</option>
-                    ))}
-                  </select>
-                </div>
               </div>
 
               {templates.length === 0 ? (
@@ -962,19 +993,81 @@ export default function ScreensPage() {
                         </div>
 
                         {isSelected && (
-                          <div className="mt-4 pl-8">
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                              {t('screens_display_duration')}
-                            </label>
-                            <input
-                              type="number"
-                              min="1"
-                              value={selectedTemplate?.display_duration || 5}
-                              onChange={(e) =>
-                                handleDurationChange(template.id, parseInt(e.target.value) || 5)
-                              }
-                              className="w-32 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
-                            />
+                          <div className="mt-4 pl-8 space-y-3">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">
+                                {t('screens_display_duration')}
+                              </label>
+                              <input
+                                type="number"
+                                min="1"
+                                max="300"
+                                value={selectedTemplate?.display_duration ?? 5}
+                                onChange={(e) =>
+                                  handleDurationChange(template.id, Math.max(1, parseInt(e.target.value) || 5))
+                                }
+                                className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 text-sm"
+                              />
+                              <span className="ml-2 text-sm text-gray-500">saniye</span>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">
+                                {t('screens_transition_effect')}
+                              </label>
+                              <select
+                                value={selectedTemplate?.transition_effect ?? 'fade'}
+                                onChange={(e) => handleTransitionEffectChange(template.id, e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 text-sm"
+                              >
+                                {TRANSITION_OPTIONS.map((opt) => (
+                                  <option key={opt.value} value={opt.value}>{t(opt.labelKey)}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">
+                                {t('editor_transition_duration_ms')}
+                              </label>
+                              <input
+                                type="number"
+                                min="200"
+                                max="5000"
+                                step="100"
+                                value={selectedTemplate?.transition_duration ?? 1400}
+                                onChange={(e) =>
+                                  handleTransitionDurationChange(template.id, Math.max(200, parseInt(e.target.value) || 1400))
+                                }
+                                className="w-28 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 text-sm"
+                              />
+                              <span className="ml-2 text-sm text-gray-500">ms</span>
+                            </div>
+                            {selectedScreenId && (() => {
+                              const screen = screens.find((s) => s.id === selectedScreenId);
+                              const slug = screen?.public_slug || screen?.public_token;
+                              const previewIndex = selectedTemplates.findIndex((t) => t.template_id === template.id);
+                              if (previewIndex < 0 || !slug) return null;
+                              const previewUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/display/${slug}?previewIndex=${previewIndex}`;
+                              const effect = selectedTemplate?.transition_effect ?? 'fade';
+                              const durationMs = selectedTemplate?.transition_duration ?? 1400;
+                              return (
+                                <div className="pt-2">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setTransitionPreview({
+                                        url: previewUrl,
+                                        effect,
+                                        durationMs,
+                                        templateName: template.display_name || template.name,
+                                      })
+                                    }
+                                    className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
+                                  >
+                                    {t('btn_preview')}
+                                  </button>
+                                </div>
+                              );
+                            })()}
                           </div>
                         )}
                       </div>
@@ -993,7 +1086,6 @@ export default function ScreensPage() {
                   setPublishFrameType('none');
                   setPublishTickerText('');
                   setPublishTickerStyle('default');
-                  setPublishTransitionEffect('fade');
                 }}
                 className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors font-medium"
               >
@@ -1010,6 +1102,18 @@ export default function ScreensPage() {
           </div>
         </div>
       )}
+
+      <TransitionPreviewModal
+        isOpen={!!transitionPreview}
+        onClose={() => setTransitionPreview(null)}
+        previewUrl={transitionPreview?.url ?? ''}
+        effect={transitionPreview?.effect ?? 'fade'}
+        durationMs={transitionPreview?.durationMs ?? 1400}
+        templateName={transitionPreview?.templateName}
+        titleLabel={t('screens_transition_preview_title')}
+        previousLabel={t('screens_previous_template')}
+        closeLabel={t('btn_close')}
+      />
     </div>
   );
 }

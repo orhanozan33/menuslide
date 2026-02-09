@@ -6,13 +6,14 @@ import { useTranslation } from '@/lib/i18n/useTranslation';
 import Link from 'next/link';
 import {
   Upload, LayoutTemplate, Image, Type, Sparkles, Palette, Grid3X3, CircleDot, MoreHorizontal,
-  Square, Bold, Italic, ChevronDown, RotateCcw, RotateCw, Copy, Trash2, Tv,
+  Square, Bold, Italic, ChevronDown, RotateCcw, RotateCw, Copy, Trash2, Tv, Repeat, Check, X,
 } from 'lucide-react';
 import { GRADIENT_PRESETS, createFabricGradient } from '@/lib/full-editor/gradient';
-import { FONT_OPTIONS } from '@/lib/editor-fonts';
+import { FONT_GROUPS, FONT_OPTIONS, GOOGLE_FONT_CHUNKS, getGoogleFontsUrl } from '@/lib/editor-fonts';
 import { apiClient } from '@/lib/api';
 import { useAdminUser } from '@/lib/AdminUserContext';
 import { useToast } from '@/lib/ToastContext';
+import { FullEditorPreviewThumb, sanitizeCanvasJsonForFabric, sanitizeCanvasJsonForFabricWithVideoRestore, getVideoSrcFromFabricObject } from '@/components/FullEditorPreviewThumb';
 
 const OBJECT_CONFIG = { left: 200, top: 200 };
 const DRAFT_KEY = 'sistem-editor-draft';
@@ -76,6 +77,82 @@ function fitObjectToCanvas(obj: import('fabric').FabricObject, cw: number, ch: n
 }
 const DRAFT_BG_KEY = 'sistem-editor-draft-bg';
 
+type FabricObjWithVideo = import('fabric').FabricObject & { __videoSrc?: string; getObjects?: () => import('fabric').FabricObject[] };
+type VideoParent = import('fabric').Canvas | import('fabric').FabricObject;
+
+/** loadFromJSON sonrası __videoSrc taşıyan nesneleri gerçek video FabricImage ile değiştirir (üst seviye + grup içi). */
+async function restoreVideoObjectsInCanvas(
+  canvas: import('fabric').Canvas,
+  cw: number,
+  ch: number,
+  startVideoRenderLoop: () => void,
+): Promise<void> {
+  const fabric = await import('fabric');
+  const toReplace: { parent: VideoParent; obj: FabricObjWithVideo }[] = [];
+
+  function collect(obj: FabricObjWithVideo, parent: VideoParent): void {
+    if (getVideoSrcFromFabricObject(obj as unknown as Record<string, unknown>)) {
+      toReplace.push({ parent, obj });
+      return;
+    }
+    if (typeof obj.getObjects === 'function') {
+      const inner = obj.getObjects();
+      for (let i = 0; i < inner.length; i++) {
+        collect(inner[i] as FabricObjWithVideo, obj as VideoParent);
+      }
+    }
+  }
+  canvas.getObjects().forEach((o) => collect(o as FabricObjWithVideo, canvas));
+
+  for (const { parent, obj } of toReplace) {
+    const videoSrc = getVideoSrcFromFabricObject(obj as unknown as Record<string, unknown>);
+    if (!videoSrc) continue;
+    try {
+      const video = document.createElement('video');
+      video.muted = true;
+      video.loop = true;
+      video.playsInline = true;
+      video.setAttribute('playsinline', '');
+      video.preload = 'auto';
+      video.crossOrigin = 'anonymous';
+      await new Promise<void>((resolve, reject) => {
+        video.onloadedmetadata = () => resolve();
+        video.onerror = () => reject(new Error('Video yüklenemedi'));
+        video.src = videoSrc;
+      });
+      const vw = video.videoWidth || 1920;
+      const vh = video.videoHeight || 1080;
+      video.width = vw;
+      video.height = vh;
+      const left = (obj as { left?: number }).left ?? 0;
+      const top = (obj as { top?: number }).top ?? 0;
+      const scaleX = (obj as { scaleX?: number }).scaleX ?? 1;
+      const scaleY = (obj as { scaleY?: number }).scaleY ?? 1;
+      const angle = (obj as { angle?: number }).angle ?? 0;
+      const originX = (obj as { originX?: string }).originX ?? 'left';
+      const originY = (obj as { originY?: string }).originY ?? 'top';
+      const newImg = new fabric.FabricImage(video as unknown as HTMLImageElement, {
+        left,
+        top,
+        scaleX,
+        scaleY,
+        angle,
+        originX: originX as 'left' | 'center' | 'right',
+        originY: originY as 'top' | 'center' | 'bottom',
+      });
+      (parent as { remove: (a: unknown) => void; add: (...a: unknown[]) => void }).remove(obj);
+      (parent as { add: (...a: unknown[]) => void }).add(newImg);
+      if (parent === canvas) canvas.sendObjectToBack(newImg);
+      newImg.setCoords();
+      constrainObjectToCanvas(newImg, cw, ch);
+      (newImg.getElement() as HTMLVideoElement)?.play?.();
+      startVideoRenderLoop();
+    } catch {
+      // placeholder kalır, video yüklenemezse sessizce devam et
+    }
+  }
+}
+
 type LeftTab = 'uploads' | 'templates' | 'media' | 'text' | 'ai' | 'background' | 'layout' | 'record' | 'more';
 
 /** Full Editor – PosterMyWall tarzı tasarım editörü */
@@ -115,6 +192,16 @@ export default function SistemPage() {
   const [mediaLibraryList, setMediaLibraryList] = useState<{ id: string; name: string; url: string; type?: string }[]>([]);
   const [mediaLibraryLoading, setMediaLibraryLoading] = useState(false);
   const [mediaPreviewItem, setMediaPreviewItem] = useState<{ id: string; name: string; url: string; type?: string } | null>(null);
+  const [templatePreviewItem, setTemplatePreviewItem] = useState<{ id: string; name: string; canvas_json: unknown; preview_image: string | null; category_id: string | null } | null>(null);
+  const [recordVideos, setRecordVideos] = useState<{ id: string; name: string; url: string; type?: string }[]>([]);
+  const [recordPreviewVideo, setRecordPreviewVideo] = useState<{ id: string; name: string; url: string } | null>(null);
+  const videoRenderRafRef = useRef<number | null>(null);
+  const videoUploadInputRef = useRef<HTMLInputElement>(null);
+  const [showImageLoopModal, setShowImageLoopModal] = useState(false);
+  const [showImageLoopEditModal, setShowImageLoopEditModal] = useState(false);
+  const [imageLoopLibrary, setImageLoopLibrary] = useState<{ id: string; name: string; url: string; type: 'image' | 'video' }[]>([]);
+  const [imageLoopSelectedIds, setImageLoopSelectedIds] = useState<Set<string>>(new Set());
+  const [imageLoopEditItems, setImageLoopEditItems] = useState<{ id: string; name: string; url: string; type: 'image' | 'video'; durationSeconds: number; bgRemove: boolean; text: string; transition: string }[]>([]);
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [saveDestinationModalOpen, setSaveDestinationModalOpen] = useState(false);
@@ -141,6 +228,18 @@ export default function SistemPage() {
   const canvasDimsRef = useRef({ w: 1920, h: 1080 });
   useEffect(() => { bgColorRef.current = bgColor; }, [bgColor]);
   useEffect(() => { canvasDimsRef.current = { w: 1920, h: 1080 }; }, []);
+  useEffect(() => {
+    const links: HTMLLinkElement[] = [];
+    GOOGLE_FONT_CHUNKS.forEach((chunk, i) => {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = getGoogleFontsUrl(chunk);
+      link.dataset.fontChunk = String(i);
+      document.head.appendChild(link);
+      links.push(link);
+    });
+    return () => links.forEach((l) => l.remove());
+  }, []);
 
   const BACKGROUND_PRESETS = ['#FFFFFF', '#F3F4F6', '#E5E7EB', '#D1D5DB', '#9CA3AF', '#4B5563', '#1F2937', '#0F172A', '#000000'];
 
@@ -474,7 +573,9 @@ export default function SistemPage() {
       .then((r) => r.json())
       .then((tpl: { id?: string; name?: string; canvas_json?: object }) => {
         if (!tpl?.canvas_json || typeof tpl.canvas_json !== 'object') return;
-        c.loadFromJSON(tpl.canvas_json as object).then(() => {
+        const raw = tpl.canvas_json as Record<string, unknown>;
+        const safe = sanitizeCanvasJsonForFabric(raw) as object;
+        c.loadFromJSON(safe).then(() => {
           constrainAllObjects(c);
           c.renderAll();
           if (tpl.name) setDesignTitle(tpl.name);
@@ -586,6 +687,16 @@ export default function SistemPage() {
   }, [leftTab]);
 
   useEffect(() => {
+    if (leftTab !== 'record') return;
+    apiClient('/content-library?type=video')
+      .then((data) => {
+        const arr = Array.isArray(data) ? data : [];
+        setRecordVideos(arr.map((r: { id: string; name?: string; url?: string; type?: string }) => ({ id: r.id, name: String(r.name ?? ''), url: String(r.url ?? ''), type: r.type ?? 'video' })));
+      })
+      .catch(() => setRecordVideos([]));
+  }, [leftTab]);
+
+  useEffect(() => {
     if (leftTab !== 'media') return;
     setMediaLibraryLoading(true);
     apiClient('/content-library?type=image')
@@ -605,6 +716,14 @@ export default function SistemPage() {
   useEffect(() => {
     const onUpdate = () => {
       refreshUploadsList();
+      if (leftTab === 'record') {
+        apiClient('/content-library?type=video')
+          .then((data) => {
+            const arr = Array.isArray(data) ? data : [];
+            setRecordVideos(arr.map((r: { id: string; name?: string; url?: string; type?: string }) => ({ id: r.id, name: String(r.name ?? ''), url: String(r.url ?? ''), type: r.type ?? 'video' })));
+          })
+          .catch(() => {});
+      }
       if (leftTab === 'media') {
         apiClient('/content-library?type=image')
           .then((data) => {
@@ -1181,6 +1300,70 @@ export default function SistemPage() {
     }
   }, [refreshLayers]);
 
+  const addVideoToCanvas = useCallback(async (url: string) => {
+    const canvas = fabricCanvasRef.current;
+    if (!canvas) return;
+    try {
+      const fabric = await import('fabric');
+      const cw = (canvas as { width?: number }).width ?? 1920;
+      const ch = (canvas as { height?: number }).height ?? 1080;
+      const video = document.createElement('video');
+      video.muted = true;
+      video.loop = true;
+      video.playsInline = true;
+      video.setAttribute('playsinline', '');
+      video.preload = 'auto';
+      video.crossOrigin = 'anonymous';
+      await new Promise<void>((resolve, reject) => {
+        video.onloadedmetadata = () => resolve();
+        video.onerror = () => reject(new Error('Video yüklenemedi'));
+        video.src = url;
+      });
+      const vw = video.videoWidth || 1920;
+      const vh = video.videoHeight || 1080;
+      video.width = vw;
+      video.height = vh;
+      const img = new fabric.FabricImage(video as unknown as HTMLImageElement, {
+        left: cw / 2,
+        top: ch / 2,
+        originX: 'center',
+        originY: 'center',
+      });
+      canvas.add(img);
+      canvas.sendObjectToBack(img);
+      img.setCoords();
+      fitObjectToCanvas(img, cw, ch, { fullArea: true });
+      constrainObjectToCanvas(img, cw, ch);
+      canvas.sendObjectToBack(img);
+      canvas.setActiveObject(img);
+      canvas.requestRenderAll();
+      pushHistoryRef.current();
+      setSaved(false);
+      refreshLayers();
+      saveDraftRef.current();
+      (img.getElement() as HTMLVideoElement)?.play?.();
+      if (videoRenderRafRef.current == null) {
+        const loop = () => {
+          videoRenderRafRef.current = requestAnimationFrame(loop);
+          fabricCanvasRef.current?.requestRenderAll();
+        };
+        loop();
+      }
+    } catch (e) {
+      console.error('Video ekleme hatası:', e);
+      toast.showError('Video eklenemedi.');
+    }
+  }, [refreshLayers, toast]);
+
+  useEffect(() => {
+    return () => {
+      if (videoRenderRafRef.current != null) {
+        cancelAnimationFrame(videoRenderRafRef.current);
+        videoRenderRafRef.current = null;
+      }
+    };
+  }, []);
+
   const handleUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files?.length) return;
@@ -1220,6 +1403,43 @@ export default function SistemPage() {
     e.target.value = '';
   }, [addImageFromUrl, refreshUploadsList]);
 
+  const handleVideoUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files?.length) return;
+    const formData = new FormData();
+    for (let i = 0; i < files.length; i++) formData.append('files', files[i]);
+    try {
+      const res = await fetch('/api/upload', { method: 'POST', body: formData });
+      const data = await res.json();
+      const assets = data?.assets ?? data?.data ?? [];
+      for (let i = 0; i < assets.length; i++) {
+        const a = assets[i];
+        if (a?.src) {
+          try {
+            const f = files[i];
+            const baseName = f?.name ? f.name.replace(/\.[^/.]+$/, '') : 'Video';
+            await apiClient('/content-library', {
+              method: 'POST',
+              body: { name: baseName || 'Video', category: 'food', type: 'video', url: a.src, display_order: 0 },
+            });
+            if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('content-library-updated'));
+          } catch {
+            toast.showError('Video kütüphaneye eklenemedi.');
+          }
+        }
+      }
+      apiClient('/content-library?type=video')
+        .then((data) => {
+          const arr = Array.isArray(data) ? data : [];
+          setRecordVideos(arr.map((r: { id: string; name?: string; url?: string; type?: string }) => ({ id: r.id, name: String(r.name ?? ''), url: String(r.url ?? ''), type: r.type ?? 'video' })));
+        })
+        .catch(() => {});
+    } catch {
+      toast.showError('Video yükleme başarısız.');
+    }
+    e.target.value = '';
+  }, [toast]);
+
   const updateTextContent = useCallback((text: string) => {
     const canvas = fabricCanvasRef.current;
     const active = canvas?.getActiveObject();
@@ -1256,6 +1476,15 @@ export default function SistemPage() {
     setSelectedProps((p) => ({ ...p, [key]: value }));
     setSaved(false);
     saveDraftRef.current();
+    // Google Fonts asenkron yüklenir; font seçildiğinde yüklenene kadar bekle, sonra canvas'ı yeniden çiz
+    if (key === 'fontFamily' && typeof value === 'string' && value && typeof document?.fonts?.load === 'function') {
+      const fontSize = (active as { fontSize?: number }).fontSize ?? 36;
+      const fontSpec = `${fontSize}px "${value}"`;
+      document.fonts.load(fontSpec).then(() => {
+        fabricCanvasRef.current?.requestRenderAll();
+      }).catch(() => {});
+      setTimeout(() => fabricCanvasRef.current?.requestRenderAll(), 800);
+    }
   }, []);
 
   const applyGradient = useCallback(async (cssGradient: string) => {
@@ -1521,12 +1750,12 @@ export default function SistemPage() {
   const leftTabs: { id: LeftTab; label: string; Icon: typeof Upload }[] = [
     { id: 'uploads', label: 'Yüklemelerim', Icon: Upload },
     { id: 'templates', label: 'Şablonlar', Icon: LayoutTemplate },
+    { id: 'record', label: 'video yop', Icon: CircleDot },
     { id: 'media', label: 'Medya', Icon: Image },
     { id: 'text', label: 'Metin', Icon: Type },
     { id: 'ai', label: 'AI', Icon: Sparkles },
     { id: 'background', label: 'Arka Plan', Icon: Palette },
     { id: 'layout', label: 'Yerleşim', Icon: Grid3X3 },
-    { id: 'record', label: 'Kayıt', Icon: CircleDot },
     { id: 'more', label: 'Daha Fazla', Icon: MoreHorizontal },
   ];
 
@@ -1631,7 +1860,7 @@ export default function SistemPage() {
         </aside>
 
         {/* Left panel content */}
-        <div className={`w-64 shrink-0 bg-background border-r border overflow-y-auto ${showTvPreviewModal ? 'hidden' : ''}`}>
+        <div className={`w-64 shrink-0 bg-background border-r border flex flex-col min-h-0 overflow-y-auto ${showTvPreviewModal ? 'hidden' : ''}`}>
           {leftTab === 'text' && (
             <div className="p-4 space-y-4">
               <button onClick={addText} className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-gray-800 text-white rounded text-sm hover:bg-gray-700">
@@ -1735,25 +1964,7 @@ export default function SistemPage() {
                     {templates.map((tpl) => (
                       <button
                         key={tpl.id}
-                        onClick={async () => {
-                          const c = fabricCanvasRef.current;
-                          if (!c || !tpl.canvas_json) return;
-                          try {
-                            const fabric = await import('fabric');
-                            c.loadFromJSON(tpl.canvas_json as object).then(() => {
-                              c!.setDimensions({ width: 1920, height: 1080 });
-                              constrainAllObjects(c!);
-                              c!.renderAll();
-                              setDesignTitle(tpl.name ?? '');
-                              pushHistoryRef.current();
-                              setSaved(false);
-                              refreshLayers();
-                              saveDraftRef.current();
-                            });
-                          } catch (e) {
-                            console.error('Template load error:', e);
-                          }
-                        }}
+                        onClick={() => setTemplatePreviewItem(tpl)}
                         className="w-full text-left p-2 rounded border border-gray-200 hover:bg-gray-50 text-sm"
                       >
                         {tpl.preview_image ? (
@@ -1836,6 +2047,431 @@ export default function SistemPage() {
               )}
             </div>
           )}
+          {templatePreviewItem && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onClick={() => setTemplatePreviewItem(null)}>
+              <div className="bg-background rounded-lg shadow-xl border max-w-lg w-full overflow-hidden" onClick={(e) => e.stopPropagation()}>
+                <div className="p-3">
+                  <p className="text-sm font-medium text-foreground truncate mb-2">{templatePreviewItem.name}</p>
+                  <div className="aspect-video rounded border border-gray-200 overflow-hidden bg-black mb-3">
+                    {templatePreviewItem.preview_image ? (
+                      <img src={templatePreviewItem.preview_image} alt={templatePreviewItem.name} className="w-full h-full object-contain" />
+                    ) : templatePreviewItem.canvas_json && typeof templatePreviewItem.canvas_json === 'object' ? (
+                      <div className="w-full h-full min-h-[200px]">
+                        <FullEditorPreviewThumb canvasJson={templatePreviewItem.canvas_json as object} />
+                      </div>
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-gray-400">Önizleme yok</div>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={async () => {
+                        const c = fabricCanvasRef.current;
+                        if (!c || !templatePreviewItem.canvas_json || typeof templatePreviewItem.canvas_json !== 'object') {
+                          setTemplatePreviewItem(null);
+                          return;
+                        }
+                        try {
+                          const raw = templatePreviewItem.canvas_json as Record<string, unknown>;
+                          const safe = sanitizeCanvasJsonForFabricWithVideoRestore(raw);
+                          const reviver = (serialized: Record<string, unknown>, instance: Record<string, unknown>) => {
+                            if (serialized?.__videoSrc != null) (instance as Record<string, unknown>).__videoSrc = serialized.__videoSrc;
+                          };
+                          await c.loadFromJSON(safe as object, reviver as (o: Record<string, unknown>, obj: import('fabric').FabricObject) => void);
+                          c.setDimensions({ width: 1920, height: 1080 });
+                          constrainAllObjects(c);
+                          const cw = (c as { width?: number }).width ?? 1920;
+                          const ch = (c as { height?: number }).height ?? 1080;
+                          await restoreVideoObjectsInCanvas(c, cw, ch, () => {
+                            if (videoRenderRafRef.current == null) {
+                              const loop = () => {
+                                videoRenderRafRef.current = requestAnimationFrame(loop);
+                                fabricCanvasRef.current?.requestRenderAll();
+                              };
+                              loop();
+                            }
+                          });
+                          c.renderAll();
+                          setDesignTitle(templatePreviewItem.name ?? '');
+                          pushHistoryRef.current();
+                          setSaved(false);
+                          refreshLayers();
+                          saveDraftRef.current();
+                          setTemplatePreviewItem(null);
+                          toast.showSuccess('Şablon uygulandı.');
+                        } catch (err: unknown) {
+                          console.error('Template load error:', err);
+                          toast.showError('Bu şablon yüklenemedi. Videolu şablonlar şu an desteklenmiyor; lütfen videolu olmayan bir şablon seçin veya yeni tasarımda videoyu kendiniz ekleyin.');
+                        }
+                      }}
+                      className="flex-1 py-2 px-3 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700"
+                    >
+                      Kullan
+                    </button>
+                    <button
+                      onClick={() => setTemplatePreviewItem(null)}
+                      className="flex-1 py-2 px-3 border border-gray-300 rounded text-sm font-medium hover:bg-foreground/5"
+                    >
+                      Kapat
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          {showImageLoopModal && !showImageLoopEditModal && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onClick={() => setShowImageLoopModal(false)}>
+              <div className="bg-background rounded-lg shadow-xl border max-w-3xl w-full max-h-[85vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+                <div className="p-3 border-b flex items-center justify-between shrink-0">
+                  <h3 className="text-sm font-semibold text-foreground">Resim / Video Seçin</h3>
+                  <button onClick={() => setShowImageLoopModal(false)} className="p-1 hover:bg-foreground/10 rounded">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                <div className="flex-1 min-h-0 flex overflow-hidden">
+                  <div className="w-2/3 p-3 overflow-y-auto border-r space-y-4">
+                    <p className="text-xs text-muted">Birden fazla resim veya video seçebilirsiniz.</p>
+                    {imageLoopLibrary.filter((i) => i.type === 'image').length > 0 && (
+                      <div>
+                        <h4 className="text-xs font-semibold text-foreground mb-2">Resimler</h4>
+                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                          {imageLoopLibrary.filter((i) => i.type === 'image').map((item) => {
+                            const sel = imageLoopSelectedIds.has(item.id);
+                            return (
+                              <div
+                                key={item.id}
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => setImageLoopSelectedIds((prev) => {
+                                  const next = new Set(prev);
+                                  if (next.has(item.id)) next.delete(item.id);
+                                  else next.add(item.id);
+                                  return next;
+                                })}
+                                onKeyDown={(e) => e.key === 'Enter' && (e.currentTarget as HTMLDivElement).click()}
+                                className={`rounded border overflow-hidden flex flex-col cursor-pointer transition-all hover:ring-2 hover:ring-blue-500 ${sel ? 'ring-2 ring-blue-500 border-blue-500' : 'border-gray-200'}`}
+                              >
+                                <div className="aspect-video relative bg-black">
+                                  <img src={item.url} alt={item.name} className="w-full h-full object-contain" />
+                                  {sel && (
+                                    <div className="absolute inset-0 flex items-center justify-center bg-blue-500/30">
+                                      <Check className="w-8 h-8 text-white" strokeWidth={3} />
+                                    </div>
+                                  )}
+                                </div>
+                                <span className="text-[10px] text-muted truncate px-1.5 py-1 text-center block" title={item.name}>{item.name}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    {imageLoopLibrary.filter((i) => i.type === 'video').length > 0 && (
+                      <div>
+                        <h4 className="text-xs font-semibold text-foreground mb-2">Videolar</h4>
+                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                          {imageLoopLibrary.filter((i) => i.type === 'video').map((item) => {
+                            const sel = imageLoopSelectedIds.has(item.id);
+                            return (
+                              <div
+                                key={item.id}
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => setImageLoopSelectedIds((prev) => {
+                                  const next = new Set(prev);
+                                  if (next.has(item.id)) next.delete(item.id);
+                                  else next.add(item.id);
+                                  return next;
+                                })}
+                                onKeyDown={(e) => e.key === 'Enter' && (e.currentTarget as HTMLDivElement).click()}
+                                className={`rounded border overflow-hidden flex flex-col cursor-pointer transition-all hover:ring-2 hover:ring-blue-500 ${sel ? 'ring-2 ring-blue-500 border-blue-500' : 'border-gray-200'}`}
+                              >
+                                <div className="aspect-video relative bg-black">
+                                  <video src={item.url} className="w-full h-full object-contain" muted playsInline preload="metadata" />
+                                  {sel && (
+                                    <div className="absolute inset-0 flex items-center justify-center bg-blue-500/30">
+                                      <Check className="w-8 h-8 text-white" strokeWidth={3} />
+                                    </div>
+                                  )}
+                                </div>
+                                <span className="text-[10px] text-muted truncate px-1.5 py-1 text-center block" title={item.name}>{item.name}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    {imageLoopLibrary.length === 0 && (
+                      <p className="text-xs text-muted py-4">Kütüphanede resim veya video bulunamadı. Medya veya Video sekmesinden ekleyin.</p>
+                    )}
+                  </div>
+                  <div className="w-1/3 p-3 flex flex-col gap-2 min-h-0">
+                    <p className="text-xs text-muted shrink-0">Seçilen: {imageLoopSelectedIds.size} öğe</p>
+                    <div className="flex-1 min-h-0 overflow-y-auto space-y-2">
+                      {imageLoopLibrary
+                        .filter((i) => imageLoopSelectedIds.has(i.id))
+                        .map((item) => (
+                          <div key={item.id} className="flex gap-2 items-center rounded border p-1.5 bg-foreground/5">
+                            <div className="w-12 h-9 rounded overflow-hidden bg-black shrink-0">
+                              {item.type === 'image' ? (
+                                <img src={item.url} alt={item.name} className="w-full h-full object-contain" />
+                              ) : (
+                                <video src={item.url} className="w-full h-full object-contain" muted playsInline preload="metadata" />
+                              )}
+                            </div>
+                            <span className="text-[10px] text-foreground truncate flex-1 min-w-0" title={item.name}>{item.name}</span>
+                            <button
+                              onClick={() => setImageLoopSelectedIds((prev) => {
+                                const next = new Set(prev);
+                                next.delete(item.id);
+                                return next;
+                              })}
+                              className="shrink-0 p-0.5 hover:bg-red-500/20 rounded text-red-500"
+                              title="Seçimden kaldır"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                    </div>
+                    <button
+                      onClick={() => {
+                        if (imageLoopSelectedIds.size === 0) return;
+                        const items = imageLoopLibrary.filter((i) => imageLoopSelectedIds.has(i.id));
+                        setImageLoopEditItems(items.map((it) => ({
+                          id: it.id,
+                          name: it.name,
+                          url: it.url,
+                          type: it.type,
+                          durationSeconds: it.type === 'video' ? 10 : 5,
+                          bgRemove: false,
+                          text: '',
+                          transition: 'fade',
+                        })));
+                        setShowImageLoopEditModal(true);
+                      }}
+                      disabled={imageLoopSelectedIds.size === 0}
+                      className="w-full py-2 px-3 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Düzenle
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          {showImageLoopEditModal && (
+            <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4" onClick={() => setShowImageLoopEditModal(false)}>
+              <div className="bg-background rounded-lg shadow-xl border max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+                <div className="p-3 border-b flex items-center justify-between shrink-0">
+                  <h3 className="text-sm font-semibold text-foreground">Döngü Ayarları</h3>
+                  <button onClick={() => setShowImageLoopEditModal(false)} className="p-1 hover:bg-foreground/10 rounded">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-4">
+                  {imageLoopEditItems.map((item, idx) => (
+                    <div key={item.id} className="rounded border p-3 space-y-2">
+                      <div className="flex gap-2 items-start">
+                        <div className="w-20 h-14 rounded overflow-hidden bg-black shrink-0">
+                          {item.type === 'image' ? (
+                            <img src={item.url} alt={item.name} className="w-full h-full object-contain" />
+                          ) : (
+                            <video src={item.url} className="w-full h-full object-contain" muted playsInline preload="metadata" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium truncate">{item.name}</p>
+                          <p className="text-[10px] text-muted">{item.type === 'image' ? 'Resim' : 'Video'}</p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <label className="flex flex-col gap-1">
+                          <span className="text-muted">Gösterim süresi (sn)</span>
+                          <input
+                            type="number"
+                            min={1}
+                            max={120}
+                            value={item.durationSeconds}
+                            onChange={(e) => setImageLoopEditItems((prev) => prev.map((it, i) => i === idx ? { ...it, durationSeconds: Math.max(1, Math.min(120, Number(e.target.value) || 5)) } : it))}
+                            className="px-2 py-1.5 border rounded"
+                          />
+                        </label>
+                        <label className="flex flex-col gap-1">
+                          <span className="text-muted">Geçiş efekti</span>
+                          <select
+                            value={item.transition}
+                            onChange={(e) => setImageLoopEditItems((prev) => prev.map((it, i) => i === idx ? { ...it, transition: e.target.value } : it))}
+                            className="px-2 py-1.5 border rounded"
+                          >
+                            <option value="none">Yok</option>
+                            <option value="fade">Soluklaşma</option>
+                            <option value="slide-left">Sola kayma</option>
+                            <option value="slide-right">Sağa kayma</option>
+                            <option value="slide-up">Yukarı kayma</option>
+                            <option value="slide-down">Aşağı kayma</option>
+                            <option value="zoom">Yakınlaşma</option>
+                          </select>
+                        </label>
+                      </div>
+                      {item.type === 'image' && (
+                        <label className="flex items-center gap-2 text-xs">
+                          <input
+                            type="checkbox"
+                            checked={item.bgRemove}
+                            onChange={(e) => setImageLoopEditItems((prev) => prev.map((it, i) => i === idx ? { ...it, bgRemove: e.target.checked } : it))}
+                            className="rounded"
+                          />
+                          <span>Arka plan kaldır</span>
+                        </label>
+                      )}
+                      <label className="flex flex-col gap-1 text-xs">
+                        <span className="text-muted">Üzerine yazı</span>
+                        <input
+                          type="text"
+                          placeholder="Metin ekle…"
+                          value={item.text}
+                          onChange={(e) => setImageLoopEditItems((prev) => prev.map((it, i) => i === idx ? { ...it, text: e.target.value } : it))}
+                          className="px-2 py-1.5 border rounded"
+                        />
+                      </label>
+                    </div>
+                  ))}
+                </div>
+                <div className="p-3 border-t flex gap-2 shrink-0">
+                  <button
+                    onClick={() => { setShowImageLoopEditModal(false); setShowImageLoopModal(false); }}
+                    className="flex-1 py-2 px-3 border rounded text-sm font-medium hover:bg-foreground/5"
+                  >
+                    İptal
+                  </button>
+                  <button
+                    onClick={async () => {
+                      const canvas = fabricCanvasRef.current;
+                      if (!canvas) return;
+                      const cw = (canvas as { width?: number }).width ?? 1920;
+                      const ch = (canvas as { height?: number }).height ?? 1080;
+                      const fabric = await import('fabric');
+                      for (let i = 0; i < imageLoopEditItems.length; i++) {
+                        const it = imageLoopEditItems[i];
+                        let url = it.url;
+                        if (it.type === 'image' && it.bgRemove) {
+                          try {
+                            let src = url;
+                            if (typeof window !== 'undefined' && src.startsWith('/') && !src.startsWith('//')) src = `${window.location.origin}${src}`;
+                            try {
+                              const data = await apiClient('/ai/remove-background', { method: 'POST', body: { image: src } });
+                              url = (data as { dataUrl?: string })?.dataUrl ?? url;
+                            } catch (e: unknown) {
+                              const useBrowser = (e as { status?: number })?.status === 501;
+                              if (useBrowser) {
+                                const { removeBackgroundInBrowser } = await import('@/lib/remove-background-browser');
+                                url = await removeBackgroundInBrowser(src);
+                              } else throw e;
+                            }
+                          } catch { /* skip bg remove */ }
+                        }
+                        if (it.type === 'image') {
+                          const img = await fabric.FabricImage.fromURL(url, { crossOrigin: 'anonymous' });
+                          img.set({ left: cw / 2 + i * 40, top: ch / 2 + i * 40, originX: 'center', originY: 'center' });
+                          canvas.add(img);
+                          canvas.sendObjectToBack(img);
+                          img.setCoords();
+                          fitObjectToCanvas(img, cw, ch, { fullArea: true });
+                          constrainObjectToCanvas(img, cw, ch);
+                          canvas.sendObjectToBack(img);
+                          if (it.text.trim()) {
+                            const t = new fabric.FabricText(it.text, { fontSize: 48, fill: '#ffffff', fontFamily: 'sans-serif', left: cw / 2 + i * 40, top: ch / 2 + i * 40 + 200, originX: 'center', originY: 'center' });
+                            canvas.add(t);
+                            canvas.bringObjectToFront(t);
+                          }
+                        } else {
+                          const videoUrl = it.url;
+                          const video = document.createElement('video');
+                          video.muted = true;
+                          video.loop = true;
+                          video.playsInline = true;
+                          video.setAttribute('playsinline', '');
+                          video.preload = 'auto';
+                          video.crossOrigin = 'anonymous';
+                          await new Promise<void>((res, rej) => { video.onloadedmetadata = () => res(); video.onerror = () => rej(new Error('Video yüklenemedi')); video.src = videoUrl; });
+                          const vw = video.videoWidth || 1920;
+                          const vh = video.videoHeight || 1080;
+                          video.width = vw;
+                          video.height = vh;
+                          const img = new fabric.FabricImage(video as unknown as HTMLImageElement, { left: cw / 2 + i * 40, top: ch / 2 + i * 40, originX: 'center', originY: 'center' });
+                          canvas.add(img);
+                          canvas.sendObjectToBack(img);
+                          img.setCoords();
+                          fitObjectToCanvas(img, cw, ch, { fullArea: true });
+                          constrainObjectToCanvas(img, cw, ch);
+                          canvas.sendObjectToBack(img);
+                          (img.getElement() as HTMLVideoElement)?.play?.();
+                          if (videoRenderRafRef.current == null) {
+                            const loop = () => { videoRenderRafRef.current = requestAnimationFrame(loop); fabricCanvasRef.current?.requestRenderAll(); };
+                            loop();
+                          }
+                          if (it.text.trim()) {
+                            const t = new fabric.FabricText(it.text, { fontSize: 48, fill: '#ffffff', fontFamily: 'sans-serif', left: cw / 2 + i * 40, top: ch / 2 + i * 40 + 200, originX: 'center', originY: 'center' });
+                            canvas.add(t);
+                            canvas.bringObjectToFront(t);
+                          }
+                        }
+                      }
+                      pushHistoryRef.current();
+                      setSaved(false);
+                      refreshLayers();
+                      saveDraftRef.current();
+                      setShowImageLoopEditModal(false);
+                      setShowImageLoopModal(false);
+                      toast.showSuccess(`${imageLoopEditItems.length} öğe canvas'a eklendi.`);
+                    }}
+                    className="flex-1 py-2 px-3 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700"
+                  >
+                    Canvas&apos;a Ekle
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+          {recordPreviewVideo && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onClick={() => setRecordPreviewVideo(null)}>
+              <div className="bg-background rounded-lg shadow-xl border max-w-sm w-full overflow-hidden" onClick={(e) => e.stopPropagation()}>
+                <div className="p-3">
+                  <p className="text-sm font-medium text-foreground truncate mb-2">{recordPreviewVideo.name}</p>
+                  <div className="aspect-video rounded border border-gray-200 overflow-hidden bg-black mb-3">
+                    <video
+                      key={recordPreviewVideo.id}
+                      src={recordPreviewVideo.url}
+                      className="w-full h-full object-contain"
+                      muted
+                      playsInline
+                      autoPlay
+                      loop
+                      preload="auto"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        addVideoToCanvas(recordPreviewVideo.url);
+                        setRecordPreviewVideo(null);
+                      }}
+                      className="flex-1 py-2 px-3 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700"
+                    >
+                      Kullan
+                    </button>
+                    <button
+                      onClick={() => setRecordPreviewVideo(null)}
+                      className="flex-1 py-2 px-3 border border-gray-300 rounded text-sm font-medium hover:bg-foreground/5"
+                    >
+                      Kapat
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
           {leftTab === 'uploads' && (
             <div className="p-4 space-y-3">
               <h3 className="text-sm font-semibold text-foreground">Yüklemelerim</h3>
@@ -1881,19 +2517,84 @@ export default function SistemPage() {
               </button>
               <p className="text-xs text-muted">Tüm tasarımı 16:9 alana sığdırır. Önizleme ve TV yayını ile birebir aynı olur.</p>
               <button onClick={() => document.getElementById('canvas-size-section')?.scrollIntoView({ behavior: 'smooth' })} className="w-full py-2 px-3 text-sm border rounded hover:bg-foreground/5">Canvas Boyutuna Git</button>
+              <button
+                onClick={async () => {
+                  setShowImageLoopModal(true);
+                  try {
+                    const [imgRes, vidRes] = await Promise.all([
+                      apiClient('/content-library?type=image'),
+                      apiClient('/content-library?type=video'),
+                    ]);
+                    const images = Array.isArray(imgRes) ? imgRes : (imgRes as { data?: unknown[] })?.data ?? [];
+                    const videos = Array.isArray(vidRes) ? vidRes : (vidRes as { data?: unknown[] })?.data ?? [];
+                    const lib = [
+                      ...(Array.isArray(images) ? images : []).map((r: { id: string; name?: string; url?: string }) => ({
+                        id: r.id,
+                        name: String(r.name ?? ''),
+                        url: String(r.url ?? ''),
+                        type: 'image' as const,
+                      })),
+                      ...(Array.isArray(videos) ? videos : []).map((r: { id: string; name?: string; url?: string }) => ({
+                        id: r.id,
+                        name: String(r.name ?? ''),
+                        url: String(r.url ?? ''),
+                        type: 'video' as const,
+                      })),
+                    ];
+                    setImageLoopLibrary(lib);
+                    setImageLoopSelectedIds(new Set());
+                  } catch {
+                    setImageLoopLibrary([]);
+                  }
+                }}
+                className="w-full flex items-center justify-center gap-2 py-2 px-3 text-sm border rounded hover:bg-foreground/5"
+              >
+                <Repeat className="w-4 h-4" /> Resim Döngüsü
+              </button>
             </div>
           )}
           {leftTab === 'record' && (
-            <div className="p-4 space-y-3">
-              <h3 className="text-sm font-semibold text-foreground">Kayıt</h3>
-              <button
-                onClick={() => { setSaveName(designTitle); if (isAdmin) setSaveDestinationModalOpen(true); else setSaveDialogOpen(true); }}
-                disabled={saving}
-                className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-blue-800 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50"
-              >
-                {saving ? 'Kaydediliyor…' : 'Tasarımı Kaydet'}
-              </button>
-              {savedTemplateId && <p className="text-xs text-green-600">Son kayıt başarılı.</p>}
+            <div className="flex flex-col flex-1 min-h-0 p-4">
+              <div className="shrink-0 space-y-3">
+                <h3 className="text-sm font-semibold text-foreground">video yop</h3>
+                <input ref={videoUploadInputRef} type="file" accept="video/*" multiple className="hidden" onChange={handleVideoUpload} />
+                <button
+                  onClick={() => videoUploadInputRef.current?.click()}
+                  className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-blue-800 text-white rounded-lg text-sm hover:bg-blue-700"
+                >
+                  Video yükle
+                </button>
+                <p className="text-xs text-muted">Sistemdeki videolar aşağıda listelenir.</p>
+              </div>
+              {recordVideos.length > 0 ? (
+                <div className="flex-1 min-h-0 overflow-y-auto mt-3">
+                  <div className="grid grid-cols-2 gap-2 pb-2">
+                    {recordVideos.map((v) => (
+                      <div
+                        key={v.id}
+                        role="button"
+                        tabIndex={0}
+                        className="rounded border border-gray-200 overflow-hidden bg-gray-900 flex flex-col cursor-pointer transition-all hover:ring-2 hover:ring-blue-500"
+                        onClick={() => setRecordPreviewVideo({ id: v.id, name: v.name, url: v.url })}
+                        onKeyDown={(e) => e.key === 'Enter' && (e.currentTarget as HTMLDivElement).click()}
+                      >
+                        <div className="aspect-video relative bg-black">
+                          <video
+                            src={v.url}
+                            className="w-full h-full object-contain"
+                            muted
+                            playsInline
+                            preload="metadata"
+                          />
+                        </div>
+                        <span className="text-[10px] text-muted truncate px-1.5 py-1 text-center block" title={v.name}>{v.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs text-muted mt-3 shrink-0">Sistemde henüz video yok. Video yükle ile ekleyebilirsiniz.</p>
+              )}
             </div>
           )}
           {leftTab === 'more' && (
@@ -2145,8 +2846,15 @@ export default function SistemPage() {
                   <div>
                     <label className="block text-xs text-muted mb-1">Font</label>
                     <select value={selectedProps.fontFamily ?? 'sans-serif'} onChange={(e) => updateTextProp('fontFamily', e.target.value)} className="w-full px-3 py-2 text-sm border rounded">
-                      {FONT_OPTIONS.slice(0, 24).map((f) => (
-                        <option key={f} value={f}>{f}</option>
+                      {!FONT_OPTIONS.includes(selectedProps.fontFamily ?? '') && selectedProps.fontFamily && (
+                        <option value={selectedProps.fontFamily ?? ''}>{selectedProps.fontFamily}</option>
+                      )}
+                      {FONT_GROUPS.map((group) => (
+                        <optgroup key={group.label} label={group.label}>
+                          {group.fonts.map((f) => (
+                            <option key={f} value={f}>{f}</option>
+                          ))}
+                        </optgroup>
                       ))}
                     </select>
                   </div>

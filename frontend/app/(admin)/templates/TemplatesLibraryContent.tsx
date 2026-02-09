@@ -408,27 +408,8 @@ export function TemplatesLibraryContent({
     try {
       setUseThisLoadingId(template.id);
       if (template.is_full_editor) {
-        const token = typeof window !== 'undefined' ? (sessionStorage.getItem('impersonation_token') || localStorage.getItem('auth_token')) : null;
-        const res = await fetch('/api/full-editor/templates/duplicate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-          body: JSON.stringify({
-            id: template.id,
-            name: `${template.display_name || template.name} ${t('editor_copy_suffix')}`,
-          }),
-        });
-        if (!res.ok) {
-          const j = await res.json().catch(() => ({}));
-          throw new Error((j as { message?: string; error?: string }).message || (j as { error?: string }).error || 'Template not found');
-        }
-        const newTemplate = await res.json();
-        const newId = newTemplate?.id;
-        if (newId) {
-          router.push(`${localePath('/sistem')}?templateId=${newId}`);
-        } else {
-          toast.showSuccess(t('templates_use_success'));
-          loadTemplates();
-        }
+        // "Bunu kullan" = sadece düzenleme modalında aç; Benim şablonlarıma ekleme. Kullanıcı "Kaydet" deyince kaydedilir.
+        router.push(`${localePath('/sistem')}?templateId=${template.id}`);
         return;
       }
       const newTemplate = await apiClient(`/templates/${template.id}/duplicate`, {

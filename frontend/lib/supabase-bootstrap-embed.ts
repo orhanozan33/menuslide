@@ -1432,6 +1432,11 @@ CHECK (transition_effect IN (
 
 COMMENT ON COLUMN screen_template_rotations.transition_effect IS 'Bu templatee geçerken kullanılacak efekt';
 
+-- transition_duration: geçiş animasyonu süresi (ms)
+ALTER TABLE screen_template_rotations
+ADD COLUMN IF NOT EXISTS transition_duration INTEGER DEFAULT 1400;
+COMMENT ON COLUMN screen_template_rotations.transition_duration IS 'Bu templatee geçiş animasyonu süresi (ms)';
+
 -- === migration-add-template-transition-effect.sql ===
 -- Template geçiş efekti: şablon değişiminde kullanılacak efekt (fade, slide-left, car-pull, curtain, flip, zoom, wipe)
 ALTER TABLE screens

@@ -87,17 +87,19 @@ export async function getScreenByToken(token: string, request: NextRequest): Pro
   // 3) Template rotations (template_id veya full_editor_template_id)
   const { data: rotations } = await supabase
     .from('screen_template_rotations')
-    .select('template_id, full_editor_template_id, template_type, display_duration, display_order')
+    .select('template_id, full_editor_template_id, template_type, display_duration, display_order, transition_effect, transition_duration')
     .eq('screen_id', screenId)
     .eq('is_active', true)
     .order('display_order', { ascending: true });
 
-  const templateRotations = (rotations || []).map((r: { template_id?: string | null; full_editor_template_id?: string | null; template_type?: string; display_duration?: number; display_order?: number }) => ({
+  const templateRotations = (rotations || []).map((r: { template_id?: string | null; full_editor_template_id?: string | null; template_type?: string; display_duration?: number; display_order?: number; transition_effect?: string; transition_duration?: number }) => ({
     template_id: r.template_id,
     full_editor_template_id: r.full_editor_template_id,
     template_type: r.template_type,
     display_duration: r.display_duration,
     display_order: r.display_order,
+    transition_effect: r.transition_effect ?? 'fade',
+    transition_duration: r.transition_duration ?? 1400,
     template_name: null,
     block_count: null,
   }));

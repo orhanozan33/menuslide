@@ -6,7 +6,7 @@ import { Stage, Layer, Group, Text, Image, Transformer, Rect } from 'react-konva
 import Konva from 'konva';
 import { apiClient } from '@/lib/api';
 import { useTranslation } from '@/lib/i18n/useTranslation';
-import { FONT_GROUPS, FONT_OPTIONS, TEXT_ICON_OPTIONS, GOOGLE_FONT_FAMILIES } from '@/lib/editor-fonts';
+import { FONT_GROUPS, FONT_OPTIONS, TEXT_ICON_OPTIONS, GOOGLE_FONT_CHUNKS, getGoogleFontsUrl } from '@/lib/editor-fonts';
 import { resolveMediaUrl } from '@/lib/resolveMediaUrl';
 
 function useImage(src: string | undefined, crossOrigin?: string): [HTMLImageElement | undefined] {
@@ -1335,14 +1335,18 @@ export default function CanvasDesignEditor({ templateId }: CanvasDesignEditorPro
 
   useEffect(() => {
     if (typeof document === 'undefined') return;
-    const id = 'google-fonts-canvas-editor';
-    if (document.getElementById(id)) return;
-    const link = document.createElement('link');
-    link.id = id;
-    link.rel = 'stylesheet';
-    link.href = `https://fonts.googleapis.com/css2?${GOOGLE_FONT_FAMILIES.map((f) => `family=${f}`).join('&')}&display=swap`;
-    document.head.appendChild(link);
-    return () => { link.remove(); };
+    const idPrefix = 'google-fonts-canvas-editor-';
+    if (document.getElementById(idPrefix + '0')) return;
+    const links: HTMLLinkElement[] = [];
+    GOOGLE_FONT_CHUNKS.forEach((chunk, i) => {
+      const link = document.createElement('link');
+      link.id = idPrefix + i;
+      link.rel = 'stylesheet';
+      link.href = getGoogleFontsUrl(chunk);
+      document.head.appendChild(link);
+      links.push(link);
+    });
+    return () => links.forEach((l) => l.remove());
   }, []);
 
   const toggleFontStyle = useCallback(
