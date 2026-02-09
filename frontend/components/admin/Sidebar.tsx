@@ -129,17 +129,21 @@ export default function Sidebar({ user, mobileOpen = false, onMobileClose }: Sid
     settings: 'settings',
   };
 
+  // Admin için yetki verilmemiş sayfalar varsayılan görünsün (sistem, full_editor – mevcut adminler görebilsin)
+  const adminDefaultVisibleKeys: Set<string> = new Set(['sistem', 'full_editor']);
+
   const filteredMenuItems = menuItems.filter(item => {
     const role = user?.role || '';
     if (!item.roles.includes(role)) return false;
     // Super admin: tüm menüyü görür
     if (role === 'super_admin') return true;
-    // Admin: sadece yetki verilen sayfalar sidebar'da görünsün (super admin hangi sayfa için yetki verdiyse o görünür)
+    // Admin: yetki verilen sayfalar görünsün; yetki yoksa sistem/full_editor varsayılan görünsün
     if (role === 'admin' && user?.admin_permissions) {
       const key = hrefToPermissionKey[item.href];
       if (key == null) return true; // whatsapp, how-to-use gibi eşlemesi yoksa göster
       const perm = user.admin_permissions[key];
       if (perm && typeof perm === 'object' && typeof (perm as Record<string, boolean>).view === 'boolean') return (perm as Record<string, boolean>).view === true;
+      if (adminDefaultVisibleKeys.has(key)) return true; // yetki tanımlı değilse Full Editor sayfaları varsayılan göster
       return false;
     }
     return true;

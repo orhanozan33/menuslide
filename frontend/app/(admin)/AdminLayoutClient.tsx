@@ -164,7 +164,8 @@ export default function AdminLayoutClient({
     if (pageKey == null) return;
     const pagePerm = perms[pageKey];
     const hasView = pagePerm && typeof pagePerm === 'object' && pagePerm.view === true;
-    if (!hasView) router.replace(localePath('/dashboard'));
+    const defaultAllowedKeys = ['sistem', 'full_editor'];
+    if (!hasView && !defaultAllowedKeys.includes(pageKey)) router.replace(localePath('/dashboard'));
   }, [user, pathname, router, localePath]);
 
   if (loading) {
