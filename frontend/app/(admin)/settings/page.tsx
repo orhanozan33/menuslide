@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { apiClient } from '@/lib/api';
+import { supabase } from '@/lib/supabase';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 import { useToast } from '@/lib/ToastContext';
 import { HOME_CHANNELS } from '@/lib/home-channels';
@@ -65,6 +66,8 @@ export default function SettingsPage() {
   const [tvAppConfigLoading, setTvAppConfigLoading] = useState(false);
   const [tvAppConfigSaving, setTvAppConfigSaving] = useState(false);
   const [showTvAppModal, setShowTvAppModal] = useState(false);
+  const [apkUploading, setApkUploading] = useState(false);
+  const apkInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadUser();
@@ -703,6 +706,65 @@ export default function SettingsPage() {
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"
                   placeholder="/downloads/Menuslide.apk"
                 />
+                <p className="text-xs text-gray-500 mt-1">{t('settings_tv_app_upload_blob_hint')}</p>
+                <div className="mt-2 flex items-center gap-2">
+                  <input
+                    ref={apkInputRef}
+                    type="file"
+                    accept=".apk"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const authToken = typeof window !== 'undefined' ? (sessionStorage.getItem('impersonation_token') || localStorage.getItem('auth_token')) : null;
+                      if (!authToken) {
+                        toast.showError(t('settings_tv_app_upload_error') + ' (Oturum gerekli)');
+                        return;
+                      }
+                      if (!supabase) {
+                        toast.showError(t('settings_tv_app_upload_error') + ' (Supabase yapılandırılmamış)');
+                        return;
+                      }
+                      setApkUploading(true);
+                      try {
+                        const tokenRes = await fetch('/api/admin/upload-apk-token', {
+                          headers: { Authorization: `Bearer ${authToken}` },
+                        });
+                        if (!tokenRes.ok) {
+                          const data = await tokenRes.json().catch(() => ({}));
+                          throw new Error(data.message || tokenRes.statusText);
+                        }
+                        const { path, token } = await tokenRes.json();
+                        const { error: uploadErr } = await supabase.storage.from('menuslide').uploadToSignedUrl(path, token, file, {
+                          contentType: 'application/vnd.android.package-archive',
+                          upsert: true,
+                        });
+                        if (uploadErr) throw new Error(uploadErr.message);
+                        const doneRes = await fetch('/api/admin/upload-apk-done', {
+                          method: 'POST',
+                          headers: { Authorization: `Bearer ${authToken}` },
+                        });
+                        if (!doneRes.ok) throw new Error('URL güncellenemedi');
+                        const { url } = await doneRes.json();
+                        setTvAppConfig((p) => ({ ...p, downloadUrl: url || '' }));
+                        toast.showSuccess(t('settings_tv_app_upload_success'));
+                      } catch (err) {
+                        toast.showError(t('settings_tv_app_upload_error') + (err instanceof Error ? `: ${err.message}` : ''));
+                      } finally {
+                        setApkUploading(false);
+                        e.target.value = '';
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => apkInputRef.current?.click()}
+                    disabled={apkUploading}
+                    className="px-3 py-1.5 text-sm bg-sky-600 text-white rounded-lg hover:bg-sky-700 disabled:opacity-50"
+                  >
+                    {apkUploading ? t('common_saving') : t('settings_tv_app_upload_blob')}
+                  </button>
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('settings_tv_app_watchdog')}</label>

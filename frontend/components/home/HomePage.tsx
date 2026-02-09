@@ -142,6 +142,16 @@ export function HomePage({ localePath }: HomePageProps) {
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [contactInfo, setContactInfo] = useState({ email: '', phone: '', address: '', whatsapp: '' });
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [downloadUrl, setDownloadUrl] = useState('/downloads/Menuslide.apk');
+
+  useEffect(() => {
+    fetch('/api/tv-app-config', { cache: 'no-store' })
+      .then((res) => res.json())
+      .then((data: { downloadUrl?: string }) => {
+        if (data.downloadUrl) setDownloadUrl(data.downloadUrl);
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     fetch('/api/home-channels', { cache: 'no-store' })
@@ -508,8 +518,10 @@ export function HomePage({ localePath }: HomePageProps) {
             {t('home_download_desc')}
           </p>
           <a
-            href="/downloads/Menuslide.apk"
-            download
+            href={downloadUrl}
+            download={downloadUrl.startsWith('/') ? 'Menuslide.apk' : undefined}
+            target={downloadUrl.startsWith('http') ? '_blank' : undefined}
+            rel={downloadUrl.startsWith('http') ? 'noopener noreferrer' : undefined}
             className="inline-flex items-center justify-center gap-2 font-semibold px-8 py-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-white shadow-xl shadow-emerald-500/25 transition-all touch-manipulation min-h-[52px]"
           >
             <svg className="w-6 h-6 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
