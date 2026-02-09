@@ -1742,42 +1742,6 @@ export default function SistemPage() {
                             const fabric = await import('fabric');
                             c.loadFromJSON(tpl.canvas_json as object).then(() => {
                               c!.setDimensions({ width: 1920, height: 1080 });
-                              c!.renderAll();
-                              const objs = c!.getObjects();
-                              if (objs.length > 0) {
-                                objs.forEach((o) => o.setCoords());
-                                const rects = objs.map((o) => o.getBoundingRect());
-                                let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-                                rects.forEach((r) => {
-                                  minX = Math.min(minX, r.left);
-                                  minY = Math.min(minY, r.top);
-                                  maxX = Math.max(maxX, r.left + r.width);
-                                  maxY = Math.max(maxY, r.top + r.height);
-                                });
-                                const cw = 1920;
-                                const ch = 1080;
-                                const contentW = Math.max(maxX - minX, 1);
-                                const contentH = Math.max(maxY - minY, 1);
-                                const centerX = (minX + maxX) / 2;
-                                const centerY = (minY + maxY) / 2;
-                                const scaleX = cw / contentW;
-                                const scaleY = ch / contentH;
-                                const s = Math.min(scaleX, scaleY);
-                                const newCenterX = cw / 2;
-                                const newCenterY = ch / 2;
-                                objs.forEach((obj, i) => {
-                                  const r = rects[i];
-                                  const objCenterX = r.left + r.width / 2;
-                                  const objCenterY = r.top + r.height / 2;
-                                  const oldScaleX = obj.scaleX ?? 1;
-                                  const oldScaleY = obj.scaleY ?? 1;
-                                  obj.set({ scaleX: oldScaleX * s, scaleY: oldScaleY * s, originX: 'center', originY: 'center' });
-                                  const dx = (objCenterX - centerX) * s;
-                                  const dy = (objCenterY - centerY) * s;
-                                  obj.set({ left: newCenterX + dx, top: newCenterY + dy });
-                                  obj.setCoords();
-                                });
-                              }
                               constrainAllObjects(c!);
                               c!.renderAll();
                               setDesignTitle(tpl.name ?? '');
