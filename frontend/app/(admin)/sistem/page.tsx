@@ -1884,6 +1884,11 @@ export default function SistemPage() {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA') return;
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault();
+        deleteSelected();
+        return;
+      }
       if ((e.ctrlKey || e.metaKey)) {
         if (e.key === 'z') { e.preventDefault(); undo(); }
         if (e.key === 'y') { e.preventDefault(); redo(); }
@@ -1891,7 +1896,7 @@ export default function SistemPage() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [undo, redo]);
+  }, [undo, redo, deleteSelected]);
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-background" style={{ top: 0, left: 0, right: 0, bottom: 0 }}>

@@ -73,8 +73,10 @@ const EmbedFitWrapper = React.forwardRef<HTMLDivElement, { children: React.React
       <style jsx global>{`
         .display-fade-in { animation: displayFadeIn 120ms ease-out forwards; }
         @keyframes displayFadeIn { from { opacity: 0; } to { opacity: 1; } }
-        /* TV/uygulama: sağ üst çıkış butonu gösterilmez */
-        [data-display-exit], .display-exit-button { display: none !important; }
+        /* TV/APK yayını: sağ üst çıkış butonu gösterilmez */
+        [data-display-exit], .display-exit-button,
+        [aria-label*="xit" i], [aria-label*="çık" i], [aria-label*="lose" i],
+        [title*="Tam ekrandan" i], [title*="exit" i] { display: none !important; }
       `}</style>
       <div
         className={fadeIn ? 'display-fade-in' : undefined}
