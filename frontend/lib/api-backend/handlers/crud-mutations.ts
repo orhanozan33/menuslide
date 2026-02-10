@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { randomBytes } from 'crypto';
+import * as bcrypt from 'bcryptjs';
 import { getServerSupabase } from '@/lib/supabase-server';
 import type { JwtPayload } from '@/lib/auth-server';
 import { useLocalDb, insertLocal, updateLocal, deleteLocal, mirrorToSupabase, queryOne, runLocal, getLocalPg, isSupabaseConfigured } from '@/lib/api-backend/db-local';
@@ -142,6 +143,12 @@ export async function createUser(request: NextRequest, user: JwtPayload): Promis
   const planId = body.plan_id as string | undefined;
   const bodyWithoutPlan = { ...body };
   delete bodyWithoutPlan.plan_id;
+  const rawPassword = typeof body.password === 'string' && body.password.length >= 6 ? body.password : undefined;
+  delete bodyWithoutPlan.password;
+  if (rawPassword) {
+    const passwordHash = await bcrypt.hash(rawPassword, 10);
+    (bodyWithoutPlan as Record<string, unknown>).password_hash = passwordHash;
+  }
 
   if (useLocalDb()) {
     const data = await insertLocal('users', bodyWithoutPlan);
@@ -214,6 +221,11 @@ export async function updateUser(id: string, request: NextRequest, user: JwtPayl
   delete bodyWithoutPerms.stop_reason;
   delete bodyWithoutPerms.is_active;
   delete bodyWithoutPerms.business_name;
+  const rawPassword = typeof body.password === 'string' && body.password.length >= 6 ? body.password : undefined;
+  delete bodyWithoutPerms.password;
+  if (rawPassword) {
+    (bodyWithoutPerms as Record<string, unknown>).password_hash = await bcrypt.hash(rawPassword, 10);
+  }
 
   const applyPlanAndBusiness = async () => {
     if (!planId && typeof isActive !== 'boolean' && businessName === undefined) return;

@@ -1161,7 +1161,9 @@ export default function SistemPage() {
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        const msg = err?.detail ? `${err?.error || 'Kaydetme başarısız'}: ${err.detail}` : (err?.error || 'Kaydetme başarısız');
+        const msg = res.status === 401
+          ? 'Oturum gerekli. Çıkış yapıp tekrar giriş yapın, sonra şablonu tekrar kaydedin.'
+          : (err?.detail ? `${err?.error || 'Kaydetme başarısız'}: ${err.detail}` : (err?.error || 'Kaydetme başarısız'));
         throw new Error(msg);
       }
       const data = await res.json().catch(() => ({}));
@@ -1174,7 +1176,7 @@ export default function SistemPage() {
       setOverwriteConfirm(null);
       setFileMenuOpen(false);
       refreshTemplates();
-      toast.showSuccess('Tasarım kaydedildi.');
+      toast.showSuccess(isAdmin ? 'Tasarım kaydedildi.' : `"${name.trim()}" benim şablonlarıma kaydedildi.`);
     } catch (e) {
       const errMsg = (e as Error).message || 'Kaydetme başarısız';
       if ((errMsg.includes('full_editor_templates') || errMsg.includes('schema cache')) && isAdmin) {
@@ -1968,7 +1970,7 @@ export default function SistemPage() {
             }}
             className="px-4 py-2 text-sm font-medium bg-blue-800 text-white rounded-lg hover:bg-blue-900"
           >
-            {isAdmin ? 'Kaydet ▾' : 'Kaydet'}
+            {isAdmin ? 'Kaydet ▾' : 'Şablonlarıma Kaydet'}
           </button>
         </div>
       </header>
@@ -3112,7 +3114,7 @@ export default function SistemPage() {
               ) : (
                 <div className="flex justify-end gap-2">
                   <button onClick={() => { setSaveDialogOpen(false); setOverwriteConfirm(null); }} disabled={saving} className="px-4 py-2 text-sm border rounded hover:bg-foreground/5">İptal</button>
-                  <button onClick={() => saveDesign()} disabled={saving || !saveName.trim()} className="px-4 py-2 text-sm bg-blue-800 text-white rounded hover:bg-blue-700 disabled:opacity-50">{saving ? 'Kaydediliyor…' : 'Kaydet'}</button>
+                  <button onClick={() => saveDesign()} disabled={saving || !saveName.trim()} className="px-4 py-2 text-sm bg-blue-800 text-white rounded hover:bg-blue-700 disabled:opacity-50">{saving ? 'Kaydediliyor…' : (isAdmin ? 'Kaydet' : 'Şablonlarıma Kaydet')}</button>
                 </div>
               )}
             </div>
