@@ -579,7 +579,7 @@ export default function DisplayPage() {
     const frameType = (displayData.screen as any)?.frame_type || 'none';
     const hideBottomFrame = !!tickerText;
     return (
-      <EmbedFitWrapper ref={displayContainerRef} fadeIn={justFinishedTransition}>
+      <EmbedFitWrapper ref={displayContainerRef}>
         <div className="fixed inset-0 flex flex-col bg-black overflow-hidden">
           <div className="flex-1 min-h-0 relative overflow-hidden">
             {/* Base layer - aynı tip şablonlar arasında remount yok (key=displayTypeKey) */}
@@ -647,6 +647,7 @@ export default function DisplayPage() {
               <div className="absolute inset-0 z-[100] pointer-events-none">
                 <TemplateTransition
                   inline
+                  nextOnly
                   effect={transitionEffect}
                   currentData={currentTemplateData}
                   nextData={nextTemplateData}
@@ -851,6 +852,7 @@ function TemplateTransition({
   duration,
   animationType,
   animationDuration,
+  nextOnly,
 }: {
   inline?: boolean;
   effect: string;
@@ -859,6 +861,8 @@ function TemplateTransition({
   duration: number;
   animationType: string;
   animationDuration: number;
+  /** true = sadece next katmanı (current = base layer, yeniden yükleme yok) */
+  nextOnly?: boolean;
 }) {
   const wrapClass = inline ? 'transition-wrap absolute inset-0 overflow-hidden' : 'transition-wrap fixed inset-0 overflow-hidden';
   return (
@@ -954,9 +958,11 @@ function TemplateTransition({
         @keyframes slideZoomIn { from { opacity: 0; transform: translateX(100%) scale(0.7); } to { opacity: 1; transform: translateX(0) scale(1); } }
       `}</style>
       <div className={wrapClass} data-effect={effect}>
-        <div className="transition-current">
-          <TemplateDisplay inline screenData={currentData as any} animationType={animationType} animationDuration={animationDuration} />
-        </div>
+        {!nextOnly && (
+          <div className="transition-current">
+            <TemplateDisplay inline screenData={currentData as any} animationType={animationType} animationDuration={animationDuration} />
+          </div>
+        )}
         <div className="transition-next">
           <TemplateDisplay inline screenData={nextData as any} animationType={animationType} animationDuration={animationDuration} />
         </div>
