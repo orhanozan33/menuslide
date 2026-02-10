@@ -54,6 +54,65 @@ function constrainAllObjects(canvas: { getObjects: () => import('fabric').Fabric
   canvas.getObjects().forEach((o) => constrainObjectToCanvas(o, cw, ch));
 }
 
+const TEXT_TYPES = ['text', 'i-text', 'textbox', 'Textbox'];
+const OVERLAP_GAP = 8;
+
+/** Tek satırlık (içinde \\n yok) Textbox genişliklerini metnin gerçek genişliğine çeker; yayında "LOREM IPSUM   $0.00" satır kırılmaz. */
+function ensureSingleLineTextboxWidths(canvas: import('fabric').Canvas) {
+  const visit = (objs: import('fabric').FabricObject[]) => {
+    for (const obj of objs) {
+      const g = obj as { type?: string; getObjects?: () => import('fabric').FabricObject[] };
+      if (g.type === 'group' && typeof g.getObjects === 'function') {
+        visit(g.getObjects());
+        continue;
+      }
+      const type = (obj as { type?: string }).type;
+      const text = (obj as { text?: string }).text;
+      if ((type === 'textbox' || type === 'Textbox') && typeof text === 'string' && text.indexOf('\n') === -1 && text.trim() !== '') {
+        const tb = obj as { width?: number; set: (key: string, value: number) => void; setCoords: () => void; getLineWidth?: (i: number) => number };
+        const currentWidth = tb.width ?? 0;
+        tb.set('width', 10000);
+        tb.setCoords();
+        if (typeof tb.getLineWidth === 'function') {
+          try {
+            const lineW = tb.getLineWidth(0);
+            if (lineW > 0) tb.set('width', Math.max(currentWidth, lineW + 12));
+          } catch {
+            /* ignore */
+          }
+        }
+        tb.setCoords();
+      }
+    }
+  };
+  visit(canvas.getObjects());
+}
+
+/** Üst üste binen metin nesnelerini ayırır (şablon yüklemeden sonra çağrılır) */
+function separateOverlappingTextObjects(canvas: import('fabric').Canvas) {
+  const objects = canvas.getObjects();
+  const textObjs = objects.filter((o) => TEXT_TYPES.includes((o as { type?: string }).type ?? '')) as import('fabric').FabricObject[];
+  if (textObjs.length < 2) return;
+  textObjs.forEach((o) => o.setCoords?.());
+  for (let i = 0; i < textObjs.length; i++) {
+    for (let j = i + 1; j < textObjs.length; j++) {
+      const a = textObjs[i];
+      const b = textObjs[j];
+      const r1 = a.getBoundingRect();
+      const r2 = b.getBoundingRect();
+      const overlapX = r1.left < r2.left + r2.width && r2.left < r1.left + r1.width;
+      const overlapY = r1.top < r2.top + r2.height && r2.top < r1.top + r1.height;
+      if (overlapX && overlapY) {
+        const moveDown = r1.top + r1.height + OVERLAP_GAP - r2.top;
+        if (moveDown > 0) {
+          (b as { set: (k: string, v: number) => void }).set('top', ((b as { top?: number }).top ?? 0) + moveDown);
+          b.setCoords?.();
+        }
+      }
+    }
+  }
+}
+
 function fitObjectToCanvas(obj: import('fabric').FabricObject, cw: number, ch: number, options?: { center?: boolean; fullArea?: boolean }) {
   const center = options?.center !== false;
   const fullArea = options?.fullArea === true;
@@ -273,6 +332,8 @@ export default function SistemPage() {
           fabricCanvas!.backgroundColor = savedBg;
           fabricCanvas!.setDimensions({ width: 1920, height: 1080 });
           constrainAllObjects(fabricCanvas!);
+          ensureSingleLineTextboxWidths(fabricCanvas!);
+          separateOverlappingTextObjects(fabricCanvas!);
           fabricCanvas!.renderAll();
           setSaved(true);
           pushHistory();
@@ -334,21 +395,17 @@ export default function SistemPage() {
         }
         else if (layout === '4x2-8') { for (let row=0;row<2;row++) for (let col=0;col<4;col++) addBlock(col*(cw/4), row*(ch/2), cw/4, ch/2); }
         else {
-          const defaultPhone = '+1 438 xxxxxxx';
           const defaultWebsite = 'www.menuslide.com';
-          let siteName = (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_SITE_NAME) || (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_APP_NAME) || 'Our Menu';
-          let contactLine = '';
+          let siteName = (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_SITE_NAME) || (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_APP_NAME) || 'Menu Slide';
+          let contactLine = defaultWebsite;
           try {
             const contactRes = await fetch('/api/contact-info', { cache: 'no-store' });
             const contactData = await contactRes.json().catch(() => ({}));
-            const phone = contactData.phone?.trim() || defaultPhone;
             const appUrl = (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_APP_URL) ? String(process.env.NEXT_PUBLIC_APP_URL).replace(/\/$/, '') : (typeof window !== 'undefined' ? window.location.origin : '');
-            const website = appUrl ? appUrl.replace(/^https?:\/\//, '') : defaultWebsite;
-            const parts = [phone];
-            if (website) parts.push(website);
-            contactLine = parts.filter(Boolean).join('  •  ') || `${defaultPhone}  •  ${defaultWebsite}`;
+            const website = (contactData.website?.trim() || appUrl?.replace(/^https?:\/\//, '') || defaultWebsite);
+            contactLine = website || defaultWebsite;
           } catch {
-            contactLine = `${defaultPhone}  •  ${defaultWebsite}`;
+            contactLine = defaultWebsite;
           }
           const text = new fabric.FabricText(siteName, { fontSize: 56, left: 80, top: 60, fill: '#ffffff', fontFamily: 'sans-serif' });
           fabricCanvas.add(text);
@@ -510,6 +567,8 @@ export default function SistemPage() {
               const c = fabricCanvasRef.current;
               if (!c) return;
               constrainAllObjects(c);
+              ensureSingleLineTextboxWidths(c);
+              separateOverlappingTextObjects(c);
               c.renderAll();
               const name = tpl.name ?? '';
               setDesignTitle(name);
@@ -893,8 +952,8 @@ export default function SistemPage() {
     opts?: { siteName?: string; contactLine?: string }
   ): { type: string; text: string; left: number; top: number; fontSize?: number; fill?: string; originX?: 'center' }[] => {
     const cx = cw / 2;
-    const siteName = opts?.siteName ?? 'Our Menu';
-    const contactLine = opts?.contactLine ?? '+1 438 xxxxxxx  •  www.menuslide.com';
+    const siteName = opts?.siteName ?? 'Menu Slide';
+    const contactLine = opts?.contactLine ?? 'www.menuslide.com';
     const item = (text: string, top: number, fontSize: number, fill = '#ffffff') =>
       ({ type: 'text' as const, text, left: cx, top, fontSize, fill, originX: 'center' as const });
     const contact = { type: 'text' as const, text: contactLine, left: cx, top: ch * 0.18, fontSize: Math.round(ch * 0.015), fill: '#94a3b8', originX: 'center' as const };
@@ -973,7 +1032,7 @@ export default function SistemPage() {
         const res = await fetch('/api/ai/generate-layout', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt: `generate a ${layoutType} menu layout for 1920x1080. All text must be in English. Use contact line: +1 438 xxxxxxx • www.menuslide.com` }),
+          body: JSON.stringify({ prompt: `generate a ${layoutType} menu layout for 1920x1080. All text must be in English. Use contact line: www.menuslide.com only, no phone.` }),
         });
         const data = await res.json();
         objects = Array.isArray(data?.objects) ? data.objects : [];
@@ -981,21 +1040,17 @@ export default function SistemPage() {
       const cw = (canvas as { width?: number }).width ?? 1920;
       const ch = (canvas as { height?: number }).height ?? 1080;
       if (objects.length === 0) {
-        const defaultPhone = '+1 438 xxxxxxx';
         const defaultWebsite = 'www.menuslide.com';
-        let siteName = (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_SITE_NAME) || (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_APP_NAME) || 'Our Menu';
-        let contactLine = '';
+        let siteName = (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_SITE_NAME) || (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_APP_NAME) || 'Menu Slide';
+        let contactLine = defaultWebsite;
         try {
           const contactRes = await fetch('/api/contact-info', { cache: 'no-store' });
           const contactData = await contactRes.json().catch(() => ({}));
-          const phone = contactData.phone?.trim() || defaultPhone;
           const appUrl = (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_APP_URL) ? String(process.env.NEXT_PUBLIC_APP_URL).replace(/\/$/, '') : (typeof window !== 'undefined' ? window.location.origin : '');
-          const website = appUrl ? appUrl.replace(/^https?:\/\//, '') : defaultWebsite;
-          const parts = [phone];
-          if (website) parts.push(website);
-          contactLine = parts.filter(Boolean).join('  •  ') || `${defaultPhone}  •  ${defaultWebsite}`;
+          const website = (contactData.website?.trim() || appUrl?.replace(/^https?:\/\//, '') || defaultWebsite);
+          contactLine = website || defaultWebsite;
         } catch {
-          contactLine = `${defaultPhone}  •  ${defaultWebsite}`;
+          contactLine = defaultWebsite;
         }
         objects = getLayoutObjects(layoutType, cw, ch, { siteName, contactLine });
       }
@@ -1254,6 +1309,8 @@ export default function SistemPage() {
     try {
       await canvas.loadFromJSON(json);
       constrainAllObjects(canvas);
+      ensureSingleLineTextboxWidths(canvas);
+      separateOverlappingTextObjects(canvas);
       canvas.renderAll();
       setSaved(false);
       setHistoryTickRef.current?.((t) => t + 1);
@@ -1271,6 +1328,8 @@ export default function SistemPage() {
     try {
       await canvas.loadFromJSON(json);
       constrainAllObjects(canvas);
+      ensureSingleLineTextboxWidths(canvas);
+      separateOverlappingTextObjects(canvas);
       canvas.renderAll();
       setSaved(false);
       setHistoryTickRef.current?.((t) => t + 1);
@@ -2213,6 +2272,8 @@ export default function SistemPage() {
                           await c.loadFromJSON(safe as object, reviver as any);
                           c.setDimensions({ width: 1920, height: 1080 });
                           constrainAllObjects(c);
+                          ensureSingleLineTextboxWidths(c);
+                          separateOverlappingTextObjects(c);
                           const cw = (c as { width?: number }).width ?? 1920;
                           const ch = (c as { height?: number }).height ?? 1080;
                           await restoreVideoObjectsInCanvas(c, cw, ch, () => {
