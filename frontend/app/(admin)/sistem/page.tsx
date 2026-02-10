@@ -1327,7 +1327,9 @@ export default function SistemPage() {
     const firstTop = withRect[0].top;
     const lastBottom = withRect[withRect.length - 1].top + withRect[withRect.length - 1].height;
     const totalHeight = withRect.reduce((s, x) => s + x.height, 0);
-    const gap = withRect.length > 1 ? (lastBottom - firstTop - totalHeight) / (withRect.length - 1) : 0;
+    const rawGap = withRect.length > 1 ? (lastBottom - firstTop - totalHeight) / (withRect.length - 1) : 0;
+    const MIN_LINE_GAP = 12;
+    const gap = withRect.length > 1 ? Math.max(MIN_LINE_GAP, rawGap) : 0;
     let nextTop = firstTop;
     withRect.forEach(({ obj, rectLeft, height }) => {
       const deltaX = leftMin - rectLeft;
