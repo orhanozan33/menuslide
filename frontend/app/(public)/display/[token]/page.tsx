@@ -38,7 +38,6 @@ function useInIframe() {
 }
 
 const EmbedFitWrapper = React.forwardRef<HTMLDivElement, { children: React.ReactNode; fadeIn?: boolean }>(function EmbedFitWrapper({ children, fadeIn }, ref) {
-  const inIframe = useInIframe();
   const [scale, setScale] = useState(1);
 
   useEffect(() => {
@@ -47,9 +46,8 @@ const EmbedFitWrapper = React.forwardRef<HTMLDivElement, { children: React.React
       const el = document.fullscreenElement;
       const w = el ? el.clientWidth : window.innerWidth;
       const h = el ? el.clientHeight : window.innerHeight;
-      let s = Math.max(w / EMBED_WIDTH, h / EMBED_HEIGHT);
-      // Tam ekranda sağ/sol kırpılmayı önlemek için güvenlik payı (hiç kırpılma kalmasın)
-      if (el) s *= 0.92;
+      // Contain: tasarımın tamamı her TV boyutunda görünsün, kırpılma/kayma/üst üste binme olmasın (tek ölçek, oran korunur)
+      const s = Math.min(w / EMBED_WIDTH, h / EMBED_HEIGHT);
       setScale(s);
     };
     update();
@@ -68,6 +66,10 @@ const EmbedFitWrapper = React.forwardRef<HTMLDivElement, { children: React.React
         position: 'fixed' as const,
         inset: 0,
         overflow: 'hidden',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#000',
       }}
     >
       <style jsx global>{`
@@ -83,12 +85,13 @@ const EmbedFitWrapper = React.forwardRef<HTMLDivElement, { children: React.React
         style={{
           width: EMBED_WIDTH,
           height: EMBED_HEIGHT,
+          flexShrink: 0,
           transform: `scale(${scale})`,
-          transformOrigin: inIframe ? '0 0' : 'center center',
+          transformOrigin: 'center center',
           position: 'absolute' as const,
-          top: inIframe ? 0 : '50%',
-          left: inIframe ? 0 : '50%',
-          margin: inIframe ? 0 : `-${EMBED_HEIGHT / 2}px 0 0 -${EMBED_WIDTH / 2}px`,
+          top: '50%',
+          left: '50%',
+          margin: `-${EMBED_HEIGHT / 2}px 0 0 -${EMBED_WIDTH / 2}px`,
         }}
       >
         {children}
