@@ -24,4 +24,6 @@
     <string name="update_downloading">Güncelleme indiriliyor…</string>
     <string name="update_install_ready">Kurulum ekranı açılıyor. Yükle\'ye basın; yayın kodu kayıtlı kalır.</string>
     <string name="update_download_failed">İndirme başarısız. İndirme linki açılıyor.</string>
+    <string name="notification_channel_playback">Yayın</string>
+    <string name="notification_playback_running">Yayın devam ediyor</string>
 </resources>

@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.View
+import android.view.ViewGroup
 import android.view.WindowManager
 import android.webkit.WebView
 import android.webkit.WebSettings
@@ -30,6 +31,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.util.UUID
+import android.app.ActivityManager
+import android.content.ComponentCallbacks2
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -49,7 +52,11 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import androidx.core.content.FileProvider
 import java.io.File
+import android.app.AlarmManager
+import android.app.PendingIntent
 import android.app.ProgressDialog
+import android.os.SystemClock
+import androidx.core.content.ContextCompat
 
 /**
  * Ana Activity: Yayın kodu tek sefer girilir, kaydedilir; sonra hep aynı yayın.
@@ -69,8 +76,12 @@ class MainActivity : AppCompatActivity() {
         private const val BOOTSTRAP_BASE = "https://menuslide.com"
         private const val WATCHDOG_INTERVAL_MS = 5 * 60 * 1000L // 5 dakika
         private const val STUCK_THRESHOLD_MS = 90_000L // 1.5 dk oynatma yoksa yeniden başlat
-        /** WebView (display) modunda donma önlemi: 24/7 yayında 30 dk'da bir yenile (10 dk şablonları bölmez) */
-        private const val WEBVIEW_RELOAD_INTERVAL_MS = 30 * 60 * 1000L // 30 dakika
+        /** WebView (display) modunda donma önlemi: geçişlerde bellek birikimini azaltmak için daha sık yenile */
+        private const val WEBVIEW_RELOAD_INTERVAL_MS = 12 * 60 * 1000L // 12 dakika
+        /** Otomatik yeniden açılma: uygulama kapanınca kaç dakika sonra tekrar açılsın */
+        private const val RESTART_ALARM_INTERVAL_MS = 2 * 60 * 1000L // 2 dakika
+        /** Düşük RAM cihazlarda WebView daha sık yenilenir (bellek birikimi önleme) */
+        private const val WEBVIEW_RELOAD_INTERVAL_LOW_RAM_MS = 8 * 60 * 1000L // 8 dakika
     }
 
     private val prefs by lazy { getSharedPreferences(PREFS, Context.MODE_PRIVATE) }
@@ -83,7 +94,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var labelError: TextView
     private lateinit var progressLoading: ProgressBar
     private lateinit var displayContainer: View
-    private lateinit var displayWebView: WebView
+    private var displayWebView: WebView? = null
     private lateinit var webviewLoading: ProgressBar
     private lateinit var playerView: PlayerView
 
@@ -93,6 +104,12 @@ class MainActivity : AppCompatActivity() {
     private var lastPlayingTimeMs: Long = 0
     private var lastWebViewReloadMs: Long = 0
     private var watchdogRunnable: Runnable? = null
+
+    /** Düşük RAM veya eski TV: daha agresif bellek tasarrufu (daha sık yenileme, küçük buffer, yazılım katmanı). */
+    private val isLowMemoryDevice: Boolean by lazy {
+        val am = getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager ?: return@lazy false
+        am.memoryClass <= 96
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -109,8 +126,12 @@ class MainActivity : AppCompatActivity() {
             loadConfigAndCheckVersion { canProceed ->
                 mainHandler.post {
                     if (canProceed) {
-                        resolveAndPlay(savedCode)
-                        startWatchdog()
+                        requestBatteryOptimizationExemption {
+                            prefs.edit().putBoolean(RestartReceiver.KEY_USER_EXIT, false).apply()
+                            resolveAndPlay(savedCode)
+                            startWatchdog()
+                            scheduleRestartAlarm()
+                        }
                     } else {
                         showLoading(false)
                         showInputScreen(true)
@@ -141,9 +162,10 @@ class MainActivity : AppCompatActivity() {
                     val obj = org.json.JSONObject(json)
                     val base = obj.optString("apiBaseUrl", "").trim()
                     if (base.isNotEmpty()) prefs.edit().putString(KEY_API_BASE, base.trimEnd('/')).apply()
-                    val minCode = obj.optInt("minVersionCode", 0).takeIf { it > 0 }
-                    val latestCode = obj.optInt("latestVersionCode", 0).takeIf { it > 0 }
+                    val minCode = if (obj.has("minVersionCode")) obj.optInt("minVersionCode", 0).takeIf { it > 0 } else null
+                    val latestCode = if (obj.has("latestVersionCode")) obj.optInt("latestVersionCode", 0).takeIf { it > 0 } else null
                     val currentCode = BuildConfig.VERSION_CODE
+                    Log.d(TAG, "Version check: current=$currentCode min=$minCode latest=$latestCode")
                     if (minCode != null && currentCode < minCode) {
                         val downloadUrl = obj.optString("downloadUrl", "").trim()
                         mainHandler.post {
@@ -272,7 +294,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** Kesintisiz yayın için pil optimizasyonundan muafiyet iste (uygulama yüklendikten sonra bir kez önerilir). */
+    /** Kesintisiz yayın için pil optimizasyonundan muafiyet iste. TV'de diyalog bazen görünmediği için önce doğrudan sistem ekranını açmayı dene. */
     private fun requestBatteryOptimizationExemption(onDone: () -> Unit) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
             onDone()
@@ -283,23 +305,35 @@ class MainActivity : AppCompatActivity() {
             onDone()
             return
         }
-        AlertDialog.Builder(this)
-            .setTitle(getString(R.string.permission_battery_title))
-            .setMessage(getString(R.string.permission_battery_message))
-            .setPositiveButton(getString(R.string.btn_allow)) { _, _ ->
-                try {
-                    val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                        data = Uri.parse("package:$packageName")
-                    }
-                    startActivity(intent)
-                } catch (e: Exception) {
-                    Log.e(TAG, "Battery optimization intent failed", e)
-                }
-                onDone()
+        try {
+            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                data = Uri.parse("package:$packageName")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
-            .setNegativeButton(getString(R.string.btn_not_now)) { _, _ -> onDone() }
-            .setOnCancelListener { onDone() }
-            .show()
+            startActivity(intent)
+            Log.d(TAG, "Opened battery optimization exemption screen")
+        } catch (e: Exception) {
+            Log.e(TAG, "Battery optimization intent failed, showing dialog", e)
+            AlertDialog.Builder(this)
+                .setTitle(getString(R.string.permission_battery_title))
+                .setMessage(getString(R.string.permission_battery_message))
+                .setPositiveButton(getString(R.string.btn_allow)) { _, _ ->
+                    try {
+                        val intent2 = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                            data = Uri.parse("package:$packageName")
+                        }
+                        startActivity(intent2)
+                    } catch (e2: Exception) {
+                        Log.e(TAG, "Battery optimization intent failed", e2)
+                    }
+                    onDone()
+                }
+                .setNegativeButton(getString(R.string.btn_not_now)) { _, _ -> onDone() }
+                .setOnCancelListener { onDone() }
+                .show()
+            return
+        }
+        onDone()
     }
 
     private fun bindViews() {
@@ -315,13 +349,31 @@ class MainActivity : AppCompatActivity() {
         displayWebView = findViewById(R.id.display_webview)
         webviewLoading = findViewById(R.id.webview_loading)
         displayContainer.visibility = View.GONE
-        displayWebView.settings.apply {
+        setupDisplayWebView(displayWebView!!)
+    }
+
+    /** WebView ayarları: düşük RAM / eski TV için bellek ve akıcılık optimizasyonu. */
+    private fun setupDisplayWebView(webView: WebView) {
+        webView.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
             mediaPlaybackRequiresUserGesture = false
             mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+            cacheMode = WebSettings.LOAD_NO_CACHE
+            setGeolocationEnabled(false)
+            loadWithOverviewMode = true
+            useWideViewPort = true
+            setSupportZoom(false)
+            builtInZoomControls = false
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                safeBrowsingEnabled = false
+            }
         }
-        displayWebView.webViewClient = object : WebViewClient() {
+        if (isLowMemoryDevice && Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
+            webView.setLayerType(View.LAYER_TYPE_SOFTWARE, null)
+            Log.d(TAG, "Low-memory device: WebView using software layer")
+        }
+        webView.webViewClient = object : WebViewClient() {
             override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
                 webviewLoading.visibility = View.VISIBLE
             }
@@ -330,14 +382,37 @@ class MainActivity : AppCompatActivity() {
             }
             @RequiresApi(Build.VERSION_CODES.O)
             override fun onRenderProcessGone(view: WebView?, detail: RenderProcessGoneDetail?): Boolean {
-                Log.w(TAG, "WebView render process gone, reloading display URL")
+                Log.w(TAG, "WebView render process gone (donma/çökme), WebView yeniden oluşturuluyor")
                 val url = currentStreamUrl
-                if (!url.isNullOrEmpty() && url.contains("/display/")) {
-                    mainHandler.post { displayWebView.loadUrl(url) }
-                }
+                if (url.isNullOrEmpty() || !url.contains("/display/")) return true
+                mainHandler.post { replaceDisplayWebViewAndLoad(url) }
                 return true
             }
         }
+    }
+
+    /** Render process çöktüğünde aynı WebView tekrar yüklenmez; yeni WebView oluşturulup URL yüklenir (donma/kapanma azalır). */
+    private fun replaceDisplayWebViewAndLoad(url: String) {
+        val oldWebView = displayWebView ?: return
+        val parent = displayContainer as? ViewGroup ?: return
+        webviewLoading.visibility = View.VISIBLE
+        val newWebView = WebView(this).apply {
+            id = R.id.display_webview
+            layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+            setBackgroundColor(android.graphics.Color.BLACK)
+        }
+        setupDisplayWebView(newWebView)
+        parent.addView(newWebView, 0)
+        parent.removeView(oldWebView)
+        try {
+            oldWebView.destroy()
+        } catch (e: Exception) {
+            Log.e(TAG, "Old WebView destroy", e)
+        }
+        displayWebView = newWebView
+        newWebView.loadUrl(url)
+        lastWebViewReloadMs = System.currentTimeMillis()
+        Log.d(TAG, "Display WebView recreated and loading: $url")
     }
 
     private fun keepScreenOn() {
@@ -396,8 +471,10 @@ class MainActivity : AppCompatActivity() {
                 }
                 // Kesintisiz yayın için pil optimizasyonu muafiyeti öner (izin verilirse yayın başlar)
                 requestBatteryOptimizationExemption {
+                    prefs.edit().putBoolean(RestartReceiver.KEY_USER_EXIT, false).apply()
                     resolveAndPlay(code)
                     startWatchdog()
+                    scheduleRestartAlarm()
                 }
             }
         }
@@ -434,12 +511,13 @@ class MainActivity : AppCompatActivity() {
         val url = currentStreamUrl ?: return
         val now = System.currentTimeMillis()
 
-        // Display sayfası (WebView) modu: ExoPlayer yok; donma önlemi için periyodik yenile
+        // Display sayfası (WebView) modu: donma önlemi için periyodik yenile (düşük RAM'de daha sık)
         if (url.contains("/display/")) {
-            if (now - lastWebViewReloadMs >= WEBVIEW_RELOAD_INTERVAL_MS) {
+            val interval = if (isLowMemoryDevice) WEBVIEW_RELOAD_INTERVAL_LOW_RAM_MS else WEBVIEW_RELOAD_INTERVAL_MS
+            if (now - lastWebViewReloadMs >= interval) {
                 Log.d(TAG, "Watchdog: WebView reload (freeze recovery)")
                 lastWebViewReloadMs = now
-                displayWebView.reload()
+                displayWebView?.reload()
             }
             return
         }
@@ -482,6 +560,7 @@ class MainActivity : AppCompatActivity() {
                 showLoading(false)
                 lastPlayingTimeMs = System.currentTimeMillis()
             } else {
+                stopPlaybackKeepAliveService()
                 showLoading(false)
                 showInputScreen(true)
                 showError(errorMsg ?: getString(R.string.error_invalid_response))
@@ -588,9 +667,26 @@ class MainActivity : AppCompatActivity() {
         return id
     }
 
+    private fun startPlaybackKeepAliveService() {
+        try {
+            ContextCompat.startForegroundService(this, Intent(this, PlaybackKeepAliveService::class.java))
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start keep-alive service", e)
+        }
+    }
+
+    private fun stopPlaybackKeepAliveService() {
+        try {
+            stopService(Intent(this, PlaybackKeepAliveService::class.java))
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to stop keep-alive service", e)
+        }
+    }
+
     @UnstableApi
     private fun startPlayback(streamUrl: String) {
         releasePlayer()
+        startPlaybackKeepAliveService()
         lastPlayingTimeMs = System.currentTimeMillis()
         if (streamUrl.contains("/display/")) {
             playerView.visibility = View.GONE
@@ -598,15 +694,16 @@ class MainActivity : AppCompatActivity() {
             webviewLoading.visibility = View.VISIBLE
             applyFullscreenWhenPlaying(true)
             lastWebViewReloadMs = System.currentTimeMillis()
-            displayWebView.loadUrl(streamUrl)
+            displayWebView?.loadUrl(streamUrl)
             Log.d(TAG, "loading display URL in WebView: $streamUrl")
         } else {
             displayContainer.visibility = View.GONE
             val httpDataSourceFactory = DefaultHttpDataSource.Factory()
                 .setConnectTimeoutMs(15_000)
                 .setReadTimeoutMs(20_000)
+            val (minBufMs, maxBufMs) = if (isLowMemoryDevice) 15_000 to 60_000 else 30_000 to 120_000
             val loadControl = DefaultLoadControl.Builder()
-                .setBufferDurationsMs(30_000, 120_000, 5_000, 5_000)
+                .setBufferDurationsMs(minBufMs, maxBufMs, 5_000, 5_000)
                 .build()
             val mediaSourceFactory = DefaultMediaSourceFactory(this).setDataSourceFactory(httpDataSourceFactory)
             exoPlayer = ExoPlayer.Builder(this)
@@ -661,25 +758,83 @@ class MainActivity : AppCompatActivity() {
         exoPlayer = null
         playerView.player = null
         playerView.visibility = View.GONE
-        displayWebView.stopLoading()
-        displayWebView.loadUrl("about:blank")
+        displayWebView?.stopLoading()
+        displayWebView?.loadUrl("about:blank")
         webviewLoading.visibility = View.GONE
         displayContainer.visibility = View.GONE
     }
 
-    /** Yayından çık: kodu silmeden uygulamayı kapat. Tekrar açılışta kayıtlı kod ile doğrudan yayın açılır. */
+    /** Yayından çık: kodu silmeden uygulamayı kapat. Kullanıcı çıkış yaptığı için otomatik yeniden açılma devre dışı. */
     private fun exitBroadcast() {
+        prefs.edit().putBoolean(RestartReceiver.KEY_USER_EXIT, true).apply()
+        cancelRestartAlarm()
         stopWatchdog()
+        stopPlaybackKeepAliveService()
         currentStreamUrl = null
         releasePlayer()
         applyFullscreenWhenPlaying(false)
         finish()
     }
 
+    private fun scheduleRestartAlarm() {
+        val am = getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
+        val intent = Intent(this, RestartReceiver::class.java).setAction(RestartReceiver.ACTION_RESTART_CHECK)
+        val pending = PendingIntent.getBroadcast(
+            this, 0, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val interval = RESTART_ALARM_INTERVAL_MS
+        try {
+            am.setInexactRepeating(
+                AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                SystemClock.elapsedRealtime() + interval,
+                interval,
+                pending
+            )
+            Log.d(TAG, "Restart alarm scheduled (every ${interval / 60_000} min)")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to schedule restart alarm", e)
+        }
+    }
+
+    private fun cancelRestartAlarm() {
+        val am = getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
+        val intent = Intent(this, RestartReceiver::class.java).setAction(RestartReceiver.ACTION_RESTART_CHECK)
+        val pending = PendingIntent.getBroadcast(
+            this, 0, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        am.cancel(pending)
+        Log.d(TAG, "Restart alarm cancelled")
+    }
+
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        when (level) {
+            ComponentCallbacks2.TRIM_MEMORY_RUNNING_MODERATE,
+            ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW,
+            ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL -> {
+                displayWebView?.let { w ->
+                    if (currentStreamUrl?.contains("/display/") == true) {
+                        Log.d(TAG, "Trim memory level=$level: clearing WebView cache and reloading")
+                        w.clearCache(true)
+                        mainHandler.postDelayed({ w.reload() }, if (level >= ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL) 0L else 500L)
+                    }
+                }
+            }
+        }
+    }
+
     override fun onDestroy() {
         stopWatchdog()
         resolveJob?.cancel()
         releasePlayer()
+        try {
+            displayWebView?.destroy()
+            displayWebView = null
+        } catch (e: Exception) {
+            Log.e(TAG, "WebView destroy on activity destroy", e)
+        }
         super.onDestroy()
     }
 

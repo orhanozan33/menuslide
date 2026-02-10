@@ -77,6 +77,9 @@ export async function PATCH(request: NextRequest) {
         api_base_url: updates.api_base_url ?? '',
         download_url: updates.download_url ?? defaultConfig.downloadUrl,
         watchdog_interval_minutes: updates.watchdog_interval_minutes ?? 5,
+        min_version_code: updates.min_version_code ?? null,
+        latest_version_code: updates.latest_version_code ?? null,
+        latest_version_name: updates.latest_version_name ?? null,
       });
     }
     return NextResponse.json({ ok: true });
