@@ -46,22 +46,23 @@ export function FullEditorDisplay({ canvasJson }: { canvasJson: object }) {
   useEffect(() => {
     if (!canvasJson || typeof canvasJson !== 'object' || !containerRef.current) return;
     const el = containerRef.current;
-    el.innerHTML = '';
-    const canvasEl = document.createElement('canvas');
-    canvasEl.width = 1920;
-    canvasEl.height = 1080;
-    el.appendChild(canvasEl);
-
-    let canvas: import('fabric').Canvas | null = null;
     const safeJson = sanitizeCanvasJsonForFabric(canvasJson as Record<string, unknown>) as object;
     const families = collectFontFamiliesFromFabricJson(safeJson as Record<string, unknown>);
+    let canvas: import('fabric').Canvas | null = null;
+    let cancelled = false;
 
     (async () => {
       try {
         await loadFontsForDisplay(families);
+        if (cancelled) return;
+        const canvasEl = document.createElement('canvas');
+        canvasEl.width = 1920;
+        canvasEl.height = 1080;
         const fabric = await import('fabric');
+        if (cancelled) return;
         canvas = new fabric.Canvas(canvasEl, { width: 1920, height: 1080, selection: false });
         await canvas.loadFromJSON(safeJson);
+        if (cancelled) return;
         const bg = (canvas as { backgroundColor?: string }).backgroundColor;
         if (typeof bg === 'string') canvas.backgroundColor = bg;
         const objs = (canvas as { getObjects?: () => unknown[] }).getObjects?.() ?? [];
@@ -73,18 +74,25 @@ export function FullEditorDisplay({ canvasJson }: { canvasJson: object }) {
           o.hasBorders = false;
         }
         canvas.renderAll();
+        if (cancelled) {
+          try { canvas?.dispose?.(); } catch { /* ignore */ }
+          return;
+        }
+        el.innerHTML = '';
+        el.appendChild(canvasEl);
       } catch (e) {
-        console.error('FullEditorDisplay render error:', e);
+        if (!cancelled) console.error('FullEditorDisplay render error:', e);
       }
     })();
 
     return () => {
+      cancelled = true;
       try {
         canvas?.dispose?.();
       } catch {
         /* ignore */
       }
-      el.innerHTML = '';
+      if (el) el.innerHTML = '';
     };
   }, [canvasJson]);
 

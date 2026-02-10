@@ -3,8 +3,6 @@
 import React, { useCallback, useEffect, useState, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { useParams, useSearchParams } from 'next/navigation';
-import Link from 'next/link';
-
 const MenuViewer = dynamic(
   () => import('@/components/digital-menu/MenuViewer'),
   { ssr: false },
@@ -72,12 +70,12 @@ const EmbedFitWrapper = React.forwardRef<HTMLDivElement, { children: React.React
         overflow: 'hidden',
       }}
     >
-      {fadeIn && (
-        <style jsx global>{`
-          .display-fade-in { animation: displayFadeIn 120ms ease-out forwards; }
-          @keyframes displayFadeIn { from { opacity: 0; } to { opacity: 1; } }
-        `}</style>
-      )}
+      <style jsx global>{`
+        .display-fade-in { animation: displayFadeIn 120ms ease-out forwards; }
+        @keyframes displayFadeIn { from { opacity: 0; } to { opacity: 1; } }
+        /* TV/uygulama: sağ üst çıkış butonu gösterilmez */
+        [data-display-exit], .display-exit-button { display: none !important; }
+      `}</style>
       <div
         className={fadeIn ? 'display-fade-in' : undefined}
         style={{
@@ -234,16 +232,8 @@ export default function DisplayPage() {
     const pollInterval = setInterval(() => {
       const current = screenDataRef.current;
       if (current?.templateRotations && current.templateRotations.length > 1) {
-        preloadRotationCache(current).then(() => {
-          const cache = rotationCacheRef.current;
-          const idx = currentTemplateIndexRef.current;
-          const cached = cache[idx];
-          if (cached) {
-            setScreenData(cache[0] ?? current);
-            setCurrentTemplateData(cached);
-            if (cached.screen?.business_name) setBusinessName(cached.screen.business_name);
-          }
-        });
+        // Sadece önbelleği güncelle; mevcut ekranı yenileme (ziplama/göz kırpma olmasın)
+        preloadRotationCache(current).catch(() => {});
       } else {
         loadScreenData();
       }
