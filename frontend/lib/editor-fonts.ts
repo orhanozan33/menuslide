@@ -45,6 +45,13 @@ export function getGoogleFontsUrl(families: string[]): string {
   return `https://fonts.googleapis.com/css2?${query}&display=swap`;
 }
 
+/** Şablonda kullanılan font aileleri (display adı, örn. "Dancing Script") → TV/display sayfasında yüklenecek Google Fonts URL’i. Satır kırılımının editörle aynı kalması için gerekli. */
+export function getGoogleFontsUrlForDisplayFamilies(displayFamilies: string[]): string {
+  const unique = [...new Set(displayFamilies.filter((f) => f && typeof f === 'string' && FONT_OPTIONS.includes(f)))];
+  const forUrl = unique.slice(0, 20).map((f) => f.replace(/\s+/g, '+'));
+  return getGoogleFontsUrl(forUrl);
+}
+
 export const TEXT_ICON_OPTIONS = [
   '🔥', '⭐', '💰', '🏷️', '✨', '🎉', '❤️', '✓', '🎯', '💯',
   '🍕', '☕', '🍔', '🍟', '🌮', '🍝', '🥗', '🍰', '🧁', '🍩', '🥐',

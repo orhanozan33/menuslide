@@ -129,9 +129,11 @@ async function getRemoveBackgroundDataUrl(imageUrl: string): Promise<string> {
 interface TemplateEditorPageProps {
   templateId: string;
   showSaveAs?: boolean;
+  /** Benim şablonlarım'dan düzenle: üzerine yaz + farklı kaydet seçenekleri */
+  isMineTemplate?: boolean;
 }
 
-export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateEditorPageProps) {
+export function TemplateEditorPage({ templateId, showSaveAs = false, isMineTemplate = false }: TemplateEditorPageProps) {
   const router = useRouter();
   const { t, localePath } = useTranslation();
   const toast = useToast();
@@ -923,8 +925,8 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
     try {
       if (!opts?.silent) setLoading(true);
       const [templateData, blocksData] = await Promise.all([
-        apiClient(`/templates/${templateId}`),
-        apiClient(`/templates/${templateId}/blocks`),
+        apiClient(`/templates/${templateId}`, { cache: 'no-store' } as RequestInit),
+        apiClient(`/templates/${templateId}/blocks`, { cache: 'no-store' } as RequestInit),
       ]);
 
       // Canvas tasarım şablonu: blok editörü yerine tasarım editörüne yönlendir
@@ -2414,14 +2416,33 @@ export function TemplateEditorPage({ templateId, showSaveAs = false }: TemplateE
               >
                 {t('btn_cancel')}
               </Link>
-              <button
-                onClick={handleSaveTemplate}
-                disabled={saving}
-                className="px-6 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all font-semibold disabled:opacity-50"
-              >
-                {saving ? '⏳ ' + t('editor_saving') : '💾 ' + t('btn_save')}
-              </button>
-              {showSaveAs && (
+              {isMineTemplate ? (
+                <>
+                  <button
+                    onClick={handleSaveTemplate}
+                    disabled={saving}
+                    className="px-5 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all font-semibold disabled:opacity-50"
+                  >
+                    {saving ? '⏳ ' + t('editor_saving') : '💾 ' + (t('editor_overwrite') || 'Üzerine yaz')}
+                  </button>
+                  <button
+                    onClick={handleSaveAsOpen}
+                    disabled={saving}
+                    className="px-5 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all font-semibold disabled:opacity-50"
+                  >
+                    {t('editor_save_as_different') || 'Farklı kaydet'}
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={handleSaveTemplate}
+                  disabled={saving}
+                  className="px-6 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all font-semibold disabled:opacity-50"
+                >
+                  {saving ? '⏳ ' + t('editor_saving') : '💾 ' + t('btn_save')}
+                </button>
+              )}
+              {showSaveAs && !isMineTemplate && (
                 <button
                   onClick={handleSaveAsOpen}
                   disabled={saving}

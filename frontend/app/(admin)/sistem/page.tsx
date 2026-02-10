@@ -569,7 +569,7 @@ export default function SistemPage() {
     if (!templateIdFromUrl) return;
     const c = fabricCanvasRef.current;
     if (!c) return;
-    fetch(`/api/full-editor/templates?id=${encodeURIComponent(templateIdFromUrl)}`)
+    fetch(`/api/full-editor/templates?id=${encodeURIComponent(templateIdFromUrl)}`, { cache: 'no-store' })
       .then((r) => r.json())
       .then((tpl: { id?: string; name?: string; canvas_json?: object }) => {
         if (!tpl?.canvas_json || typeof tpl.canvas_json !== 'object') return;

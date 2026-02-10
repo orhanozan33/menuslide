@@ -1312,10 +1312,10 @@ export default function CanvasDesignEditor({ templateId }: CanvasDesignEditorPro
     }
   }, [selectedId]);
 
-  /** templateId varsa API'den şablon yükle, yoksa localStorage taslağından */
+  /** templateId varsa API'den şablon yükle (en güncel), yoksa localStorage taslağından */
   useEffect(() => {
     if (templateId) {
-      apiClient(`/templates/${templateId}`)
+      apiClient(`/templates/${templateId}`, { cache: 'no-store' } as RequestInit)
         .then((t: any) => {
           const cd = t?.canvas_design;
           if (cd && typeof cd === 'object') {

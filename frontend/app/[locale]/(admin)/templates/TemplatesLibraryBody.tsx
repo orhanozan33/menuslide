@@ -266,7 +266,7 @@ export function TemplatesLibraryBody(props: TemplatesLibraryBodyProps) {
                     const isCanvas = template?.canvas_design && typeof template.canvas_design === 'object';
                     if (isFullEditor) router.push(`${localePath('/sistem')}?templateId=${template.id}`);
                     else if (isCanvas) router.push(`${localePath('/editor')}?templateId=${template.id}`);
-                    else router.push(localePath(`/templates/${template.id}/edit`));
+                    else router.push(localePath(`/templates/${template.id}/edit?mine=1`));
                   }}
                   className="px-3 py-1.5 text-sm bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200"
                 >

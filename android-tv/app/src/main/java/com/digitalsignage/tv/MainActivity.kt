@@ -6,6 +6,9 @@ import android.os.Handler
 import android.os.Looper
 import android.view.View
 import android.view.WindowManager
+import android.webkit.WebView
+import android.webkit.WebSettings
+import android.webkit.WebViewClient
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ProgressBar
@@ -28,6 +31,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.util.UUID
 import android.content.Context
+import android.view.inputmethod.InputMethodManager
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.util.Log
@@ -65,6 +69,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnStart: Button
     private lateinit var labelError: TextView
     private lateinit var progressLoading: ProgressBar
+    private lateinit var displayContainer: View
+    private lateinit var displayWebView: WebView
+    private lateinit var webviewLoading: ProgressBar
     private lateinit var playerView: PlayerView
 
     private var exoPlayer: ExoPlayer? = null
@@ -108,6 +115,24 @@ class MainActivity : AppCompatActivity() {
         playerView = findViewById(R.id.player_view)
         inputCode.setTextColor(android.graphics.Color.BLACK)
         inputCode.setHintTextColor(android.graphics.Color.GRAY)
+        displayContainer = findViewById(R.id.display_container)
+        displayWebView = findViewById(R.id.display_webview)
+        webviewLoading = findViewById(R.id.webview_loading)
+        displayContainer.visibility = View.GONE
+        displayWebView.settings.apply {
+            javaScriptEnabled = true
+            domStorageEnabled = true
+            mediaPlaybackRequiresUserGesture = false
+            mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+        }
+        displayWebView.webViewClient = object : WebViewClient() {
+            override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                webviewLoading.visibility = View.VISIBLE
+            }
+            override fun onPageFinished(view: WebView?, url: String?) {
+                webviewLoading.visibility = View.GONE
+            }
+        }
     }
 
     private fun keepScreenOn() {
@@ -148,17 +173,24 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun onStartClicked() {
+        hideKeyboard()
         val code = inputCode.text?.toString()?.trim().orEmpty()
         if (code.isEmpty()) {
             showError(getString(R.string.hint_code))
             return
         }
         showError(null)
-        // 1 sefer girilen kod kalıcı kaydedilir, bir daha sorulmaz
-        prefs.edit().putString(KEY_BROADCAST_CODE, code).apply()
+        // Kod kalıcı kaydedilir (commit ile hemen diske yazılır; TV kapatılsa da kalsın)
+        prefs.edit().putString(KEY_BROADCAST_CODE, code).commit()
         showLoading(true)
         resolveAndPlay(code)
         startWatchdog()
+    }
+
+    private fun hideKeyboard() {
+        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager ?: return
+        val token = inputCode.windowToken ?: currentFocus?.windowToken ?: return
+        imm.hideSoftInputFromWindow(token, 0)
     }
 
     private fun startWatchdog() {
@@ -331,48 +363,60 @@ class MainActivity : AppCompatActivity() {
     @UnstableApi
     private fun startPlayback(streamUrl: String) {
         releasePlayer()
-        val httpDataSourceFactory = DefaultHttpDataSource.Factory()
-            .setConnectTimeoutMs(15_000)
-            .setReadTimeoutMs(20_000)
-        val loadControl = DefaultLoadControl.Builder()
-            .setBufferDurationsMs(30_000, 120_000, 5_000, 5_000)
-            .build()
-        val mediaSourceFactory = DefaultMediaSourceFactory(this).setDataSourceFactory(httpDataSourceFactory)
-        exoPlayer = ExoPlayer.Builder(this)
-            .setMediaSourceFactory(mediaSourceFactory)
-            .setLoadControl(loadControl)
-            .build()
-            .also { player ->
-                playerView.player = player
-                playerView.useController = false
-                playerView.visibility = View.VISIBLE
-                applyFullscreenWhenPlaying(true)
+        lastPlayingTimeMs = System.currentTimeMillis()
+        if (streamUrl.contains("/display/")) {
+            playerView.visibility = View.GONE
+            displayContainer.visibility = View.VISIBLE
+            webviewLoading.visibility = View.VISIBLE
+            applyFullscreenWhenPlaying(true)
+            displayWebView.loadUrl(streamUrl)
+            Log.d(TAG, "loading display URL in WebView: $streamUrl")
+        } else {
+            displayContainer.visibility = View.GONE
+            val httpDataSourceFactory = DefaultHttpDataSource.Factory()
+                .setConnectTimeoutMs(15_000)
+                .setReadTimeoutMs(20_000)
+            val loadControl = DefaultLoadControl.Builder()
+                .setBufferDurationsMs(30_000, 120_000, 5_000, 5_000)
+                .build()
+            val mediaSourceFactory = DefaultMediaSourceFactory(this).setDataSourceFactory(httpDataSourceFactory)
+            exoPlayer = ExoPlayer.Builder(this)
+                .setMediaSourceFactory(mediaSourceFactory)
+                .setLoadControl(loadControl)
+                .build()
+                .also { player ->
+                    displayContainer.visibility = View.GONE
+                    playerView.player = player
+                    playerView.useController = false
+                    playerView.visibility = View.VISIBLE
+                    applyFullscreenWhenPlaying(true)
 
-                player.setMediaItem(MediaItem.fromUri(streamUrl))
-                player.prepare()
-                player.playWhenReady = true
-                player.repeatMode = Player.REPEAT_MODE_ALL
+                    player.setMediaItem(MediaItem.fromUri(streamUrl))
+                    player.prepare()
+                    player.playWhenReady = true
+                    player.repeatMode = Player.REPEAT_MODE_ALL
 
-                player.addListener(object : Player.Listener {
-                    override fun onPlaybackStateChanged(playbackState: Int) {
-                        when (playbackState) {
-                            Player.STATE_READY -> lastPlayingTimeMs = System.currentTimeMillis()
-                            Player.STATE_BUFFERING -> { }
-                            Player.STATE_IDLE -> {
-                                if (isNetworkAvailable()) {
-                                    player.prepare()
-                                    player.playWhenReady = true
+                    player.addListener(object : Player.Listener {
+                        override fun onPlaybackStateChanged(playbackState: Int) {
+                            when (playbackState) {
+                                Player.STATE_READY -> lastPlayingTimeMs = System.currentTimeMillis()
+                                Player.STATE_BUFFERING -> { }
+                                Player.STATE_IDLE -> {
+                                    if (isNetworkAvailable()) {
+                                        player.prepare()
+                                        player.playWhenReady = true
+                                    }
                                 }
+                                Player.STATE_ENDED -> { player.seekTo(0); player.play() }
                             }
-                            Player.STATE_ENDED -> { player.seekTo(0); player.play() }
                         }
-                    }
-                    override fun onPlayerError(error: PlaybackException) {
-                        Log.e(TAG, "playback error", error)
-                        if (isNetworkAvailable()) player.prepare()
-                    }
-                })
-            }
+                        override fun onPlayerError(error: PlaybackException) {
+                            Log.e(TAG, "playback error", error)
+                            if (isNetworkAvailable()) player.prepare()
+                        }
+                    })
+                }
+        }
     }
 
     private fun isNetworkAvailable(): Boolean {
@@ -388,6 +432,19 @@ class MainActivity : AppCompatActivity() {
         exoPlayer = null
         playerView.player = null
         playerView.visibility = View.GONE
+        displayWebView.stopLoading()
+        displayWebView.loadUrl("about:blank")
+        webviewLoading.visibility = View.GONE
+        displayContainer.visibility = View.GONE
+    }
+
+    /** Yayından çık: kodu silmeden uygulamayı kapat. Tekrar açılışta kayıtlı kod ile doğrudan yayın açılır. */
+    private fun exitBroadcast() {
+        stopWatchdog()
+        currentStreamUrl = null
+        releasePlayer()
+        applyFullscreenWhenPlaying(false)
+        finish()
     }
 
     override fun onDestroy() {
@@ -399,6 +456,10 @@ class MainActivity : AppCompatActivity() {
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
-        super.onBackPressed()
+        if (displayContainer.visibility == View.VISIBLE || playerView.visibility == View.VISIBLE) {
+            exitBroadcast()
+        } else {
+            super.onBackPressed()
+        }
     }
 }

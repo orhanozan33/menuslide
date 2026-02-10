@@ -82,7 +82,28 @@
         android:layout_gravity="center"
         android:visibility="gone" />
 
-    <!-- ExoPlayer tam ekran: UI gizlenir, sadece video -->
+    <!-- WebView (Çıkış butonu yok; Geri tuşu ile çıkılır) -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone"
+        android:id="@+id/display_container">
+
+        <WebView
+            android:id="@+id/display_webview"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#000000" />
+
+        <ProgressBar
+            android:id="@+id/webview_loading"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:visibility="gone" />
+    </FrameLayout>
+
+    <!-- ExoPlayer: sadece video stream (.m3u8/.mp4) için -->
     <view
         class="androidx.media3.ui.PlayerView"
         android:id="@+id/player_view"

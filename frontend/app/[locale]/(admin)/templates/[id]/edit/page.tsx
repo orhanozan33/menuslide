@@ -1,12 +1,14 @@
 'use client';
 
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { TemplateEditorPage } from './TemplateEditorPage';
 
 export default function EditTemplatePage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const [showSaveAs, setShowSaveAs] = useState(false);
+  const isMineTemplate = searchParams?.get('mine') === '1';
 
   useEffect(() => {
     const userStr = typeof window !== 'undefined'
@@ -23,5 +25,11 @@ export default function EditTemplatePage() {
     }
   }, []);
 
-  return <TemplateEditorPage templateId={(params?.id ?? '') as string} showSaveAs={showSaveAs} />;
+  return (
+    <TemplateEditorPage
+      templateId={(params?.id ?? '') as string}
+      showSaveAs={showSaveAs}
+      isMineTemplate={isMineTemplate}
+    />
+  );
 }

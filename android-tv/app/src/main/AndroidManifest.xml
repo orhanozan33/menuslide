@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Android TV / Fire Stick uyumlu Video Player.
-  - INTERNET zorunlu (API + HLS/MP4 stream).
-  - WebView kullanılmaz.
+  Android TV / Fire Stick: yayın kodu ile display sayfası.
+  - INTERNET zorunlu (API + display sayfası).
+  - Yayın: WebView ile /display/... sayfası (HTML); video stream ise ExoPlayer.
   - Landscape, tek activity.
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
@@ -11,6 +11,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
         android:allowBackup="true"
@@ -31,5 +32,16 @@
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <receiver
+            android:name=".BootReceiver"
+            android:exported="true"
+            android:enabled="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>

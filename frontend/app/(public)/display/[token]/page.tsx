@@ -39,7 +39,7 @@ function useInIframe() {
   return inIframe;
 }
 
-const EmbedFitWrapper = React.forwardRef<HTMLDivElement, { children: React.ReactNode }>(function EmbedFitWrapper({ children }, ref) {
+const EmbedFitWrapper = React.forwardRef<HTMLDivElement, { children: React.ReactNode; fadeIn?: boolean }>(function EmbedFitWrapper({ children, fadeIn }, ref) {
   const inIframe = useInIframe();
   const [scale, setScale] = useState(1);
 
@@ -72,7 +72,14 @@ const EmbedFitWrapper = React.forwardRef<HTMLDivElement, { children: React.React
         overflow: 'hidden',
       }}
     >
+      {fadeIn && (
+        <style jsx global>{`
+          .display-fade-in { animation: displayFadeIn 120ms ease-out forwards; }
+          @keyframes displayFadeIn { from { opacity: 0; } to { opacity: 1; } }
+        `}</style>
+      )}
       <div
+        className={fadeIn ? 'display-fade-in' : undefined}
         style={{
           width: EMBED_WIDTH,
           height: EMBED_HEIGHT,
@@ -89,97 +96,6 @@ const EmbedFitWrapper = React.forwardRef<HTMLDivElement, { children: React.React
     </div>
   );
 });
-
-const EXIT_BUTTON_HIDE_AFTER_MS = 4000; // Tam ekranda buton göründükten sonra tekrar gizleme süresi
-
-function FullScreenButton({ fullscreenTargetRef }: { fullscreenTargetRef?: React.RefObject<HTMLDivElement | null> }) {
-  const inIframe = useInIframe();
-  const { t } = useTranslation();
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [showExitButton, setShowExitButton] = useState(false);
-  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    const onFullscreenChange = () => {
-      const fullscreen = !!document.fullscreenElement;
-      setIsFullscreen(fullscreen);
-      if (fullscreen) {
-        setShowExitButton(false);
-        if (hideTimerRef.current) {
-          clearTimeout(hideTimerRef.current);
-          hideTimerRef.current = null;
-        }
-      }
-    };
-    document.addEventListener('fullscreenchange', onFullscreenChange);
-    return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
-  }, []);
-
-  // Tam ekrandayken tıklama veya kumanda (tuş) ile butonu tekrar göster
-  useEffect(() => {
-    if (!isFullscreen) return;
-
-    const showAndMaybeHideAgain = () => {
-      setShowExitButton(true);
-      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
-      hideTimerRef.current = setTimeout(() => {
-        hideTimerRef.current = null;
-        setShowExitButton(false);
-      }, EXIT_BUTTON_HIDE_AFTER_MS);
-    };
-
-    const onInteraction = (e: Event) => {
-      const target = e.target as HTMLElement;
-      if (target?.closest?.('button') && target.closest('button')?.getAttribute('data-fullscreen-toggle') === 'true') return;
-      showAndMaybeHideAgain();
-    };
-
-    document.addEventListener('click', onInteraction, true);
-    document.addEventListener('keydown', onInteraction, true);
-    return () => {
-      document.removeEventListener('click', onInteraction, true);
-      document.removeEventListener('keydown', onInteraction, true);
-      if (hideTimerRef.current) {
-        clearTimeout(hideTimerRef.current);
-        hideTimerRef.current = null;
-      }
-    };
-  }, [isFullscreen]);
-
-  if (inIframe) return null;
-
-  const toggle = async () => {
-    try {
-      if (document.fullscreenElement) {
-        await document.exitFullscreen();
-      } else {
-        const target = fullscreenTargetRef?.current ?? document.documentElement;
-        await target.requestFullscreen();
-      }
-    } catch (err) {
-      console.error('Fullscreen error:', err);
-    }
-  };
-
-  // Tam ekranda ve buton gizliyse hiç gösterme
-  if (isFullscreen && !showExitButton) return null;
-
-  return (
-    <button
-      type="button"
-      data-fullscreen-toggle="true"
-      onClick={toggle}
-      className="fixed bottom-4 right-4 z-[100] px-4 py-2 rounded-lg bg-black/70 hover:bg-black/90 text-white text-sm font-medium border border-white/20 shadow-lg flex items-center gap-2"
-      title={isFullscreen ? t('display_exit_fullscreen_hint') : t('display_fullscreen_hint')}
-    >
-      {isFullscreen ? (
-        <>⛶ {t('display_exit_fullscreen')}</>
-      ) : (
-        <>⛶ {t('display_fullscreen')}</>
-      )}
-    </button>
-  );
-}
 
 interface MenuItem {
   id: string;
@@ -276,6 +192,7 @@ export default function DisplayPage() {
   const [nextTemplateData, setNextTemplateData] = useState<ScreenData | null>(null);
   const [nextTemplateIndex, setNextTemplateIndex] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [justFinishedTransition, setJustFinishedTransition] = useState(false); // Geçiş sonrası kısa fade-in (blink azaltma)
   const [templateRenewKey, setTemplateRenewKey] = useState(0); // Tek şablonda süre bitince yenilemek için
   const [businessName, setBusinessName] = useState<string>('');
   const [viewAllowed, setViewAllowed] = useState<boolean | null>(null);
@@ -283,21 +200,59 @@ export default function DisplayPage() {
   const retryCountRef = useRef(0);
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const displayContainerRef = useRef<HTMLDivElement>(null);
+  /** Çoklu şablon rotasyonu: tüm slotlar önceden yüklenir, yayın internetsiz önbellekten döner; güncellemede yenilenir */
+  const rotationCacheRef = useRef<(ScreenData | null)[]>([]);
+  const screenDataRef = useRef<ScreenData | null>(null);
+  screenDataRef.current = screenData;
 
   const POLL_INTERVAL_MS = 60_000; // 60s - tek interval, 1000 TV için ölçeklenebilir
   const MAX_BACKOFF_MS = 60_000;
   const HEARTBEAT_INTERVAL_MS = 45_000;
 
+  // Tüm rotasyon slotlarını önbelleğe al (veya güncelleme gelince yenile)
+  const preloadRotationCache = useCallback(async (baseData: ScreenData) => {
+    const N = baseData.templateRotations?.length ?? 0;
+    if (N <= 0) return;
+    try {
+      const results = await Promise.all(
+        Array.from({ length: N }, (_, i) =>
+          fetch(`/api/public-screen/${encodeURIComponent(token)}?rotationIndex=${i}`, { cache: 'no-store' })
+            .then((r) => r.ok ? r.json() : null)
+            .then((raw: any) => (raw && !raw.notFound && raw.screen ? raw : null))
+        )
+      );
+      rotationCacheRef.current = results;
+    } catch (e) {
+      console.warn('Rotation cache preload failed:', e);
+    }
+  }, [token]);
+
   useEffect(() => {
     const initialRotation = previewIndex != null && previewIndex >= 0 ? previewIndex : undefined;
     loadScreenData(initialRotation);
     if (previewIndex != null) return;
-    const pollInterval = setInterval(() => loadScreenData(), POLL_INTERVAL_MS);
+    const pollInterval = setInterval(() => {
+      const current = screenDataRef.current;
+      if (current?.templateRotations && current.templateRotations.length > 1) {
+        preloadRotationCache(current).then(() => {
+          const cache = rotationCacheRef.current;
+          const idx = currentTemplateIndexRef.current;
+          const cached = cache[idx];
+          if (cached) {
+            setScreenData(cache[0] ?? current);
+            setCurrentTemplateData(cached);
+            if (cached.screen?.business_name) setBusinessName(cached.screen.business_name);
+          }
+        });
+      } else {
+        loadScreenData();
+      }
+    }, POLL_INTERVAL_MS);
     return () => {
       clearInterval(pollInterval);
       if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
     };
-  }, [token, previewIndex]);
+  }, [token, previewIndex, preloadRotationCache]);
 
   // Heartbeat: ilk yayınlayan izinli, diğer cihazlar blok (allowed: false)
   useEffect(() => {
@@ -364,6 +319,9 @@ export default function DisplayPage() {
         setCurrentTemplateData(data);
         currentTemplateIndexRef.current = idx;
         setCurrentTemplateIndex(idx);
+        if (data.templateRotations.length > 1) {
+          preloadRotationCache(data).catch(() => {});
+        }
       } else {
         setCurrentTemplateData(data);
       }
@@ -498,7 +456,7 @@ export default function DisplayPage() {
       if (screenData && currentTemplateData && screenData.templateRotations.length === 1) {
         const durationMs = (screenData.templateRotations[0].display_duration || 90) * 1000;
         const timer = setTimeout(() => {
-          setTemplateRenewKey((k) => k + 1);
+          // Sadece veriyi yenile; key artırmak tüm ağacı remount edip "göz kırpma" yapıyordu
           loadTemplateForRotation(screenData, 0);
         }, durationMs);
         return () => clearTimeout(timer);
@@ -515,28 +473,54 @@ export default function DisplayPage() {
     const nextIndex = (currentTemplateIndex + 1) % screenData.templateRotations!.length;
     const nextRot = screenData.templateRotations![nextIndex] as { transition_duration?: number } | undefined;
     const transitionDuration = nextRot?.transition_duration ?? 1400;
-    const timer = setTimeout(async () => {
-      try {
-        const res = await fetch(`/api/public-screen/${encodeURIComponent(token)}?rotationIndex=${nextIndex}`, { cache: 'no-store' });
-        const raw = res.ok ? await res.json() : null;
-        const nextData = raw && !(raw as any).notFound && (raw as any).screen ? raw : null;
-        if (!nextData) return;
-        setNextTemplateData(nextData);
+    const N = screenData.templateRotations!.length;
+    const timer = setTimeout(() => {
+      const cached = rotationCacheRef.current.length === N ? rotationCacheRef.current[nextIndex] : null;
+      if (cached) {
+        setNextTemplateData(cached);
         setNextTemplateIndex(nextIndex);
         setIsTransitioning(true);
         setTimeout(() => {
-          setCurrentTemplateData(nextData);
+          setCurrentTemplateData(cached);
           setCurrentTemplateIndex(nextIndex);
           currentTemplateIndexRef.current = nextIndex;
           setNextTemplateData(null);
           setIsTransitioning(false);
+          setJustFinishedTransition(true);
         }, transitionDuration);
-      } catch (e) {
-        loadTemplateForRotation(screenData, nextIndex);
+        return;
       }
+      (async () => {
+        try {
+          const res = await fetch(`/api/public-screen/${encodeURIComponent(token)}?rotationIndex=${nextIndex}`, { cache: 'no-store' });
+          const raw = res.ok ? await res.json() : null;
+          const nextData = raw && !(raw as any).notFound && (raw as any).screen ? raw : null;
+          if (!nextData) return;
+          setNextTemplateData(nextData);
+          setNextTemplateIndex(nextIndex);
+          setIsTransitioning(true);
+          setTimeout(() => {
+            setCurrentTemplateData(nextData);
+            setCurrentTemplateIndex(nextIndex);
+            currentTemplateIndexRef.current = nextIndex;
+            setNextTemplateData(null);
+            setIsTransitioning(false);
+            setJustFinishedTransition(true);
+          }, transitionDuration);
+        } catch (e) {
+          loadTemplateForRotation(screenData, nextIndex);
+        }
+      })();
     }, durationMs);
     return () => clearTimeout(timer);
   }, [currentTemplateIndex, currentTemplateData, screenData, token, previewIndex]);
+
+  // Geçiş sonrası kısa fade-in süresi bitince bayrağı kaldır
+  useEffect(() => {
+    if (!justFinishedTransition) return;
+    const t = setTimeout(() => setJustFinishedTransition(false), 120);
+    return () => clearTimeout(t);
+  }, [justFinishedTransition]);
 
   if (viewAllowed === false) {
     return (
@@ -599,8 +583,7 @@ export default function DisplayPage() {
             </div>
           ) : null}
         </div>
-        <FullScreenButton fullscreenTargetRef={displayContainerRef} />
-      </EmbedFitWrapper>
+        </EmbedFitWrapper>
     );
   }
 
@@ -609,7 +592,7 @@ export default function DisplayPage() {
     const frameType = (displayData.screen as any)?.frame_type || 'none';
     const tickerText = (displayData.screen as any)?.ticker_text || '';
     return (
-      <EmbedFitWrapper ref={displayContainerRef}>
+      <EmbedFitWrapper ref={displayContainerRef} fadeIn={justFinishedTransition}>
         <div className="fixed inset-0 w-full h-full overflow-hidden bg-black flex flex-col">
           <DisplayFrame frameType={frameType} hideBottomFrame={!!tickerText} className="flex-1 min-h-0 overflow-hidden">
             <MenuViewer
@@ -646,7 +629,6 @@ export default function DisplayPage() {
           </DisplayFrame>
           <TickerTape text={tickerText} style={(displayData.screen as any)?.ticker_style || 'default'} />
         </div>
-        <FullScreenButton fullscreenTargetRef={displayContainerRef} />
       </EmbedFitWrapper>
     );
   }
@@ -658,7 +640,7 @@ export default function DisplayPage() {
     const frameType = (displayData.screen as any)?.frame_type || 'none';
     const hideBottomFrame = !!tickerText;
     return (
-      <EmbedFitWrapper ref={displayContainerRef}>
+      <EmbedFitWrapper ref={displayContainerRef} fadeIn={justFinishedTransition}>
         <div className="fixed inset-0 flex flex-col bg-black overflow-hidden">
           <div className="flex-1 min-h-0 w-full overflow-hidden relative">
             <DisplayFrame frameType={frameType} hideBottomFrame={hideBottomFrame} className="absolute inset-0 w-full h-full">
@@ -672,7 +654,6 @@ export default function DisplayPage() {
             <TickerTape key="ticker" text={tickerText} style={tickerStyle} />
           </div>
         </div>
-        <FullScreenButton fullscreenTargetRef={displayContainerRef} />
       </EmbedFitWrapper>
     );
   }
@@ -684,7 +665,7 @@ export default function DisplayPage() {
     const frameType = (displayData.screen as any)?.frame_type || 'none';
     const hideBottomFrame = !!tickerText;
     return (
-      <EmbedFitWrapper ref={displayContainerRef}>
+      <EmbedFitWrapper ref={displayContainerRef} fadeIn={justFinishedTransition}>
         <div className="fixed inset-0 flex flex-col bg-black overflow-hidden">
           <div className="flex-1 min-h-0 w-full overflow-hidden relative">
             <DisplayFrame frameType={frameType} hideBottomFrame={hideBottomFrame} className="absolute inset-0 w-full h-full">
@@ -699,7 +680,6 @@ export default function DisplayPage() {
             <TickerTape key="ticker" text={tickerText} style={tickerStyle} />
           </div>
         </div>
-        <FullScreenButton fullscreenTargetRef={displayContainerRef} />
       </EmbedFitWrapper>
     );
   }
@@ -708,7 +688,7 @@ export default function DisplayPage() {
     const tickerText = (screenData.screen as any)?.ticker_text || '';
     const tickerStyle = (screenData.screen as any)?.ticker_style || 'default';
     return (
-      <EmbedFitWrapper ref={displayContainerRef}>
+      <EmbedFitWrapper ref={displayContainerRef} fadeIn={justFinishedTransition}>
         <div className="fixed inset-0 flex flex-col bg-black overflow-hidden">
           <div className="flex-1 min-h-0 relative overflow-hidden">
             {isTransitioning && nextTemplateData && currentTemplateData && !nextTemplateData.digitalMenuData ? (
@@ -737,14 +717,13 @@ export default function DisplayPage() {
             </div>
           ) : null}
         </div>
-        <FullScreenButton fullscreenTargetRef={displayContainerRef} />
       </EmbedFitWrapper>
     );
   }
 
   if (!screenData.menus || screenData.menus.length === 0) {
     return (
-      <EmbedFitWrapper ref={displayContainerRef}>
+      <EmbedFitWrapper ref={displayContainerRef} fadeIn={justFinishedTransition}>
         <div className="fixed inset-0 flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white">
           <div className="text-5xl font-light">{t('display_no_menus')}</div>
         </div>
@@ -757,7 +736,7 @@ export default function DisplayPage() {
 
   if (!currentItem) {
     return (
-      <EmbedFitWrapper ref={displayContainerRef}>
+      <EmbedFitWrapper ref={displayContainerRef} fadeIn={justFinishedTransition}>
         <div className="fixed inset-0 flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white">
           <div className="text-5xl font-light">{t('display_no_items')}</div>
         </div>
@@ -769,7 +748,7 @@ export default function DisplayPage() {
   const animationDuration = screenData.screen.animation_duration || 500;
 
   return (
-    <EmbedFitWrapper ref={displayContainerRef}>
+    <EmbedFitWrapper ref={displayContainerRef} fadeIn={justFinishedTransition}>
       <style jsx global>{`
         @keyframes fadeIn {
           from { opacity: 0; transform: translateY(20px); }
@@ -909,7 +888,6 @@ export default function DisplayPage() {
         <div className="absolute inset-0 pointer-events-none opacity-5">
           <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.1),transparent_50%)]"></div>
         </div>
-        <FullScreenButton fullscreenTargetRef={displayContainerRef} />
       </div>
     </EmbedFitWrapper>
   );
@@ -940,9 +918,9 @@ function TemplateTransition({
   return (
     <>
       <style jsx global>{`
-        .transition-wrap { --dur: ${duration}ms; }
-        .transition-current { position: absolute; inset: 0; z-index: 10; }
-        .transition-next { position: absolute; inset: 0; z-index: 20; }
+        .transition-wrap { --dur: ${duration}ms; contain: layout style paint; }
+        .transition-current { position: absolute; inset: 0; z-index: 10; will-change: transform, opacity; transform: translateZ(0); backface-visibility: hidden; }
+        .transition-next { position: absolute; inset: 0; z-index: 20; will-change: transform, opacity; transform: translateZ(0); backface-visibility: hidden; }
         .transition-car { position: absolute; inset: 0; z-index: 30; pointer-events: none; display: flex; align-items: center; justify-content: flex-start; }
         .transition-car-inner { font-size: min(12vw, 120px); filter: drop-shadow(0 4px 20px rgba(0,0,0,0.5)); animation: carDrive var(--dur) ease-in-out forwards; }
         @keyframes carDrive { 0% { transform: translateX(-20%); } 100% { transform: translateX(120%); } }
