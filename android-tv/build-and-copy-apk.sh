@@ -7,12 +7,17 @@ cd "$(dirname "$0")"
 
 VERSION_FILE="version.properties"
 if [ -f "$VERSION_FILE" ]; then
-  # versionCode artır (satır: versionCode=123)
   if grep -q '^versionCode=' "$VERSION_FILE"; then
     code=$(grep '^versionCode=' "$VERSION_FILE" | cut -d= -f2)
     next=$((code + 1))
+    versionName="1.0.$next"
     sed "s/^versionCode=.*/versionCode=$next/" "$VERSION_FILE" > "${VERSION_FILE}.tmp" && mv "${VERSION_FILE}.tmp" "$VERSION_FILE"
-    echo "Version: versionCode $code -> $next"
+    if grep -q '^versionName=' "$VERSION_FILE"; then
+      sed "s/^versionName=.*/versionName=$versionName/" "$VERSION_FILE" > "${VERSION_FILE}.tmp" && mv "${VERSION_FILE}.tmp" "$VERSION_FILE"
+    else
+      echo "versionName=$versionName" >> "$VERSION_FILE"
+    fi
+    echo "Version: versionCode $code -> $next, versionName=$versionName"
   fi
 fi
 

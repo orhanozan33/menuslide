@@ -136,7 +136,7 @@ class MainActivity : AppCompatActivity() {
                     val request = Request.Builder().url("$BOOTSTRAP_BASE/api/tv-app-config").get().build()
                     val client = OkHttpClient.Builder().connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS).build()
                     val response = client.newCall(request).execute()
-                    if (!response.isSuccessful()) return@withContext true
+                    if (!response.isSuccessful) return@withContext true
                     val json = response.body?.string() ?: return@withContext true
                     val obj = org.json.JSONObject(json)
                     val base = obj.optString("apiBaseUrl", "").trim()
@@ -232,7 +232,7 @@ class MainActivity : AppCompatActivity() {
                     try {
                         val uri = FileProvider.getUriForFile(
                             this@MainActivity,
-                            "${applicationId}.fileprovider",
+                            "${packageName}.fileprovider",
                             file
                         )
                         val intent = Intent(Intent.ACTION_VIEW).apply {

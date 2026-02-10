@@ -48,3 +48,6 @@ logs/
 
 # Large DB exports (do not commit)
 database/export-from-local-data.sql
+
+# Built APK (her build farklı; dağıtım Supabase/indirme linki ile)
+frontend/public/downloads/*.apk

@@ -761,6 +761,21 @@ export default function SettingsPage() {
                       }
                       setApkUploading(true);
                       try {
+                        const parseForm = new FormData();
+                        parseForm.append('apk', file);
+                        const parseRes = await fetch('/api/admin/parse-apk', {
+                          method: 'POST',
+                          headers: { Authorization: `Bearer ${authToken}` },
+                          body: parseForm,
+                        });
+                        let versionCode: number | '' = '';
+                        let versionName = '';
+                        if (parseRes.ok) {
+                          const parsed = await parseRes.json().catch(() => ({}));
+                          if (typeof parsed.versionCode === 'number') versionCode = parsed.versionCode;
+                          if (typeof parsed.versionName === 'string') versionName = parsed.versionName;
+                        }
+
                         const tokenRes = await fetch('/api/admin/upload-apk-token', {
                           headers: { Authorization: `Bearer ${authToken}` },
                         });
@@ -768,8 +783,8 @@ export default function SettingsPage() {
                           const data = await tokenRes.json().catch(() => ({}));
                           throw new Error(data.message || tokenRes.statusText);
                         }
-                        const { path, token } = await tokenRes.json();
-                        const { error: uploadErr } = await supabase.storage.from('menuslide').uploadToSignedUrl(path, token, file, {
+                        const { path: uploadPath, token } = await tokenRes.json();
+                        const { error: uploadErr } = await supabase.storage.from('menuslide').uploadToSignedUrl(uploadPath, token, file, {
                           contentType: 'application/vnd.android.package-archive',
                           upsert: true,
                         });
@@ -780,8 +795,40 @@ export default function SettingsPage() {
                         });
                         if (!doneRes.ok) throw new Error('URL güncellenemedi');
                         const { url } = await doneRes.json();
-                        setTvAppConfig((p) => ({ ...p, downloadUrl: url || '' }));
-                        toast.showSuccess(t('settings_tv_app_upload_success'));
+
+                        setTvAppConfig((p) => ({
+                          ...p,
+                          downloadUrl: url || '',
+                          minVersionCode: versionCode !== '' ? versionCode : p.minVersionCode,
+                          latestVersionCode: versionCode !== '' ? versionCode : p.latestVersionCode,
+                          latestVersionName: versionName || p.latestVersionName,
+                        }));
+
+                        if (versionCode !== '' || versionName) {
+                          const savePayload = {
+                            apiBaseUrl: tvAppConfig.apiBaseUrl,
+                            downloadUrl: url || '',
+                            watchdogIntervalMinutes: tvAppConfig.watchdogIntervalMinutes,
+                            minVersionCode: versionCode !== '' ? versionCode : null,
+                            latestVersionCode: versionCode !== '' ? versionCode : null,
+                            latestVersionName: versionName || tvAppConfig.latestVersionName || null,
+                          };
+                          const saveRes = await fetch('/api/tv-app-config', {
+                            method: 'PATCH',
+                            headers: {
+                              'Content-Type': 'application/json',
+                              Authorization: `Bearer ${authToken}`,
+                            },
+                            body: JSON.stringify(savePayload),
+                          });
+                          if (saveRes.ok) {
+                            toast.showSuccess(t('settings_tv_app_upload_success') + ' Sürüm bilgisi kaydedildi; kullanıcılar güncelleme alacak.');
+                          } else {
+                            toast.showSuccess(t('settings_tv_app_upload_success') + ' Sürüm alanlarını kontrol edip Kaydet ile kaydedin.');
+                          }
+                        } else {
+                          toast.showSuccess(t('settings_tv_app_upload_success'));
+                        }
                       } catch (err) {
                         toast.showError(t('settings_tv_app_upload_error') + (err instanceof Error ? `: ${err.message}` : ''));
                       } finally {
@@ -813,7 +860,7 @@ export default function SettingsPage() {
               </div>
               <div className="border-t border-gray-200 pt-4 mt-4">
                 <p className="text-sm font-medium text-gray-700 mb-2">Uzaktan sürüm (mobil güncelleme)</p>
-                <p className="text-xs text-gray-500 mb-2">Yeni APK yükleyince buraya güncel versionCode ve versionName girin. Min: bu kodun altındaki uygulamalar güncelleme zorunlu görür.</p>
+                <p className="text-xs text-gray-500 mb-2">APK yüklediğinizde sürüm bilgisi otomatik okunur ve kaydedilir; kullanıcılar güncelleme alır. Min: bu kodun altındaki uygulamalar güncelleme zorunlu görür.</p>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Min versionCode</label>
