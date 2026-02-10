@@ -6,7 +6,7 @@ import { useTranslation } from '@/lib/i18n/useTranslation';
 import Link from 'next/link';
 import {
   Upload, LayoutTemplate, Image, Type, Sparkles, Palette, Grid3X3, CircleDot, MoreHorizontal,
-  Square, Bold, Italic, ChevronDown, RotateCcw, RotateCw, Copy, Trash2, Tv, Repeat, Check, X,
+  Square, Bold, Italic, ChevronDown, RotateCcw, RotateCw,   Copy, Trash2, Tv, Repeat, Check, X, AlignLeft,
 } from 'lucide-react';
 import { GRADIENT_PRESETS, createFabricGradient } from '@/lib/full-editor/gradient';
 import { FONT_GROUPS, FONT_OPTIONS, GOOGLE_FONT_CHUNKS, getGoogleFontsUrl } from '@/lib/editor-fonts';
@@ -224,6 +224,7 @@ export default function SistemPage() {
   const pushHistoryRef = useRef<() => void>(() => {});
   const setHistoryTickRef = useRef<((n: number | ((prev: number) => number)) => void) | null>(null);
   const saveDraftRef = useRef<() => void>(() => {});
+  const loadedTemplateNameRef = useRef<string>('');
   const bgColorRef = useRef(bgColor);
   const canvasDimsRef = useRef({ w: 1920, h: 1080 });
   useEffect(() => { bgColorRef.current = bgColor; }, [bgColor]);
@@ -253,9 +254,9 @@ export default function SistemPage() {
       fabricCanvasRef.current = fabricCanvas;
       requestAnimationFrame(() => (fabricCanvas as { calcOffset?: () => void }).calcOffset?.());
 
-      // Layout parametresi varsa yeni şablon – taslağı yükleme, seçilen düzeni uygula
+      // Layout parametresi varsa yeni şablon – taslağı yükleme, seçilen düzeni uygula. URL'de templateId varsa (Benim şablonlarım → Düzenle) taslak yükleme, ilgili effect şablonu yükleyecek.
       const hasLayoutParam = layoutFromUrl && !templateIdFromUrl;
-      const draftRaw = !hasLayoutParam && typeof window !== 'undefined' ? localStorage.getItem(DRAFT_KEY) : null;
+      const draftRaw = !hasLayoutParam && !templateIdFromUrl && typeof window !== 'undefined' ? localStorage.getItem(DRAFT_KEY) : null;
       const draft = draftRaw ? (() => { try { return JSON.parse(draftRaw) as { json: object; bgColor?: string; width?: number; height?: number }; } catch { return null; } })() : null;
       const savedBgRaw = typeof window !== 'undefined' ? localStorage.getItem(DRAFT_BG_KEY) : null;
       const savedBg = (typeof savedBgRaw === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(savedBgRaw))
@@ -331,22 +332,25 @@ export default function SistemPage() {
         }
         else if (layout === '4x2-8') { for (let row=0;row<2;row++) for (let col=0;col<4;col++) addBlock(col*(cw/4), row*(ch/2), cw/4, ch/2); }
         else {
-          let siteName = (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_SITE_NAME) || (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_APP_NAME) || 'Menümüz';
+          const defaultPhone = '+1 438 xxxxxxx';
+          const defaultWebsite = 'www.menuslide.com';
+          let siteName = (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_SITE_NAME) || (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_APP_NAME) || 'Our Menu';
           let contactLine = '';
           try {
             const contactRes = await fetch('/api/contact-info', { cache: 'no-store' });
             const contactData = await contactRes.json().catch(() => ({}));
-            const phone = contactData.phone?.trim() || '';
+            const phone = contactData.phone?.trim() || defaultPhone;
             const appUrl = (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_APP_URL) ? String(process.env.NEXT_PUBLIC_APP_URL).replace(/\/$/, '') : (typeof window !== 'undefined' ? window.location.origin : '');
+            const website = appUrl ? appUrl.replace(/^https?:\/\//, '') : defaultWebsite;
             const parts = [phone];
-            if (appUrl) parts.push(appUrl.replace(/^https?:\/\//, ''));
-            contactLine = parts.filter(Boolean).join('  •  ') || 'İletişim bilgileri Ayarlar\'dan ekleyebilirsiniz';
+            if (website) parts.push(website);
+            contactLine = parts.filter(Boolean).join('  •  ') || `${defaultPhone}  •  ${defaultWebsite}`;
           } catch {
-            contactLine = typeof window !== 'undefined' ? `${window.location.origin}` : 'İletişim';
+            contactLine = `${defaultPhone}  •  ${defaultWebsite}`;
           }
           const text = new fabric.FabricText(siteName, { fontSize: 56, left: 80, top: 60, fill: '#ffffff', fontFamily: 'sans-serif' });
           fabricCanvas.add(text);
-          const sub = new fabric.FabricText('Menü', { fontSize: 28, left: 80, top: 130, fill: '#ffffff', fontStyle: 'italic' });
+          const sub = new fabric.FabricText('Menu', { fontSize: 28, left: 80, top: 130, fill: '#ffffff', fontStyle: 'italic' });
           fabricCanvas.add(sub);
           const contact = new fabric.FabricText(contactLine, { fontSize: 16, left: 80, top: 180, fill: '#9ca3af' });
           fabricCanvas.add(contact);
@@ -491,6 +495,31 @@ export default function SistemPage() {
           } catch { /* ignore */ }
         }, 600);
       };
+      // Benim şablonlarım → Düzenle: canvas hazır olduktan sonra URL'deki şablonu yükle (effect bazen ref'e erişemediği için burada da yüklüyoruz)
+      if (templateIdFromUrl) {
+        fetch(`/api/full-editor/templates?id=${encodeURIComponent(templateIdFromUrl)}`, { cache: 'no-store' })
+          .then((r) => r.json())
+          .then((tpl: { id?: string; name?: string; canvas_json?: object }) => {
+            if (!tpl?.canvas_json || typeof tpl.canvas_json !== 'object') return;
+            const raw = tpl.canvas_json as Record<string, unknown>;
+            const safe = sanitizeCanvasJsonForFabric(raw) as object;
+            fabricCanvas.loadFromJSON(safe).then(() => {
+              constrainAllObjects(fabricCanvas);
+              fabricCanvas.renderAll();
+              const name = tpl.name ?? '';
+              setDesignTitle(name);
+              loadedTemplateNameRef.current = name;
+              if (tpl.id) setSavedTemplateId(tpl.id);
+              setSaved(false);
+              pushHistoryRef.current();
+              saveDraftRef.current();
+              const u = new URL(window.location.href);
+              u.searchParams.delete('templateId');
+              window.history.replaceState({}, '', u.pathname + u.search);
+            }).catch(() => {});
+          })
+          .catch(() => {});
+      }
     };
     const pushHistory = () => {
       const c = fabricCanvasRef.current;
@@ -564,31 +593,14 @@ export default function SistemPage() {
     c.requestRenderAll();
   }, [showTvPreviewModal]);
 
-  // URL'de ?templateId=xxx varsa full-editor şablonunu yükle (Sistem Şablonları sayfasından Düzenle ile gelindiğinde)
+  // Şablon yükleme artık init içinde (templateIdFromUrl ile) – canvas hazır olduktan sonra yükleniyor
+
+  // "Tasarımı Kaydet" modalı açıldığında şablon adı boşsa ref/designTitle ile doldur (sistem şablonu güncellemede isim çıksın)
   useEffect(() => {
-    if (!templateIdFromUrl) return;
-    const c = fabricCanvasRef.current;
-    if (!c) return;
-    fetch(`/api/full-editor/templates?id=${encodeURIComponent(templateIdFromUrl)}`, { cache: 'no-store' })
-      .then((r) => r.json())
-      .then((tpl: { id?: string; name?: string; canvas_json?: object }) => {
-        if (!tpl?.canvas_json || typeof tpl.canvas_json !== 'object') return;
-        const raw = tpl.canvas_json as Record<string, unknown>;
-        const safe = sanitizeCanvasJsonForFabric(raw) as object;
-        c.loadFromJSON(safe).then(() => {
-          constrainAllObjects(c);
-          c.renderAll();
-          if (tpl.name) setDesignTitle(tpl.name);
-          setSaved(false);
-          pushHistoryRef.current();
-          saveDraftRef.current();
-          const u = new URL(window.location.href);
-          u.searchParams.delete('templateId');
-          window.history.replaceState({}, '', u.pathname + u.search);
-        }).catch(() => {});
-      })
-      .catch(() => {});
-  }, [templateIdFromUrl]);
+    if (!saveDialogOpen) return;
+    const name = loadedTemplateNameRef.current || designTitle || '';
+    if (name) setSaveName(prev => (prev.trim() ? prev : name));
+  }, [saveDialogOpen, designTitle]);
 
   /** Fabric API ile container'a sığdır – CSS transform YOK */
   const fitCanvasToContainer = useCallback(() => {
@@ -775,7 +787,9 @@ export default function SistemPage() {
     canvas.setActiveObject(t);
     canvas.renderAll();
     pushHistoryRef.current();
-    setSelectedProps({ fontSize: 36, fill: defaultFill, fontFamily: 'sans-serif', fontWeight: 400, fontStyle: 'normal' });
+    const textContent = (t as { text?: string }).text ?? 'New Text';
+    setSelectedObjectType('textbox');
+    setSelectedProps({ text: textContent, fontSize: 36, fill: defaultFill, fontFamily: 'sans-serif', fontWeight: 400, fontStyle: 'normal' });
     setSaved(false);
     refreshLayers();
     saveDraftRef.current();
@@ -874,8 +888,8 @@ export default function SistemPage() {
     opts?: { siteName?: string; contactLine?: string }
   ): { type: string; text: string; left: number; top: number; fontSize?: number; fill?: string; originX?: 'center' }[] => {
     const cx = cw / 2;
-    const siteName = opts?.siteName ?? 'Menümüz';
-    const contactLine = opts?.contactLine ?? 'İletişim';
+    const siteName = opts?.siteName ?? 'Our Menu';
+    const contactLine = opts?.contactLine ?? '+1 438 xxxxxxx  •  www.menuslide.com';
     const item = (text: string, top: number, fontSize: number, fill = '#ffffff') =>
       ({ type: 'text' as const, text, left: cx, top, fontSize, fill, originX: 'center' as const });
     const contact = { type: 'text' as const, text: contactLine, left: cx, top: ch * 0.18, fontSize: Math.round(ch * 0.015), fill: '#94a3b8', originX: 'center' as const };
@@ -884,7 +898,7 @@ export default function SistemPage() {
       const dy = ch * 0.042;
       return [
         item(siteName, ch * 0.05, Math.round(ch * 0.045), '#ffffff'),
-        item('Menü', ch * 0.1, Math.round(ch * 0.022), '#ffffff'),
+        item('Menu', ch * 0.1, Math.round(ch * 0.022), '#ffffff'),
         contact,
         item('Margarita ......... $9', y0, Math.round(ch * 0.02)),
         item('Mojito ............. $8', y0 + dy, Math.round(ch * 0.02)),
@@ -903,7 +917,7 @@ export default function SistemPage() {
       const dy = ch * 0.042;
       return [
         item(siteName, ch * 0.05, Math.round(ch * 0.045), '#ffffff'),
-        item('Menü', ch * 0.1, Math.round(ch * 0.022), '#ffffff'),
+        item('Menu', ch * 0.1, Math.round(ch * 0.022), '#ffffff'),
         contact,
         item('Starters', y0, Math.round(ch * 0.02), '#fbbf24'),
         item('Soup .............. $8', y0 + dy, Math.round(ch * 0.018)),
@@ -924,7 +938,7 @@ export default function SistemPage() {
       const dy = ch * 0.042;
       return [
         item(siteName, ch * 0.05, Math.round(ch * 0.045), '#ffffff'),
-        item('Menü', ch * 0.1, Math.round(ch * 0.022), '#ffffff'),
+        item('Menu', ch * 0.1, Math.round(ch * 0.022), '#ffffff'),
         contact,
         item('Hot Drinks', y0, Math.round(ch * 0.02), '#fbbf24'),
         item('Espresso ......... $4', y0 + dy, Math.round(ch * 0.018)),
@@ -954,7 +968,7 @@ export default function SistemPage() {
         const res = await fetch('/api/ai/generate-layout', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt: `generate a ${layoutType} menu layout for 1920x1080` }),
+          body: JSON.stringify({ prompt: `generate a ${layoutType} menu layout for 1920x1080. All text must be in English. Use contact line: +1 438 xxxxxxx • www.menuslide.com` }),
         });
         const data = await res.json();
         objects = Array.isArray(data?.objects) ? data.objects : [];
@@ -962,18 +976,21 @@ export default function SistemPage() {
       const cw = (canvas as { width?: number }).width ?? 1920;
       const ch = (canvas as { height?: number }).height ?? 1080;
       if (objects.length === 0) {
-        let siteName = (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_SITE_NAME) || (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_APP_NAME) || 'Menümüz';
+        const defaultPhone = '+1 438 xxxxxxx';
+        const defaultWebsite = 'www.menuslide.com';
+        let siteName = (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_SITE_NAME) || (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_APP_NAME) || 'Our Menu';
         let contactLine = '';
         try {
           const contactRes = await fetch('/api/contact-info', { cache: 'no-store' });
           const contactData = await contactRes.json().catch(() => ({}));
-          const phone = contactData.phone?.trim() || '';
+          const phone = contactData.phone?.trim() || defaultPhone;
           const appUrl = (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_APP_URL) ? String(process.env.NEXT_PUBLIC_APP_URL).replace(/\/$/, '') : (typeof window !== 'undefined' ? window.location.origin : '');
+          const website = appUrl ? appUrl.replace(/^https?:\/\//, '') : defaultWebsite;
           const parts = [phone];
-          if (appUrl) parts.push(appUrl.replace(/^https?:\/\//, ''));
-          contactLine = parts.filter(Boolean).join('  •  ') || 'İletişim bilgileri Ayarlar\'dan ekleyebilirsiniz';
+          if (website) parts.push(website);
+          contactLine = parts.filter(Boolean).join('  •  ') || `${defaultPhone}  •  ${defaultWebsite}`;
         } catch {
-          contactLine = typeof window !== 'undefined' ? window.location.origin.replace(/^https?:\/\//, '') : 'İletişim';
+          contactLine = `${defaultPhone}  •  ${defaultWebsite}`;
         }
         objects = getLayoutObjects(layoutType, cw, ch, { siteName, contactLine });
       }
@@ -1073,6 +1090,40 @@ export default function SistemPage() {
     setOverwriteConfirm(null);
     try {
       const token = typeof window !== 'undefined' ? (sessionStorage.getItem('impersonation_token') || localStorage.getItem('auth_token')) : null;
+      // Düzenlenen şablon varsa: aynı isimle kaydet → güncelle (PATCH); farklı isim → mevcut korunur, yeni şablon oluştur (POST)
+      const isSameName = savedTemplateId && name.trim() === (loadedTemplateNameRef.current || '').trim();
+      if (savedTemplateId && isSameName) {
+        const previewDataUrl = (canvas as { toDataURL?: (o?: object) => string }).toDataURL?.({ format: 'png', multiplier: 0.6 }) ?? '';
+        const res = await fetch('/api/full-editor/templates', {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token && { Authorization: `Bearer ${token}` }),
+          },
+          body: JSON.stringify({
+            id: savedTemplateId,
+            name: name.trim(),
+            canvas_json: (canvas as { toObject: (p?: string[]) => object }).toObject(['selectable', 'evented']),
+            preview_image: previewDataUrl || null,
+            category_id: selectedCategoryId || null,
+          }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err?.error || 'Güncelleme başarısız');
+        }
+        setSaved(true);
+        setSaveDialogOpen(false);
+        setSaveDestinationModalOpen(false);
+        setFileMenuOpen(false);
+        refreshTemplates();
+        toast.showSuccess('Şablon güncellendi.');
+        setSaving(false);
+        return;
+      }
+      if (savedTemplateId && !isSameName) {
+        loadedTemplateNameRef.current = '';
+      }
       const checkUrl = `/api/full-editor/templates?name=${encodeURIComponent(name.trim())}&scope=${effectiveScope}${effectiveTargetUserId ? `&user_id=${encodeURIComponent(effectiveTargetUserId)}` : ''}`;
       const checkRes = await fetch(checkUrl, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
       const existing = await checkRes.json().catch(() => null);
@@ -1109,7 +1160,9 @@ export default function SistemPage() {
         throw new Error(msg);
       }
       const data = await res.json().catch(() => ({}));
-      setSavedTemplateId(data?.id ?? null);
+      const newId = data?.id ?? null;
+      setSavedTemplateId(newId);
+      if (newId) loadedTemplateNameRef.current = name.trim();
       setSaved(true);
       setSaveDialogOpen(false);
       setSaveDestinationModalOpen(false);
@@ -1144,7 +1197,7 @@ export default function SistemPage() {
     } finally {
       setSaving(false);
     }
-  }, [designTitle, selectedCategoryId, saveName, isAdmin, saveScope, saveTargetUserId, effectiveScope, effectiveTargetUserId, toast, refreshTemplates, saveDialogOpen]);
+  }, [designTitle, selectedCategoryId, saveName, isAdmin, saveScope, saveTargetUserId, effectiveScope, effectiveTargetUserId, toast, refreshTemplates, saveDialogOpen, savedTemplateId]);
 
   const saveDesignOverwrite = useCallback(async () => {
     const canvas = fabricCanvasRef.current;
@@ -1240,6 +1293,54 @@ export default function SistemPage() {
       console.error('Çoğaltma hatası:', e);
     }
   }, [refreshLayers]);
+
+  /** Seçili nesneleri sola hizala ve dikey aralıkları eşitle (satır başı + satır aralığı) */
+  const alignSelected = useCallback(() => {
+    const canvas = fabricCanvasRef.current;
+    if (!canvas) return;
+    const active = canvas.getActiveObject();
+    const getActiveObjectsFn = (canvas as { getActiveObjects?: () => import('fabric').FabricObject[] }).getActiveObjects;
+    let list: import('fabric').FabricObject[] = typeof getActiveObjectsFn === 'function' ? getActiveObjectsFn.call(canvas) ?? [] : [];
+    if (list.length < 2 && active) {
+      const type = (active as { type?: string }).type ?? '';
+      if (type === 'activeSelection' || type === 'ActiveSelection') {
+        const getObjects = (active as { getObjects?: () => import('fabric').FabricObject[] }).getObjects;
+        list = typeof getObjects === 'function' ? getObjects.call(active) ?? [] : [];
+      } else {
+        list = [active];
+      }
+    }
+    if (list.length < 2) {
+      toast.showWarning('Hizalamak için en az 2 nesne seçin.');
+      return;
+    }
+    list.forEach((o) => o.setCoords?.());
+    const withRect = list.map((o) => {
+      const r = o.getBoundingRect();
+      return { obj: o, rectLeft: r.left, rectTop: r.top, top: (o as { top?: number }).top ?? r.top, height: r.height };
+    });
+    const leftMin = Math.min(...withRect.map((x) => x.rectLeft));
+    withRect.sort((a, b) => a.top - b.top);
+    const firstTop = withRect[0].top;
+    const lastBottom = withRect[withRect.length - 1].top + withRect[withRect.length - 1].height;
+    const totalHeight = withRect.reduce((s, x) => s + x.height, 0);
+    const gap = withRect.length > 1 ? (lastBottom - firstTop - totalHeight) / (withRect.length - 1) : 0;
+    let nextTop = firstTop;
+    withRect.forEach(({ obj, rectLeft, height }) => {
+      const deltaX = leftMin - rectLeft;
+      const newLeft = ((obj as { left?: number }).left ?? 0) + deltaX;
+      (obj as { set: (k: string, v: number) => void }).set('left', newLeft);
+      (obj as { set: (k: string, v: number) => void }).set('top', nextTop);
+      obj.setCoords?.();
+      nextTop += height + gap;
+    });
+    canvas.renderAll();
+    pushHistoryRef.current();
+    setSaved(false);
+    refreshLayers();
+    saveDraftRef.current();
+    toast.showSuccess('Nesneler hizalandı.');
+  }, [toast, refreshLayers]);
 
   const addImageFromUrl = useCallback(async (url: string) => {
     const canvas = fabricCanvasRef.current;
@@ -1805,7 +1906,7 @@ export default function SistemPage() {
                 <button onClick={newCanvas} className="w-full text-left px-3 py-2 text-sm hover:bg-foreground/5">Yeni</button>
                 <button
                   onClick={() => {
-                    setSaveName(designTitle);
+                    setSaveName(loadedTemplateNameRef.current || designTitle || '');
                     if (isAdmin) { setSaveDestinationModalOpen(true); setFileMenuOpen(false); }
                     else { setSaveDialogOpen(true); setFileMenuOpen(false); }
                   }}
@@ -1825,12 +1926,18 @@ export default function SistemPage() {
         </div>
         <div className="flex items-center gap-4">
           <span className="text-sm text-green-600">{saved ? 'Değişiklikler kaydedildi' : 'Kaydedilmedi'}</span>
+          <button onClick={duplicateSelected} className="flex items-center gap-1.5 px-3 py-1.5 text-sm border rounded hover:bg-foreground/5" title="Seçiliyi Çoğalt">
+            <Copy className="w-4 h-4" /> Seçiliyi Çoğalt
+          </button>
+          <button onClick={alignSelected} className="flex items-center gap-1.5 px-3 py-1.5 text-sm border rounded hover:bg-foreground/5" title="Seçili nesneleri sola hizala ve satır aralıklarını eşitle">
+            <AlignLeft className="w-4 h-4" /> Hizala
+          </button>
           <button className="px-3 py-1.5 text-sm bg-amber-500 text-white rounded hover:bg-amber-600">Upgrade</button>
           <button onClick={() => { navigator.clipboard?.writeText(window.location.href); toast.showSuccess('Link kopyalandı.'); }} className="text-sm text-foreground/70 hover:text-foreground">Paylaş</button>
           <button onClick={exportPng} className="text-sm text-foreground/70 hover:text-foreground">İndir</button>
           <button
             onClick={() => {
-              setSaveName(designTitle);
+              setSaveName(loadedTemplateNameRef.current || designTitle || '');
               if (isAdmin) setSaveDestinationModalOpen(true);
               else setSaveDialogOpen(true);
             }}
@@ -2094,7 +2201,10 @@ export default function SistemPage() {
                             }
                           });
                           c.renderAll();
-                          setDesignTitle(templatePreviewItem.name ?? '');
+                          const name = templatePreviewItem.name ?? '';
+                          setDesignTitle(name);
+                          loadedTemplateNameRef.current = name;
+                          if (templatePreviewItem.id) setSavedTemplateId(templatePreviewItem.id);
                           pushHistoryRef.current();
                           setSaved(false);
                           refreshLayers();
@@ -2606,9 +2716,6 @@ export default function SistemPage() {
                 <LayoutTemplate className="w-4 h-4" /> Alana Sığdır (TV ile aynı)
               </button>
               <p className="text-[10px] text-muted">Tüm tasarımı 16:9 canvas&apos;a sığdırır. Önizleme ve yayın birebir eşleşir.</p>
-              <button onClick={duplicateSelected} className="w-full flex items-center justify-center gap-2 py-2 px-3 border rounded text-sm hover:bg-foreground/5">
-                <Copy className="w-4 h-4" /> Seçiliyi Çoğalt
-              </button>
               <button onClick={deleteSelected} className="w-full flex items-center justify-center gap-2 py-2 px-3 border border-red-200 rounded text-sm text-red-600 hover:bg-red-50">
                 <Trash2 className="w-4 h-4" /> Seçiliyi Sil
               </button>
@@ -2923,6 +3030,7 @@ export default function SistemPage() {
                       return;
                     }
                     setSaveDestinationModalOpen(false);
+                    setSaveName(loadedTemplateNameRef.current || designTitle || '');
                     setSaveDialogOpen(true);
                   }}
                   disabled={saveScope === 'user' && !saveTargetUserId}
