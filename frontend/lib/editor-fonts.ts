@@ -30,6 +30,11 @@ const GOOGLE_FONT_FAMILIES_FLAT = [
 /** Eski API uyumluluğu: tek liste (parçalı yükleme için GOOGLE_FONT_CHUNKS kullanın) */
 export const GOOGLE_FONT_FAMILIES = GOOGLE_FONT_FAMILIES_FLAT;
 
+/** Sadece Google Fonts API'de olan aile adları (display: "Dancing Script"). Sistem/generic fontlar (Times New Roman, sans-serif, Impact) burada yok. */
+const GOOGLE_FONT_DISPLAY_NAMES = new Set(
+  GOOGLE_FONT_FAMILIES_FLAT.map((f) => f.replace(/\+/g, ' '))
+);
+
 const CHUNK_SIZE = 6;
 
 /** Parçalara bölünmüş font listesi – her parça ayrı <link> ile yüklenir (URL uzunluk sınırı) */
@@ -45,10 +50,15 @@ export function getGoogleFontsUrl(families: string[]): string {
   return `https://fonts.googleapis.com/css2?${query}&display=swap`;
 }
 
-/** Şablonda kullanılan font aileleri (display adı, örn. "Dancing Script") → TV/display sayfasında yüklenecek Google Fonts URL’i. Satır kırılımının editörle aynı kalması için gerekli. */
+/** Şablonda kullanılan font aileleri (display adı, örn. "Dancing Script") → TV/display sayfasında yüklenecek Google Fonts URL’i. Sadece Google'da olan fontlar istenir; Times New Roman, sans-serif, Impact vb. sistem/generic fontlar atlanır (403/400 hataları önlenir). */
 export function getGoogleFontsUrlForDisplayFamilies(displayFamilies: string[]): string {
-  const unique = [...new Set(displayFamilies.filter((f) => f && typeof f === 'string' && FONT_OPTIONS.includes(f)))];
-  const forUrl = unique.slice(0, 20).map((f) => f.replace(/\s+/g, '+'));
+  const unique = [...new Set(
+    displayFamilies.filter(
+      (f) => f && typeof f === 'string' && GOOGLE_FONT_DISPLAY_NAMES.has(f.trim())
+    )
+  )];
+  if (unique.length === 0) return '';
+  const forUrl = unique.slice(0, 20).map((f) => f.trim().replace(/\s+/g, '+'));
   return getGoogleFontsUrl(forUrl);
 }
 
