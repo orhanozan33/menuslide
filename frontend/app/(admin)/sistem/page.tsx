@@ -1929,6 +1929,9 @@ export default function SistemPage() {
         </div>
         <div className="flex items-center gap-4">
           <span className="text-sm text-green-600">{saved ? 'Değişiklikler kaydedildi' : 'Kaydedilmedi'}</span>
+          <button onClick={addText} className="flex items-center gap-1.5 px-3 py-1.5 text-sm border rounded hover:bg-foreground/5" title="Metin Ekle">
+            <Type className="w-4 h-4" /> Metin Ekle
+          </button>
           <button onClick={duplicateSelected} className="flex items-center gap-1.5 px-3 py-1.5 text-sm border rounded hover:bg-foreground/5" title="Seçiliyi Çoğalt">
             <Copy className="w-4 h-4" /> Seçiliyi Çoğalt
           </button>
@@ -1973,9 +1976,6 @@ export default function SistemPage() {
         <div className={`w-64 shrink-0 bg-background border-r border flex flex-col min-h-0 overflow-y-auto ${showTvPreviewModal ? 'hidden' : ''}`}>
           {leftTab === 'text' && (
             <div className="p-4 space-y-4">
-              <button onClick={addText} className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-gray-800 text-white rounded text-sm hover:bg-gray-700">
-                <Type className="w-4 h-4" /> Metin Ekle
-              </button>
               <div>
                 <h3 className="text-xs font-semibold text-foreground mb-1">Hazır Şekiller</h3>
                 <p className="text-[10px] text-muted mb-2">Tıklayarak tasarıma ekleyin</p>
