@@ -212,6 +212,8 @@ export default function SistemPage() {
   const [saveName, setSaveName] = useState('');
   const [saving, setSaving] = useState(false);
   const [overwriteConfirm, setOverwriteConfirm] = useState<{ id: string; name: string } | null>(null);
+  const [fontPickerOpen, setFontPickerOpen] = useState(false);
+  const fontPickerRef = useRef<HTMLDivElement>(null);
   const [savedTemplateId, setSavedTemplateId] = useState<string | null>(null);
   const [historyTick, setHistoryTick] = useState(0);
   const [layersKey, setLayersKey] = useState(0);
@@ -1881,9 +1883,19 @@ export default function SistemPage() {
   }, [fileMenuOpen]);
 
   useEffect(() => {
+    if (!fontPickerOpen) return;
+    const close = (e: MouseEvent) => {
+      if (fontPickerRef.current && !fontPickerRef.current.contains(e.target as Node)) setFontPickerOpen(false);
+    };
+    const t = setTimeout(() => document.addEventListener('click', close), 0);
+    return () => { clearTimeout(t); document.removeEventListener('click', close); };
+  }, [fontPickerOpen]);
+
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA') return;
+      if (e.key === 'Escape') { setFontPickerOpen(false); return; }
       if (e.key === 'Delete' || e.key === 'Backspace') {
         e.preventDefault();
         deleteSelected();
@@ -2962,20 +2974,50 @@ export default function SistemPage() {
                     <label className="block text-xs text-muted mb-1">Boyut</label>
                     <input type="number" min={8} max={200} value={selectedProps.fontSize ?? 32} onChange={(e) => updateTextProp('fontSize', parseInt(e.target.value, 10) || 32)} className="w-full px-3 py-2 text-sm border rounded" />
                   </div>
-                  <div>
+                  <div ref={fontPickerRef} className="relative">
                     <label className="block text-xs text-muted mb-1">Font</label>
-                    <select value={selectedProps.fontFamily ?? 'sans-serif'} onChange={(e) => updateTextProp('fontFamily', e.target.value)} className="w-full px-3 py-2 text-sm border rounded">
-                      {!FONT_OPTIONS.includes(selectedProps.fontFamily ?? '') && selectedProps.fontFamily && (
-                        <option value={selectedProps.fontFamily ?? ''}>{selectedProps.fontFamily}</option>
-                      )}
-                      {FONT_GROUPS.map((group) => (
-                        <optgroup key={group.label} label={group.label}>
-                          {group.fonts.map((f) => (
-                            <option key={f} value={f}>{f}</option>
-                          ))}
-                        </optgroup>
-                      ))}
-                    </select>
+                    <button
+                      type="button"
+                      onClick={() => setFontPickerOpen((o) => !o)}
+                      className="w-full px-3 py-2 text-sm border rounded text-left flex items-center justify-between gap-2 bg-background"
+                    >
+                      <span style={{ fontFamily: selectedProps.fontFamily ?? 'sans-serif' }} className="truncate">
+                        {selectedProps.fontFamily ?? 'sans-serif'}
+                      </span>
+                      <span className="text-muted shrink-0">{fontPickerOpen ? '▲' : '▼'}</span>
+                    </button>
+                    {fontPickerOpen && (
+                      <div className="absolute left-0 right-0 top-full mt-1 z-50 max-h-64 overflow-y-auto border rounded-lg shadow-lg bg-background py-1">
+                        {!FONT_OPTIONS.includes(selectedProps.fontFamily ?? '') && selectedProps.fontFamily && (
+                          <button
+                            type="button"
+                            onClick={() => { updateTextProp('fontFamily', selectedProps.fontFamily ?? ''); setFontPickerOpen(false); }}
+                            className="w-full px-3 py-2 text-left text-sm hover:bg-foreground/10 border-b"
+                            style={{ fontFamily: selectedProps.fontFamily ?? 'sans-serif' }}
+                          >
+                            {selectedProps.fontFamily}
+                          </button>
+                        )}
+                        {FONT_GROUPS.map((group) => (
+                          <div key={group.label}>
+                            <div className="px-3 py-1.5 text-[10px] font-medium text-muted uppercase tracking-wide bg-foreground/5 sticky top-0">
+                              {group.label}
+                            </div>
+                            {group.fonts.map((f) => (
+                              <button
+                                key={f}
+                                type="button"
+                                onClick={() => { updateTextProp('fontFamily', f); setFontPickerOpen(false); }}
+                                className={`w-full px-3 py-2 text-left text-sm hover:bg-foreground/10 ${(selectedProps.fontFamily ?? 'sans-serif') === f ? 'bg-blue-800/20 text-blue-400' : ''}`}
+                                style={{ fontFamily: f }}
+                              >
+                                {f}
+                              </button>
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <div className="flex gap-2">
                     <button onClick={() => updateTextProp('fontWeight', (selectedProps.fontWeight ?? 400) === 700 ? 400 : 700)} className={`flex-1 flex items-center justify-center gap-1 py-2 text-xs border rounded ${(selectedProps.fontWeight ?? 400) === 700 ? 'bg-foreground/10 border-foreground/30' : ''}`}><Bold className="w-3.5 h-3.5" /> Kalın</button>
