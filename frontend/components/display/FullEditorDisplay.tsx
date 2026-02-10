@@ -40,8 +40,10 @@ function loadFontsForDisplay(families: string[]): Promise<void> {
 }
 
 /** Full Editor (Fabric) canvas_json'ı TV display için render eder. Şablondaki fontlar yüklenir; böylece ürün adı ve fiyat satır kırılımı editördeki gibi kalır. */
-export function FullEditorDisplay({ canvasJson }: { canvasJson: object }) {
+export function FullEditorDisplay({ canvasJson, onReady }: { canvasJson: object; onReady?: () => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const onReadyRef = useRef(onReady);
+  onReadyRef.current = onReady;
 
   useEffect(() => {
     if (!canvasJson || typeof canvasJson !== 'object' || !containerRef.current) return;
@@ -80,6 +82,7 @@ export function FullEditorDisplay({ canvasJson }: { canvasJson: object }) {
         }
         el.innerHTML = '';
         el.appendChild(canvasEl);
+        if (!cancelled) onReadyRef.current?.();
       } catch (e) {
         if (!cancelled) console.error('FullEditorDisplay render error:', e);
       }

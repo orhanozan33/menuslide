@@ -191,7 +191,6 @@ export default function DisplayPage() {
   const [nextTemplateIndex, setNextTemplateIndex] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [justFinishedTransition, setJustFinishedTransition] = useState(false); // Geçiş sonrası kısa fade-in (blink azaltma)
-  const [templateRenewKey, setTemplateRenewKey] = useState(0); // Tek şablonda süre bitince yenilemek için
   const [businessName, setBusinessName] = useState<string>('');
   const [viewAllowed, setViewAllowed] = useState<boolean | null>(null);
   const loadInProgressRef = useRef(false);
@@ -202,6 +201,8 @@ export default function DisplayPage() {
   const rotationCacheRef = useRef<(ScreenData | null)[]>([]);
   const screenDataRef = useRef<ScreenData | null>(null);
   screenDataRef.current = screenData;
+  /** Geçiş animasyonu bittikten sonra base layer hazır olunca overlay kaldırılır */
+  const displayReadyRef = useRef<() => void>(() => {});
 
   const POLL_INTERVAL_MS = 60_000; // 60s - tek interval, 1000 TV için ölçeklenebilir
   const MAX_BACKOFF_MS = 60_000;
@@ -474,9 +475,11 @@ export default function DisplayPage() {
           setCurrentTemplateData(cached);
           setCurrentTemplateIndex(nextIndex);
           currentTemplateIndexRef.current = nextIndex;
-          setNextTemplateData(null);
-          setIsTransitioning(false);
-          setJustFinishedTransition(true);
+          displayReadyRef.current = () => {
+            setNextTemplateData(null);
+            setIsTransitioning(false);
+            setJustFinishedTransition(true);
+          };
         }, transitionDuration);
         return;
       }
@@ -493,9 +496,11 @@ export default function DisplayPage() {
             setCurrentTemplateData(nextData);
             setCurrentTemplateIndex(nextIndex);
             currentTemplateIndexRef.current = nextIndex;
-            setNextTemplateData(null);
-            setIsTransitioning(false);
-            setJustFinishedTransition(true);
+            displayReadyRef.current = () => {
+              setNextTemplateData(null);
+              setIsTransitioning(false);
+              setJustFinishedTransition(true);
+            };
           }, transitionDuration);
         } catch (e) {
           loadTemplateForRotation(screenData, nextIndex);
@@ -511,6 +516,21 @@ export default function DisplayPage() {
     const t = setTimeout(() => setJustFinishedTransition(false), 120);
     return () => clearTimeout(t);
   }, [justFinishedTransition]);
+
+  // Base layer hazır olunca overlay kaldır (film gibi akıcı geçiş)
+  const handleDisplayReady = useCallback(() => {
+    displayReadyRef.current?.();
+    displayReadyRef.current = () => {};
+  }, []);
+
+  // Full editor dışı tiplerde (canvas, block) overlay'ı kısa gecikmeyle kaldır; sadece geçiş bittikten sonra (current=next)
+  useEffect(() => {
+    if (!nextTemplateData || currentTemplateIndex !== nextTemplateIndex) return;
+    const isFullEditor = currentTemplateData?.template?.template_type === 'full_editor' && currentTemplateData?.template?.canvas_json;
+    if (isFullEditor) return;
+    const t = setTimeout(handleDisplayReady, 100);
+    return () => clearTimeout(t);
+  }, [currentTemplateIndex, nextTemplateIndex, currentTemplateData?.template?.id, nextTemplateData, handleDisplayReady]);
 
   if (viewAllowed === false) {
     return (
@@ -549,156 +569,92 @@ export default function DisplayPage() {
   const transitionEffect = rotationEffect || (screenData.screen as any).template_transition_effect || 'fade';
   const transitionDurationMs = nextRotation?.transition_duration ?? 1400;
 
-  // Geçiş animasyonu: Full Editor / blok fark etmeksizin tüm şablon tiplerinde uygula (dijital menü hariç)
-  if (isTransitioning && nextTemplateData && currentTemplateData && !nextTemplateData.digitalMenuData) {
-    const tickerText = (screenData.screen as any)?.ticker_text || '';
-    const tickerStyle = (screenData.screen as any)?.ticker_style || 'default';
-    return (
-      <EmbedFitWrapper ref={displayContainerRef}>
-        <div className="fixed inset-0 flex flex-col bg-black overflow-hidden">
-          <div className="flex-1 min-h-0 relative overflow-hidden">
-            <TemplateTransition
-              inline
-              effect={transitionEffect}
-              currentData={currentTemplateData}
-              nextData={nextTemplateData}
-              duration={transitionDurationMs}
-              animationType={currentTemplateData.screen?.animation_type || 'fade'}
-              animationDuration={currentTemplateData.screen?.animation_duration || 500}
-            />
-          </div>
-          {tickerText && String(tickerText).trim() ? (
-            <div className="flex-shrink-0">
-              <TickerTape key="ticker" text={tickerText} style={tickerStyle} />
-            </div>
-          ) : null}
-        </div>
-        </EmbedFitWrapper>
-    );
-  }
+  const tickerText = (screenData.screen as any)?.ticker_text || '';
+  const tickerStyle = (screenData.screen as any)?.ticker_style || 'default';
+  const showTransitionOverlay = isTransitioning && nextTemplateData && currentTemplateData && !nextTemplateData.digitalMenuData;
+  const displayTypeKey = displayData?.digitalMenuData ? 'digital-menu' : displayData?.template?.template_type === 'full_editor' ? 'full-editor' : displayData?.template?.canvas_design ? 'canvas' : 'block';
 
-  // Dijital menü slotu (rotasyonda template_type=digital_menu)
-  if (displayData?.digitalMenuData) {
-    const frameType = (displayData.screen as any)?.frame_type || 'none';
-    const tickerText = (displayData.screen as any)?.ticker_text || '';
-    return (
-      <EmbedFitWrapper ref={displayContainerRef} fadeIn={justFinishedTransition}>
-        <div className="fixed inset-0 w-full h-full overflow-hidden bg-black flex flex-col">
-          <DisplayFrame frameType={frameType} hideBottomFrame={!!tickerText} className="flex-1 min-h-0 overflow-hidden">
-            <MenuViewer
-            key={templateRenewKey}
-            data={{
-              id: displayData.digitalMenuData.id,
-              name: displayData.digitalMenuData.name,
-              templateId: displayData.digitalMenuData.templateId,
-              backgroundImage: displayData.digitalMenuData.backgroundImage ?? null,
-              width: displayData.digitalMenuData.width ?? 1920,
-              height: displayData.digitalMenuData.height ?? 1080,
-              layers: (displayData.digitalMenuData.layers || []).map((l: any) => ({
-                id: l.id,
-                type: l.type,
-                x: l.x,
-                y: l.y,
-                width: l.width,
-                height: l.height,
-                rotation: l.rotation ?? 0,
-                displayOrder: l.displayOrder,
-                contentText: l.contentText,
-                fontSize: l.fontSize ?? 24,
-                fontFamily: l.fontFamily ?? 'Arial',
-                fontStyle: l.fontStyle ?? 'normal',
-                color: l.color ?? '#000000',
-                align: l.align ?? 'left',
-                imageUrl: l.imageUrl,
-                style: l.style ?? {},
-              })),
-            }}
-            scaleToFit
-            className="w-full h-full"
-          />
-          </DisplayFrame>
-          <TickerTape text={tickerText} style={(displayData.screen as any)?.ticker_style || 'default'} />
-        </div>
-      </EmbedFitWrapper>
-    );
-  }
-
-  // Full Editor şablonu: canvas_json (Fabric) ile render et
-  if (displayData?.template?.template_type === 'full_editor' && displayData?.template?.canvas_json) {
-    const tickerText = (screenData.screen as any)?.ticker_text || '';
-    const tickerStyle = (screenData.screen as any)?.ticker_style || 'default';
+  // Tek layout: base layer her zaman render, geçişte sadece üstte overlay (unmount yok, video gibi akıcı)
+  if (displayData?.digitalMenuData || displayData?.template?.template_type === 'full_editor' || displayData?.template?.canvas_design || (displayData?.template && displayData?.screenBlocks && displayData.screenBlocks.length > 0)) {
     const frameType = (displayData.screen as any)?.frame_type || 'none';
     const hideBottomFrame = !!tickerText;
     return (
       <EmbedFitWrapper ref={displayContainerRef} fadeIn={justFinishedTransition}>
         <div className="fixed inset-0 flex flex-col bg-black overflow-hidden">
-          <div className="flex-1 min-h-0 w-full overflow-hidden relative">
-            <DisplayFrame frameType={frameType} hideBottomFrame={hideBottomFrame} className="absolute inset-0 w-full h-full">
-              <FullEditorDisplay
-                key={templateRenewKey}
-                canvasJson={displayData.template.canvas_json as object}
-              />
-            </DisplayFrame>
-          </div>
-          <div className="flex-shrink-0">
-            <TickerTape key="ticker" text={tickerText} style={tickerStyle} />
-          </div>
-        </div>
-      </EmbedFitWrapper>
-    );
-  }
-
-  // Canvas tasarım şablonu: canvas_design ile render et
-  if (displayData?.template?.canvas_design) {
-    const tickerText = (screenData.screen as any)?.ticker_text || '';
-    const tickerStyle = (screenData.screen as any)?.ticker_style || 'default';
-    const frameType = (displayData.screen as any)?.frame_type || 'none';
-    const hideBottomFrame = !!tickerText;
-    return (
-      <EmbedFitWrapper ref={displayContainerRef} fadeIn={justFinishedTransition}>
-        <div className="fixed inset-0 flex flex-col bg-black overflow-hidden">
-          <div className="flex-1 min-h-0 w-full overflow-hidden relative">
-            <DisplayFrame frameType={frameType} hideBottomFrame={hideBottomFrame} className="absolute inset-0 w-full h-full">
-              <CanvasDisplay
-                key={templateRenewKey}
-                canvasDesign={displayData.template.canvas_design}
-                className="w-full h-full"
-              />
-            </DisplayFrame>
-          </div>
-          <div className="flex-shrink-0">
-            <TickerTape key="ticker" text={tickerText} style={tickerStyle} />
-          </div>
-        </div>
-      </EmbedFitWrapper>
-    );
-  }
-
-  if (displayData?.template && displayData.screenBlocks && displayData.screenBlocks.length > 0) {
-    const tickerText = (screenData.screen as any)?.ticker_text || '';
-    const tickerStyle = (screenData.screen as any)?.ticker_style || 'default';
-    return (
-      <EmbedFitWrapper ref={displayContainerRef} fadeIn={justFinishedTransition}>
-        <div className="fixed inset-0 flex flex-col bg-black overflow-hidden">
           <div className="flex-1 min-h-0 relative overflow-hidden">
-            {isTransitioning && nextTemplateData && currentTemplateData && !nextTemplateData.digitalMenuData ? (
-              <TemplateTransition
-                inline
-                effect={transitionEffect}
-                currentData={currentTemplateData}
-                nextData={nextTemplateData}
-                duration={transitionDurationMs}
-                animationType={displayData.screen.animation_type || 'fade'}
-                animationDuration={displayData.screen.animation_duration || 500}
-              />
-            ) : (
+            {/* Base layer - aynı tip şablonlar arasında remount yok (key=displayTypeKey) */}
+            {displayData?.digitalMenuData ? (
+              <DisplayFrame frameType={frameType} hideBottomFrame={hideBottomFrame} className="absolute inset-0 w-full h-full">
+                <MenuViewer
+                  key={displayTypeKey}
+                  data={{
+                    id: displayData.digitalMenuData.id,
+                    name: displayData.digitalMenuData.name,
+                    templateId: displayData.digitalMenuData.templateId,
+                    backgroundImage: displayData.digitalMenuData.backgroundImage ?? null,
+                    width: displayData.digitalMenuData.width ?? 1920,
+                    height: displayData.digitalMenuData.height ?? 1080,
+                    layers: (displayData.digitalMenuData.layers || []).map((l: any) => ({
+                      id: l.id,
+                      type: l.type,
+                      x: l.x,
+                      y: l.y,
+                      width: l.width,
+                      height: l.height,
+                      rotation: l.rotation ?? 0,
+                      displayOrder: l.displayOrder,
+                      contentText: l.contentText,
+                      fontSize: l.fontSize ?? 24,
+                      fontFamily: l.fontFamily ?? 'Arial',
+                      fontStyle: l.fontStyle ?? 'normal',
+                      color: l.color ?? '#000000',
+                      align: l.align ?? 'left',
+                      imageUrl: l.imageUrl,
+                      style: l.style ?? {},
+                    })),
+                  }}
+                  scaleToFit
+                  className="w-full h-full"
+                />
+              </DisplayFrame>
+            ) : displayData?.template?.template_type === 'full_editor' && displayData?.template?.canvas_json ? (
+              <DisplayFrame frameType={frameType} hideBottomFrame={hideBottomFrame} className="absolute inset-0 w-full h-full">
+                <FullEditorDisplay
+                  key={displayTypeKey}
+                  canvasJson={displayData.template.canvas_json as object}
+                  onReady={handleDisplayReady}
+                />
+              </DisplayFrame>
+            ) : displayData?.template?.canvas_design ? (
+              <DisplayFrame frameType={frameType} hideBottomFrame={hideBottomFrame} className="absolute inset-0 w-full h-full">
+                <CanvasDisplay
+                  key={displayTypeKey}
+                  canvasDesign={displayData.template.canvas_design}
+                  className="w-full h-full"
+                />
+              </DisplayFrame>
+            ) : displayData?.template && displayData.screenBlocks && displayData.screenBlocks.length > 0 ? (
               <TemplateDisplay
-                key={templateRenewKey}
+                key={displayTypeKey}
                 inline
                 screenData={displayData as any}
-                animationType={displayData.screen.animation_type || 'fade'}
-                animationDuration={displayData.screen.animation_duration || 500}
+                animationType={displayData.screen?.animation_type || 'fade'}
+                animationDuration={displayData.screen?.animation_duration || 500}
               />
+            ) : null}
+            {/* Geçiş overlay: animasyon bitene kadar üstte kalır, base layer onReady verince kaldırılır */}
+            {showTransitionOverlay && (
+              <div className="absolute inset-0 z-[100] pointer-events-none">
+                <TemplateTransition
+                  inline
+                  effect={transitionEffect}
+                  currentData={currentTemplateData}
+                  nextData={nextTemplateData}
+                  duration={transitionDurationMs}
+                  animationType={currentTemplateData.screen?.animation_type || 'fade'}
+                  animationDuration={currentTemplateData.screen?.animation_duration || 500}
+                />
+              </div>
             )}
           </div>
           {tickerText && String(tickerText).trim() ? (
