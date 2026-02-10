@@ -62,7 +62,21 @@ export default function SettingsPage() {
   const [invoiceLayout, setInvoiceLayout] = useState<Record<string, string>>({});
   const [invoiceLayoutLoading, setInvoiceLayoutLoading] = useState(false);
   const [invoiceLayoutSaving, setInvoiceLayoutSaving] = useState(false);
-  const [tvAppConfig, setTvAppConfig] = useState<{ apiBaseUrl: string; downloadUrl: string; watchdogIntervalMinutes: number }>({ apiBaseUrl: '', downloadUrl: '/downloads/Menuslide.apk', watchdogIntervalMinutes: 5 });
+  const [tvAppConfig, setTvAppConfig] = useState<{
+    apiBaseUrl: string;
+    downloadUrl: string;
+    watchdogIntervalMinutes: number;
+    minVersionCode: number | '';
+    latestVersionCode: number | '';
+    latestVersionName: string;
+  }>({
+    apiBaseUrl: '',
+    downloadUrl: '/downloads/Menuslide.apk',
+    watchdogIntervalMinutes: 5,
+    minVersionCode: '',
+    latestVersionCode: '',
+    latestVersionName: '',
+  });
   const [tvAppConfigLoading, setTvAppConfigLoading] = useState(false);
   const [tvAppConfigSaving, setTvAppConfigSaving] = useState(false);
   const [showTvAppModal, setShowTvAppModal] = useState(false);
@@ -324,9 +338,19 @@ export default function SettingsPage() {
         apiBaseUrl: data.apiBaseUrl ?? '',
         downloadUrl: data.downloadUrl ?? '/downloads/Menuslide.apk',
         watchdogIntervalMinutes: typeof data.watchdogIntervalMinutes === 'number' ? data.watchdogIntervalMinutes : 5,
+        minVersionCode: typeof data.minVersionCode === 'number' ? data.minVersionCode : '',
+        latestVersionCode: typeof data.latestVersionCode === 'number' ? data.latestVersionCode : '',
+        latestVersionName: typeof data.latestVersionName === 'string' ? data.latestVersionName : '',
       });
     } catch {
-      setTvAppConfig({ apiBaseUrl: '', downloadUrl: '/downloads/Menuslide.apk', watchdogIntervalMinutes: 5 });
+      setTvAppConfig({
+        apiBaseUrl: '',
+        downloadUrl: '/downloads/Menuslide.apk',
+        watchdogIntervalMinutes: 5,
+        minVersionCode: '',
+        latestVersionCode: '',
+        latestVersionName: '',
+      });
     } finally {
       setTvAppConfigLoading(false);
     }
@@ -342,7 +366,14 @@ export default function SettingsPage() {
           'Content-Type': 'application/json',
           ...(token && { Authorization: `Bearer ${token}` }),
         },
-        body: JSON.stringify(tvAppConfig),
+        body: JSON.stringify({
+          apiBaseUrl: tvAppConfig.apiBaseUrl,
+          downloadUrl: tvAppConfig.downloadUrl,
+          watchdogIntervalMinutes: tvAppConfig.watchdogIntervalMinutes,
+          minVersionCode: tvAppConfig.minVersionCode === '' ? null : Number(tvAppConfig.minVersionCode),
+          latestVersionCode: tvAppConfig.latestVersionCode === '' ? null : Number(tvAppConfig.latestVersionCode),
+          latestVersionName: tvAppConfig.latestVersionName.trim() || null,
+        }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -592,6 +623,9 @@ export default function SettingsPage() {
               <div><strong>API taban URL:</strong> {tvAppConfig.apiBaseUrl || '—'}</div>
               <div><strong>İndirme linki:</strong> {tvAppConfig.downloadUrl}</div>
               <div><strong>Watchdog:</strong> {tvAppConfig.watchdogIntervalMinutes} {t('settings_tv_app_minutes')}</div>
+              {(tvAppConfig.minVersionCode !== '' || tvAppConfig.latestVersionCode !== '') && (
+                <div><strong>Uzaktan sürüm:</strong> min={tvAppConfig.minVersionCode || '—'} latest={tvAppConfig.latestVersionCode || '—'} {tvAppConfig.latestVersionName ? `(${tvAppConfig.latestVersionName})` : ''}</div>
+              )}
             </div>
             <div className="mt-3 text-xs text-blue-600 font-medium">{t('btn_edit')} →</div>
           </button>
@@ -776,6 +810,44 @@ export default function SettingsPage() {
                   onChange={(e) => setTvAppConfig((p) => ({ ...p, watchdogIntervalMinutes: parseInt(e.target.value, 10) || 5 }))}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"
                 />
+              </div>
+              <div className="border-t border-gray-200 pt-4 mt-4">
+                <p className="text-sm font-medium text-gray-700 mb-2">Uzaktan sürüm (mobil güncelleme)</p>
+                <p className="text-xs text-gray-500 mb-2">Yeni APK yükleyince buraya güncel versionCode ve versionName girin. Min: bu kodun altındaki uygulamalar güncelleme zorunlu görür.</p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Min versionCode</label>
+                    <input
+                      type="number"
+                      value={tvAppConfig.minVersionCode === '' ? '' : tvAppConfig.minVersionCode}
+                      onChange={(e) => setTvAppConfig((p) => ({ ...p, minVersionCode: e.target.value === '' ? '' : parseInt(e.target.value, 10) || 0 }))}
+                      placeholder="Boş"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"
+                      min={0}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Latest versionCode</label>
+                    <input
+                      type="number"
+                      value={tvAppConfig.latestVersionCode === '' ? '' : tvAppConfig.latestVersionCode}
+                      onChange={(e) => setTvAppConfig((p) => ({ ...p, latestVersionCode: e.target.value === '' ? '' : parseInt(e.target.value, 10) || 0 }))}
+                      placeholder="Boş"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"
+                      min={0}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Latest versionName</label>
+                    <input
+                      type="text"
+                      value={tvAppConfig.latestVersionName}
+                      onChange={(e) => setTvAppConfig((p) => ({ ...p, latestVersionName: e.target.value }))}
+                      placeholder="1.0.0"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
             <div className="flex gap-2 mt-6">

@@ -227,7 +227,7 @@ export async function handleGet(
     const screenIds = screensRaw.map((s) => s.id);
     let viewerCounts: Record<string, number> = {};
     if (screenIds.length > 0) {
-      const stale = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+      const stale = new Date(Date.now() - 5 * 60 * 1000).toISOString();
       const { data: viewers } = await supabase.from('display_viewers').select('screen_id').gt('last_seen_at', stale);
       const byScreen: Record<string, number> = {};
       for (const v of viewers ?? []) {

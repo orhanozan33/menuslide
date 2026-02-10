@@ -599,7 +599,7 @@ export async function stopPublishing(screenId: string, user: JwtPayload): Promis
 /** GET /screens/alerts/multi-device - super_admin only */
 export async function getMultiDeviceAlerts(user: JwtPayload): Promise<Response> {
   if (user.role !== 'super_admin') return Response.json({ message: 'Only super admin can view multi-device alerts' }, { status: 403 });
-  const stale = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+  const stale = new Date(Date.now() - 5 * 60 * 1000).toISOString();
   if (useLocalDb()) {
     const viewers = await queryLocal<{ screen_id: string }>('SELECT screen_id FROM display_viewers WHERE last_seen_at > $1', [stale]);
     const byScreen: Record<string, number> = {};

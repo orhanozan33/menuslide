@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { getServerSupabase } from '@/lib/supabase-server';
 
-const VIEWER_STALE_MS = 2 * 60 * 1000;
+const VIEWER_STALE_MS = 5 * 60 * 1000; // 5 dk – TV geçici kesintide oturum silinmesin
 
 /** GET public/screen/:token – TV yayını verisi (Supabase) */
 export async function getScreenByToken(token: string, request: NextRequest): Promise<Response> {

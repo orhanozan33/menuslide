@@ -1,6 +1,18 @@
--- Migration: Fix "Function has role mutable search_path" security issues
--- Supabase Dashboard'da görünen güvenlik uyarılarını giderir.
--- Her fonksiyona SET search_path = public eklenir; çağıran search path'i değiştiremez.
+-- Migration: Fix "Function Search Path Mutable" security issues
+-- Supabase Dashboard > Warnings: "Detects functions where the search_path parameter is not set."
+-- Her fonksiyona SET search_path = public eklenir; çağıran search path ile güvenlik riski ortadan kalkar.
+
+-- 0. update_full_editor_templates_updated_at (Supabase'de "update_full_editor_templates_update" olarak görünebilir)
+CREATE OR REPLACE FUNCTION update_full_editor_templates_updated_at()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$;
 
 -- 1. update_updated_at_column
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -233,3 +245,6 @@ $$;
 -- NOT: business_owns_template, branch_can_override, get_hq_business gibi
 -- enterprise schema fonksiyonları varsa Supabase SQL Editor'da ayrıca
 -- SET search_path = public ekleyerek güncelleyebilirsiniz.
+--
+-- Nasıl uygulanır: Supabase Dashboard > SQL Editor > New query >
+-- Bu dosyanın içeriğini yapıştırıp Run. Warnings sekmesi bir süre sonra güncellenir (Refresh).

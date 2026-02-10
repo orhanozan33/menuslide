@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 
-const VIEWER_STALE_MS = 2 * 60 * 1000; // 2 dakika heartbeat gelmezse "cihaz kapalı" say
+const VIEWER_STALE_MS = 5 * 60 * 1000; // 5 dakika – TV geçici ağ/uyku kesintisinde oturum silinmesin
 
 @Injectable()
 export class PublicLocalService {
@@ -75,7 +75,7 @@ export class PublicLocalService {
 
     const allowedResult = await this.database.query(
       `SELECT (SELECT first_seen_at FROM display_viewers WHERE screen_id = $1 AND session_id = $2) <= ALL(
-         SELECT first_seen_at FROM display_viewers WHERE screen_id = $1 AND last_seen_at > NOW() - INTERVAL '2 minutes'
+         SELECT first_seen_at FROM display_viewers WHERE screen_id = $1 AND last_seen_at > NOW() - INTERVAL '5 minutes'
        ) AS allowed`,
       [screenId, sid]
     );
@@ -84,12 +84,12 @@ export class PublicLocalService {
   }
 
   /**
-   * Ekran için son 2 dakikada heartbeat atan benzersiz cihaz sayısı
+   * Ekran için son 5 dakikada heartbeat atan benzersiz cihaz sayısı
    */
   async getViewerCount(screenId: string): Promise<number> {
     const r = await this.database.query(
       `SELECT COUNT(*)::int AS c FROM display_viewers
-       WHERE screen_id = $1 AND last_seen_at > NOW() - INTERVAL '2 minutes'`,
+       WHERE screen_id = $1 AND last_seen_at > NOW() - INTERVAL '5 minutes'`,
       [screenId]
     );
     return r.rows[0]?.c ?? 0;

@@ -11,4 +11,17 @@
     <string name="error_server_config">Sunucu ayarı hatası. Yönetici ile iletişime geçin.</string>
     <string name="error_not_json">Sunucu beklenmeyen yanıt döndü (HTML/boş). TV ağ veya proxy ayarını kontrol edin.</string>
     <string name="error_no_stream">Yayın URL\'i alınamadı.</string>
+    <string name="update_required_title">Güncelleme gerekli</string>
+    <string name="update_required_message">Bu sürüm artık desteklenmiyor. Kesintisiz yayın için lütfen güncelleyin.</string>
+    <string name="update_available_title">Güncelleme var</string>
+    <string name="update_available_message">Yeni sürüm mevcut. Güncellemek ister misiniz?</string>
+    <string name="btn_update">Güncelle</string>
+    <string name="btn_skip">Sonra</string>
+    <string name="permission_battery_title">Kesintisiz yayın</string>
+    <string name="permission_battery_message">Uygulamanın 24 saat kesintisiz çalışması için \"Pil optimizasyonundan muaf tut\" iznini verin.</string>
+    <string name="btn_allow">İzin ver</string>
+    <string name="btn_not_now">Şimdi değil</string>
+    <string name="update_downloading">Güncelleme indiriliyor…</string>
+    <string name="update_install_ready">Kurulum ekranı açılıyor. Yükle\'ye basın; yayın kodu kayıtlı kalır.</string>
+    <string name="update_download_failed">İndirme başarısız. İndirme linki açılıyor.</string>
 </resources>

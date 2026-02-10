@@ -9,22 +9,38 @@ const defaultConfig = {
   apiBaseUrl: process.env.NEXT_PUBLIC_APP_URL || '',
   downloadUrl: '/downloads/Menuslide.apk',
   watchdogIntervalMinutes: 5,
+  minVersionCode: null as number | null,
+  latestVersionCode: null as number | null,
+  latestVersionName: null as string | null,
 };
 
-/** Public: TV uygulaması bu endpoint ile API adresini alabilir */
+type TvAppRow = {
+  api_base_url?: string;
+  download_url?: string;
+  watchdog_interval_minutes?: number;
+  min_version_code?: number | null;
+  latest_version_code?: number | null;
+  latest_version_name?: string | null;
+};
+
+/** Public: TV uygulaması bu endpoint ile API adresini ve uzaktan sürüm bilgisini alır */
 export async function GET() {
   try {
     const supabase = getServerSupabase();
     const { data } = await supabase
       .from('tv_app_settings')
-      .select('api_base_url, download_url, watchdog_interval_minutes')
+      .select('api_base_url, download_url, watchdog_interval_minutes, min_version_code, latest_version_code, latest_version_name')
       .limit(1)
       .maybeSingle();
     if (data) {
+      const row = data as TvAppRow;
       return NextResponse.json({
-        apiBaseUrl: (data as { api_base_url?: string }).api_base_url ?? defaultConfig.apiBaseUrl,
-        downloadUrl: (data as { download_url?: string }).download_url ?? defaultConfig.downloadUrl,
-        watchdogIntervalMinutes: (data as { watchdog_interval_minutes?: number }).watchdog_interval_minutes ?? 5,
+        apiBaseUrl: row.api_base_url ?? defaultConfig.apiBaseUrl,
+        downloadUrl: row.download_url ?? defaultConfig.downloadUrl,
+        watchdogIntervalMinutes: row.watchdog_interval_minutes ?? 5,
+        minVersionCode: row.min_version_code ?? defaultConfig.minVersionCode,
+        latestVersionCode: row.latest_version_code ?? defaultConfig.latestVersionCode,
+        latestVersionName: row.latest_version_name ?? defaultConfig.latestVersionName,
       });
     }
   } catch {
@@ -47,6 +63,12 @@ export async function PATCH(request: NextRequest) {
     if (typeof body.apiBaseUrl === 'string') updates.api_base_url = body.apiBaseUrl.trim();
     if (typeof body.downloadUrl === 'string') updates.download_url = body.downloadUrl.trim();
     if (typeof body.watchdogIntervalMinutes === 'number') updates.watchdog_interval_minutes = body.watchdogIntervalMinutes;
+    if (typeof body.minVersionCode === 'number') updates.min_version_code = body.minVersionCode;
+    if (body.minVersionCode === null || body.minVersionCode === '') updates.min_version_code = null;
+    if (typeof body.latestVersionCode === 'number') updates.latest_version_code = body.latestVersionCode;
+    if (body.latestVersionCode === null || body.latestVersionCode === '') updates.latest_version_code = null;
+    if (typeof body.latestVersionName === 'string') updates.latest_version_name = body.latestVersionName.trim() || null;
+    if (body.latestVersionName === null || body.latestVersionName === '') updates.latest_version_name = null;
     const { data: existing } = await supabase.from('tv_app_settings').select('id').limit(1).maybeSingle();
     if (existing) {
       await supabase.from('tv_app_settings').update(updates).eq('id', (existing as { id: string }).id);

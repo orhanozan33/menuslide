@@ -31,14 +31,25 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.util.UUID
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
 import android.view.inputmethod.InputMethodManager
+import android.os.PowerManager
+import androidx.appcompat.app.AlertDialog
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.util.Log
+import android.os.Build
+import androidx.annotation.RequiresApi
+import android.webkit.RenderProcessGoneDetail
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import androidx.core.content.FileProvider
+import java.io.File
+import android.app.ProgressDialog
 
 /**
  * Ana Activity: Yayın kodu tek sefer girilir, kaydedilir; sonra hep aynı yayın.
@@ -58,6 +69,8 @@ class MainActivity : AppCompatActivity() {
         private const val BOOTSTRAP_BASE = "https://menuslide.com"
         private const val WATCHDOG_INTERVAL_MS = 5 * 60 * 1000L // 5 dakika
         private const val STUCK_THRESHOLD_MS = 90_000L // 1.5 dk oynatma yoksa yeniden başlat
+        /** WebView (display) modunda donma önlemi: 24/7 yayında 30 dk'da bir yenile (10 dk şablonları bölmez) */
+        private const val WEBVIEW_RELOAD_INTERVAL_MS = 30 * 60 * 1000L // 30 dakika
     }
 
     private val prefs by lazy { getSharedPreferences(PREFS, Context.MODE_PRIVATE) }
@@ -78,6 +91,7 @@ class MainActivity : AppCompatActivity() {
     private var resolveJob: Job? = null
     private var currentStreamUrl: String? = null
     private var lastPlayingTimeMs: Long = 0
+    private var lastWebViewReloadMs: Long = 0
     private var watchdogRunnable: Runnable? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -88,13 +102,21 @@ class MainActivity : AppCompatActivity() {
         keepScreenOn()
         applyFullscreenWhenPlaying(false)
 
-        // Kod tek sefer: kayıtlı varsa bir daha sorma, direkt yayın
         val savedCode = prefs.getString(KEY_BROADCAST_CODE, null)?.trim()
         if (!savedCode.isNullOrEmpty()) {
             showInputScreen(false)
             showLoading(true)
-            resolveAndPlay(savedCode)
-            startWatchdog()
+            loadConfigAndCheckVersion { canProceed ->
+                mainHandler.post {
+                    if (canProceed) {
+                        resolveAndPlay(savedCode)
+                        startWatchdog()
+                    } else {
+                        showLoading(false)
+                        showInputScreen(true)
+                    }
+                }
+            }
         } else {
             showInputScreen(true)
             showLoading(false)
@@ -104,6 +126,180 @@ class MainActivity : AppCompatActivity() {
                 true
             }
         }
+    }
+
+    /** Config alır, API base kaydeder; uzaktan sürüm kontrolü yapar. Güncelleme zorunluysa onResult(false). */
+    private fun loadConfigAndCheckVersion(onResult: (canProceed: Boolean) -> Unit) {
+        scope.launch {
+            val canProceed = withContext(Dispatchers.IO) {
+                try {
+                    val request = Request.Builder().url("$BOOTSTRAP_BASE/api/tv-app-config").get().build()
+                    val client = OkHttpClient.Builder().connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS).build()
+                    val response = client.newCall(request).execute()
+                    if (!response.isSuccessful()) return@withContext true
+                    val json = response.body?.string() ?: return@withContext true
+                    val obj = org.json.JSONObject(json)
+                    val base = obj.optString("apiBaseUrl", "").trim()
+                    if (base.isNotEmpty()) prefs.edit().putString(KEY_API_BASE, base.trimEnd('/')).apply()
+                    val minCode = obj.optInt("minVersionCode", 0).takeIf { it > 0 }
+                    val latestCode = obj.optInt("latestVersionCode", 0).takeIf { it > 0 }
+                    val currentCode = BuildConfig.VERSION_CODE
+                    if (minCode != null && currentCode < minCode) {
+                        val downloadUrl = obj.optString("downloadUrl", "").trim()
+                        mainHandler.post {
+                            showUpdateRequiredDialog(downloadUrl)
+                            onResult(false)
+                        }
+                        return@withContext false
+                    }
+                    if (latestCode != null && currentCode < latestCode) {
+                        val downloadUrl = obj.optString("downloadUrl", "").trim()
+                        val versionName = obj.optString("latestVersionName", "")
+                        mainHandler.post { showUpdateAvailableDialog(downloadUrl, versionName, onResult) }
+                        return@withContext false
+                    }
+                    true
+                } catch (e: Exception) {
+                    Log.e(TAG, "config/version check error", e)
+                    true
+                }
+            }
+            if (canProceed) onResult(true)
+        }
+    }
+
+    private fun showUpdateRequiredDialog(downloadUrl: String) {
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.update_required_title))
+            .setMessage(getString(R.string.update_required_message))
+            .setCancelable(false)
+            .setPositiveButton(getString(R.string.btn_update)) { _, _ ->
+                downloadApkAndInstall(downloadUrl)
+            }
+            .show()
+    }
+
+    private fun showUpdateAvailableDialog(downloadUrl: String, versionName: String, onResult: (Boolean) -> Unit) {
+        val msg = if (versionName.isNotEmpty()) {
+            getString(R.string.update_available_message) + " (v$versionName)"
+        } else {
+            getString(R.string.update_available_message)
+        }
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.update_available_title))
+            .setMessage(msg)
+            .setPositiveButton(getString(R.string.btn_update)) { _, _ ->
+                downloadApkAndInstall(downloadUrl)
+                onResult(false)
+            }
+            .setNegativeButton(getString(R.string.btn_skip)) { _, _ -> onResult(true) }
+            .setOnCancelListener { onResult(true) }
+            .show()
+    }
+
+    /**
+     * APK'yı indirir, kurulum ekranını açar. Eski sürüm kaldırılıp yenisi kurulur;
+     * yayın kodu SharedPreferences'ta kalır, uygulama tekrar açılınca kod istemeden yayına devam eder.
+     */
+    private fun downloadApkAndInstall(downloadUrl: String) {
+        val fullUrl = if (downloadUrl.startsWith("http")) downloadUrl else "$BOOTSTRAP_BASE$downloadUrl"
+        val progress = ProgressDialog.show(this, null, getString(R.string.update_downloading), true, false)
+        scope.launch {
+            val file = withContext(Dispatchers.IO) {
+                try {
+                    val client = OkHttpClient.Builder()
+                        .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                        .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+                        .build()
+                    val request = Request.Builder().url(fullUrl).get().build()
+                    val response = client.newCall(request).execute()
+                    if (!response.isSuccessful || response.body == null) return@withContext null
+                    val apkFile = File(cacheDir, "update.apk")
+                    response.body!!.byteStream().use { input ->
+                        apkFile.outputStream().use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                    apkFile
+                } catch (e: Exception) {
+                    Log.e(TAG, "APK download failed", e)
+                    null
+                }
+            }
+            mainHandler.post {
+                progress.dismiss()
+                if (file != null && file.exists()) {
+                    try {
+                        val uri = FileProvider.getUriForFile(
+                            this@MainActivity,
+                            "${applicationId}.fileprovider",
+                            file
+                        )
+                        val intent = Intent(Intent.ACTION_VIEW).apply {
+                            setDataAndType(uri, "application/vnd.android.package-archive")
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        startActivity(intent)
+                        android.widget.Toast.makeText(
+                            this@MainActivity,
+                            getString(R.string.update_install_ready),
+                            android.widget.Toast.LENGTH_LONG
+                        ).show()
+                        finish()
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Install intent failed", e)
+                        openDownloadUrl(fullUrl)
+                    }
+                } else {
+                    android.widget.Toast.makeText(
+                        this@MainActivity,
+                        getString(R.string.update_download_failed),
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                    openDownloadUrl(fullUrl)
+                }
+            }
+        }
+    }
+
+    /** İndirme başarısız olursa tarayıcıda / indirme yöneticisinde açar */
+    private fun openDownloadUrl(url: String) {
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+        } catch (e: Exception) {
+            Log.e(TAG, "Open download URL failed", e)
+        }
+    }
+
+    /** Kesintisiz yayın için pil optimizasyonundan muafiyet iste (uygulama yüklendikten sonra bir kez önerilir). */
+    private fun requestBatteryOptimizationExemption(onDone: () -> Unit) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            onDone()
+            return
+        }
+        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+        if (pm.isIgnoringBatteryOptimizations(packageName)) {
+            onDone()
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.permission_battery_title))
+            .setMessage(getString(R.string.permission_battery_message))
+            .setPositiveButton(getString(R.string.btn_allow)) { _, _ ->
+                try {
+                    val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                        data = Uri.parse("package:$packageName")
+                    }
+                    startActivity(intent)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Battery optimization intent failed", e)
+                }
+                onDone()
+            }
+            .setNegativeButton(getString(R.string.btn_not_now)) { _, _ -> onDone() }
+            .setOnCancelListener { onDone() }
+            .show()
     }
 
     private fun bindViews() {
@@ -131,6 +327,15 @@ class MainActivity : AppCompatActivity() {
             }
             override fun onPageFinished(view: WebView?, url: String?) {
                 webviewLoading.visibility = View.GONE
+            }
+            @RequiresApi(Build.VERSION_CODES.O)
+            override fun onRenderProcessGone(view: WebView?, detail: RenderProcessGoneDetail?): Boolean {
+                Log.w(TAG, "WebView render process gone, reloading display URL")
+                val url = currentStreamUrl
+                if (!url.isNullOrEmpty() && url.contains("/display/")) {
+                    mainHandler.post { displayWebView.loadUrl(url) }
+                }
+                return true
             }
         }
     }
@@ -180,11 +385,22 @@ class MainActivity : AppCompatActivity() {
             return
         }
         showError(null)
-        // Kod kalıcı kaydedilir (commit ile hemen diske yazılır; TV kapatılsa da kalsın)
         prefs.edit().putString(KEY_BROADCAST_CODE, code).commit()
         showLoading(true)
-        resolveAndPlay(code)
-        startWatchdog()
+        // Önce uzaktan sürüm kontrolü; güncelleme zorunluysa yayına geçme
+        loadConfigAndCheckVersion { canProceed ->
+            mainHandler.post {
+                if (!canProceed) {
+                    showLoading(false)
+                    return@post
+                }
+                // Kesintisiz yayın için pil optimizasyonu muafiyeti öner (izin verilirse yayın başlar)
+                requestBatteryOptimizationExemption {
+                    resolveAndPlay(code)
+                    startWatchdog()
+                }
+            }
+        }
     }
 
     private fun hideKeyboard() {
@@ -211,10 +427,23 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * Her 5 dakikada bir: oynatma donmuş veya kapanmışsa otomatik yayına dön.
+     * WebView (display) modunda: periyodik reload ile donma/siyah ekran önlenir.
      */
     private fun checkAndRecoverPlayback() {
         val code = prefs.getString(KEY_BROADCAST_CODE, null)?.trim() ?: return
         val url = currentStreamUrl ?: return
+        val now = System.currentTimeMillis()
+
+        // Display sayfası (WebView) modu: ExoPlayer yok; donma önlemi için periyodik yenile
+        if (url.contains("/display/")) {
+            if (now - lastWebViewReloadMs >= WEBVIEW_RELOAD_INTERVAL_MS) {
+                Log.d(TAG, "Watchdog: WebView reload (freeze recovery)")
+                lastWebViewReloadMs = now
+                displayWebView.reload()
+            }
+            return
+        }
+
         val player = exoPlayer ?: run {
             Log.w(TAG, "Watchdog: player null, restarting stream")
             resolveAndPlay(code)
@@ -222,7 +451,6 @@ class MainActivity : AppCompatActivity() {
         }
         val state = player.playbackState
         val playWhenReady = player.playWhenReady
-        val now = System.currentTimeMillis()
         when (state) {
             Player.STATE_READY -> if (playWhenReady) lastPlayingTimeMs = now
             Player.STATE_BUFFERING -> { /* normal, keep lastPlayingTimeMs */ }
@@ -369,6 +597,7 @@ class MainActivity : AppCompatActivity() {
             displayContainer.visibility = View.VISIBLE
             webviewLoading.visibility = View.VISIBLE
             applyFullscreenWhenPlaying(true)
+            lastWebViewReloadMs = System.currentTimeMillis()
             displayWebView.loadUrl(streamUrl)
             Log.d(TAG, "loading display URL in WebView: $streamUrl")
         } else {

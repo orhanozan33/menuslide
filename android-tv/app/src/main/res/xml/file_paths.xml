@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FileProvider: güncelleme APK'sı uygulama önbelleğine indirilip kurulum için paylaşılır -->
+<paths>
+    <cache-path name="apk_cache" path="." />
+    <external-cache-path name="external_apk" path="." />
+</paths>

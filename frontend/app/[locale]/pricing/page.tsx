@@ -201,8 +201,6 @@ function PricingContent() {
 
   const currentPlan = subscription?.plans;
   const hasRealPlan = currentPlan && currentPlan.max_screens > 0;
-  const isAtLimit = hasRealPlan && currentPlan!.max_screens !== -1 && currentScreens >= currentPlan!.max_screens;
-
   const getPlanDisplayName = (plan: Plan) => {
     const key = `plan_display_${(plan.name || '').replace(/\s+/g, '_').toLowerCase()}`;
     const translated = t(key);
@@ -322,13 +320,6 @@ function PricingContent() {
                   </p>
                 )}
               </div>
-              {isAtLimit && (
-                <div className="mt-4 p-3 rounded-lg bg-amber-500/20 border border-amber-500/30">
-                  <p className="text-sm text-amber-200">
-                    ⚠️ {t('pricing_limit_reached')}
-                  </p>
-                </div>
-              )}
             </div>
           )}
 

@@ -208,10 +208,13 @@ export default function DisplayPage() {
   screenDataRef.current = screenData;
   /** Geçiş animasyonu bittikten sonra base layer hazır olunca overlay kaldırılır */
   const displayReadyRef = useRef<() => void>(() => {});
+  /** 24/7 yayında unmount sonrası setState engellemek için */
+  const mountedRef = useRef(true);
 
   const POLL_INTERVAL_MS = 60_000; // 60s - tek interval, 1000 TV için ölçeklenebilir
   const MAX_BACKOFF_MS = 60_000;
   const HEARTBEAT_INTERVAL_MS = 45_000;
+  const HEARTBEAT_RETRY_WHEN_BLOCKED_MS = 20_000; // Bloklu iken daha sık dene (diğer cihaz kapanınca hemen açılsın)
 
   // Tüm rotasyon slotlarını önbelleğe al (veya güncelleme gelince yenile)
   const preloadRotationCache = useCallback(async (baseData: ScreenData) => {
@@ -230,6 +233,11 @@ export default function DisplayPage() {
       console.warn('Rotation cache preload failed:', e);
     }
   }, [token]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   useEffect(() => {
     const initialRotation = previewIndex != null && previewIndex >= 0 ? previewIndex : undefined;
@@ -274,6 +282,27 @@ export default function DisplayPage() {
     const interval = setInterval(sendHeartbeat, HEARTBEAT_INTERVAL_MS);
     return () => clearInterval(interval);
   }, [token]);
+
+  // Bloklu iken (viewAllowed === false) daha sık heartbeat at – diğer cihaz kapanınca tekrar izin alınsın
+  useEffect(() => {
+    if (!token || viewAllowed !== false || typeof window === 'undefined') return;
+    let sessionId = sessionStorage.getItem('display_heartbeat_session');
+    if (!sessionId) return;
+    const retry = () => {
+      fetch(`/api/proxy/public/screen/${encodeURIComponent(token)}/heartbeat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId }),
+      })
+        .then((r) => r.json())
+        .then((data: { ok?: boolean; allowed?: boolean }) => {
+          if (data?.allowed === true) setViewAllowed(true);
+        })
+        .catch(() => {});
+    };
+    const t = setInterval(retry, HEARTBEAT_RETRY_WHEN_BLOCKED_MS);
+    return () => clearInterval(t);
+  }, [token, viewAllowed]);
 
   const loadScreenData = async (initialRotationIndex?: number) => {
     if (loadInProgressRef.current) return;
@@ -450,34 +479,38 @@ export default function DisplayPage() {
         loadTemplateForRotation(screenData, 0);
       }
       if (screenData && currentTemplateData && screenData.templateRotations.length === 1) {
-        const durationMs = (screenData.templateRotations[0].display_duration || 90) * 1000;
+        const durationSec = Math.max(1, screenData.templateRotations[0].display_duration || 90);
+        const durationMs = durationSec * 1000;
         const timer = setTimeout(() => {
-          // Sadece veriyi yenile; key artırmak tüm ağacı remount edip "göz kırpma" yapıyordu
-          loadTemplateForRotation(screenData, 0);
+          if (mountedRef.current) loadTemplateForRotation(screenData, 0);
         }, durationMs);
         return () => clearTimeout(timer);
       }
       return;
     }
-    // 2 veya daha fazla şablon: her birinin display_duration süresiyle sırayla göster
+    // 2 veya daha fazla şablon: her birinin display_duration (saniye) süresiyle sırayla göster; 24/7 kesintisiz döngü
     const currentRotation = screenData.templateRotations[currentTemplateIndex];
     if (!currentRotation) {
       setCurrentTemplateData(screenData);
       return;
     }
-    const durationMs = (currentRotation.display_duration || 5) * 1000;
+    const durationSec = Math.max(1, currentRotation.display_duration || 5);
+    const durationMs = durationSec * 1000;
     const nextIndex = (currentTemplateIndex + 1) % screenData.templateRotations!.length;
     const nextRot = screenData.templateRotations![nextIndex] as { transition_duration?: number } | undefined;
     const transitionDuration = nextRot?.transition_duration ?? 1400;
     const N = screenData.templateRotations!.length;
     const timer = setTimeout(() => {
+      if (!mountedRef.current) return;
       const cached = rotationCacheRef.current.length === N ? rotationCacheRef.current[nextIndex] : null;
-      if (cached) {
-        setNextTemplateData(cached);
+      const applyNextTemplate = (nextData: ScreenData) => {
+        if (!mountedRef.current) return;
+        setNextTemplateData(nextData);
         setNextTemplateIndex(nextIndex);
         setIsTransitioning(true);
         setTimeout(() => {
-          setCurrentTemplateData(cached);
+          if (!mountedRef.current) return;
+          setCurrentTemplateData(nextData);
           setCurrentTemplateIndex(nextIndex);
           currentTemplateIndexRef.current = nextIndex;
           displayReadyRef.current = () => {
@@ -486,6 +519,9 @@ export default function DisplayPage() {
             setJustFinishedTransition(true);
           };
         }, transitionDuration);
+      };
+      if (cached) {
+        applyNextTemplate(cached);
         return;
       }
       (async () => {
@@ -493,22 +529,10 @@ export default function DisplayPage() {
           const res = await fetch(`/api/public-screen/${encodeURIComponent(token)}?rotationIndex=${nextIndex}`, { cache: 'no-store' });
           const raw = res.ok ? await res.json() : null;
           const nextData = raw && !(raw as any).notFound && (raw as any).screen ? raw : null;
-          if (!nextData) return;
-          setNextTemplateData(nextData);
-          setNextTemplateIndex(nextIndex);
-          setIsTransitioning(true);
-          setTimeout(() => {
-            setCurrentTemplateData(nextData);
-            setCurrentTemplateIndex(nextIndex);
-            currentTemplateIndexRef.current = nextIndex;
-            displayReadyRef.current = () => {
-              setNextTemplateData(null);
-              setIsTransitioning(false);
-              setJustFinishedTransition(true);
-            };
-          }, transitionDuration);
+          if (nextData) applyNextTemplate(nextData);
+          else if (mountedRef.current) loadTemplateForRotation(screenData, nextIndex);
         } catch (e) {
-          loadTemplateForRotation(screenData, nextIndex);
+          if (mountedRef.current) loadTemplateForRotation(screenData, nextIndex);
         }
       })();
     }, durationMs);
