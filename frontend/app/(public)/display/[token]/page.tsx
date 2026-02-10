@@ -37,16 +37,23 @@ function useInIframe() {
   return inIframe;
 }
 
+const HIDE_FULLSCREEN_BTN_MS = 3000;
+
 const EmbedFitWrapper = React.forwardRef<HTMLDivElement, { children: React.ReactNode; fadeIn?: boolean }>(function EmbedFitWrapper({ children, fadeIn }, ref) {
   const [scale, setScale] = useState(1);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showFullscreenBtn, setShowFullscreenBtn] = useState(true);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const hideBtnTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const update = () => {
       const el = document.fullscreenElement;
+      setIsFullscreen(!!el);
+      if (!el) setShowFullscreenBtn(true);
       const w = el ? el.clientWidth : window.innerWidth;
       const h = el ? el.clientHeight : window.innerHeight;
-      // Contain: tasarımın tamamı her TV boyutunda görünsün, kırpılma/kayma/üst üste binme olmasın (tek ölçek, oran korunur)
       const s = Math.min(w / EMBED_WIDTH, h / EMBED_HEIGHT);
       setScale(s);
     };
@@ -59,9 +66,43 @@ const EmbedFitWrapper = React.forwardRef<HTMLDivElement, { children: React.React
     };
   }, []);
 
+  const toggleFullscreen = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    if (document.fullscreenElement) {
+      document.exitFullscreen?.();
+    } else {
+      el.requestFullscreen?.();
+    }
+  }, []);
+
+  const onInteractionShowBtn = useCallback(() => {
+    if (!document.fullscreenElement) return;
+    setShowFullscreenBtn(true);
+    if (hideBtnTimerRef.current) clearTimeout(hideBtnTimerRef.current);
+    hideBtnTimerRef.current = setTimeout(() => {
+      setShowFullscreenBtn(false);
+      hideBtnTimerRef.current = null;
+    }, HIDE_FULLSCREEN_BTN_MS);
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = () => onInteractionShowBtn();
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onInteractionShowBtn]);
+
+  const showBtn = !isFullscreen || showFullscreenBtn;
+
   return (
     <div
-      ref={ref}
+      ref={(el) => {
+        (containerRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
+        if (typeof ref === 'object' && ref) (ref as React.MutableRefObject<HTMLDivElement | null>).current = el;
+        else if (typeof ref === 'function') ref(el);
+      }}
+      role="presentation"
+      onClick={isFullscreen ? onInteractionShowBtn : undefined}
       style={{
         position: 'fixed' as const,
         inset: 0,
@@ -75,7 +116,6 @@ const EmbedFitWrapper = React.forwardRef<HTMLDivElement, { children: React.React
       <style jsx global>{`
         .display-fade-in { animation: displayFadeIn 120ms ease-out forwards; }
         @keyframes displayFadeIn { from { opacity: 0; } to { opacity: 1; } }
-        /* TV/APK yayını: sağ üst çıkış butonu gösterilmez */
         [data-display-exit], .display-exit-button,
         [aria-label*="xit" i], [aria-label*="çık" i], [aria-label*="lose" i],
         [title*="Tam ekrandan" i], [title*="exit" i] { display: none !important; }
@@ -96,6 +136,21 @@ const EmbedFitWrapper = React.forwardRef<HTMLDivElement, { children: React.React
       >
         {children}
       </div>
+      {showBtn && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }}
+          aria-label={isFullscreen ? 'Tam ekran kapat' : 'Tam ekran'}
+          title={isFullscreen ? 'Tam ekran kapat' : 'Tam ekran'}
+          className="absolute top-4 right-4 z-[200] w-12 h-12 rounded-lg bg-black/60 hover:bg-black/80 text-white flex items-center justify-center border border-white/20 focus:outline-none focus:ring-2 focus:ring-white/50"
+        >
+          {isFullscreen ? (
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          ) : (
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1v4m0 0h-4m4 0l-5-5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
+          )}
+        </button>
+      )}
     </div>
   );
 });

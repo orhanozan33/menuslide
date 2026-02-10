@@ -457,24 +457,27 @@ export default function ScreensPage() {
 <html lang="tr">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta http-equiv="refresh" content="0; url=${url}">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MenuSlide Yayın</title>
   <style>
-    body {
-      margin: 0;
-      background: #000;
-    }
+    body { margin: 0; background: #000; -webkit-tap-highlight-color: transparent; }
+    a { color: #38bdf8; text-decoration: none; }
   </style>
 </head>
 <body>
+  <p style="padding:1rem;color:#94a3b8;font-family:sans-serif;">
+    <a href="${url}">Yayını aç (MenuSlide)</a><br>
+    <small>Otomatik yönlendirilmiyorsanız tıklayın. Android cihazlarda tarayıcıda açılır.</small>
+  </p>
 </body>
 </html>
 `;
-    const blob = new Blob([html], { type: 'text/html' });
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = 'index.html';
+    a.download = 'Menuslide.html';
+    a.setAttribute('download', 'Menuslide.html');
     a.click();
     URL.revokeObjectURL(a.href);
     toast.showSuccess(t('screens_html_downloaded'));

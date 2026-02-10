@@ -74,14 +74,14 @@ class MainActivity : AppCompatActivity() {
         private const val KEY_API_BASE = "api_base"
         /** Config alınacak site (apiBaseUrl buradan gelir) */
         private const val BOOTSTRAP_BASE = "https://menuslide.com"
-        private const val WATCHDOG_INTERVAL_MS = 5 * 60 * 1000L // 5 dakika
+        private const val WATCHDOG_INTERVAL_MS = 2 * 60 * 1000L // 2 dakika (donma öncesi müdahale)
         private const val STUCK_THRESHOLD_MS = 90_000L // 1.5 dk oynatma yoksa yeniden başlat
-        /** WebView (display) modunda donma önlemi: geçişlerde bellek birikimini azaltmak için daha sık yenile */
-        private const val WEBVIEW_RELOAD_INTERVAL_MS = 12 * 60 * 1000L // 12 dakika
+        /** WebView: stick/TV GPU kilitlenmesini önlemek için sık yenileme */
+        private const val WEBVIEW_RELOAD_INTERVAL_MS = 6 * 60 * 1000L // 6 dakika
         /** Otomatik yeniden açılma: uygulama kapanınca kaç dakika sonra tekrar açılsın */
         private const val RESTART_ALARM_INTERVAL_MS = 2 * 60 * 1000L // 2 dakika
         /** Düşük RAM cihazlarda WebView daha sık yenilenir (bellek birikimi önleme) */
-        private const val WEBVIEW_RELOAD_INTERVAL_LOW_RAM_MS = 8 * 60 * 1000L // 8 dakika
+        private const val WEBVIEW_RELOAD_INTERVAL_LOW_RAM_MS = 5 * 60 * 1000L // 5 dakika
     }
 
     private val prefs by lazy { getSharedPreferences(PREFS, Context.MODE_PRIVATE) }
@@ -154,7 +154,7 @@ class MainActivity : AppCompatActivity() {
         scope.launch {
             val canProceed = withContext(Dispatchers.IO) {
                 try {
-                    val request = Request.Builder().url("$BOOTSTRAP_BASE/api/tv-app-config").get().build()
+                    val request = Request.Builder().url("$BOOTSTRAP_BASE/api/tv-app-config?t=${System.currentTimeMillis()}").get().build()
                     val client = OkHttpClient.Builder().connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS).build()
                     val response = client.newCall(request).execute()
                     if (!response.isSuccessful) return@withContext true
@@ -352,7 +352,7 @@ class MainActivity : AppCompatActivity() {
         setupDisplayWebView(displayWebView!!)
     }
 
-    /** WebView ayarları: düşük RAM / eski TV için bellek ve akıcılık optimizasyonu. */
+    /** WebView: Stick/TV GPU kilitlenmesini önlemek için her cihazda yazılım katmanı + bellek tasarrufu. */
     private fun setupDisplayWebView(webView: WebView) {
         webView.settings.apply {
             javaScriptEnabled = true
@@ -369,9 +369,10 @@ class MainActivity : AppCompatActivity() {
                 safeBrowsingEnabled = false
             }
         }
-        if (isLowMemoryDevice && Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
+        // Her cihazda software layer: stick/TV GPU sürücüleri kilitlenmesin (sistem donması önlemi)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
             webView.setLayerType(View.LAYER_TYPE_SOFTWARE, null)
-            Log.d(TAG, "Low-memory device: WebView using software layer")
+            Log.d(TAG, "WebView using software layer (GPU freeze prevention)")
         }
         webView.webViewClient = object : WebViewClient() {
             override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
