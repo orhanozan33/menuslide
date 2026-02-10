@@ -501,11 +501,14 @@ export default function SistemPage() {
           .then((r) => r.json())
           .then((tpl: { id?: string; name?: string; canvas_json?: object }) => {
             if (!tpl?.canvas_json || typeof tpl.canvas_json !== 'object') return;
+            if (!fabricCanvas) return;
             const raw = tpl.canvas_json as Record<string, unknown>;
             const safe = sanitizeCanvasJsonForFabric(raw) as object;
             fabricCanvas.loadFromJSON(safe).then(() => {
-              constrainAllObjects(fabricCanvas);
-              fabricCanvas.renderAll();
+              const c = fabricCanvasRef.current;
+              if (!c) return;
+              constrainAllObjects(c);
+              c.renderAll();
               const name = tpl.name ?? '';
               setDesignTitle(name);
               loadedTemplateNameRef.current = name;
