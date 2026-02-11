@@ -259,7 +259,7 @@ export default function DisplayPage() {
 
   // Lite/low mod: periyodik sayfa yenile — bellek birikimi ve donma/kapanma önlenir
   const LITE_RELOAD_MS = 5.5 * 60 * 1000;
-  const LOW_DEVICE_RELOAD_MS = 3 * 60 * 1000; // Zayıf cihaz: 3 dk (daha sık = daha az bellek)
+  const LOW_DEVICE_RELOAD_MS = 2 * 60 * 1000; // Zayıf cihaz / stick: 2 dk (4 dk donma öncesi yenile)
   const reloadMs = isLowDeviceMode ? LOW_DEVICE_RELOAD_MS : LITE_RELOAD_MS;
   useEffect(() => {
     if (!isLiteMode || typeof window === 'undefined') return;
@@ -635,7 +635,7 @@ export default function DisplayPage() {
   const nextRotation = screenData.templateRotations?.[nextTemplateIndex];
   const rotationEffect = nextRotation?.transition_effect;
   const transitionEffect = isLiteMode ? 'fade' : (rotationEffect || (screenData.screen as any).template_transition_effect || 'fade');
-  const transitionDurationMs = isLiteMode ? 500 : (nextRotation?.transition_duration ?? 1400);
+  const transitionDurationMs = isLowDeviceMode ? 300 : (isLiteMode ? 500 : (nextRotation?.transition_duration ?? 1400));
 
   const tickerText = (screenData.screen as any)?.ticker_text || '';
   const tickerStyle = (screenData.screen as any)?.ticker_style || 'default';
@@ -707,7 +707,7 @@ export default function DisplayPage() {
                 inline
                 screenData={displayData as any}
                 animationType={isLiteMode ? 'fade' : (displayData.screen?.animation_type || 'fade')}
-                animationDuration={isLiteMode ? 400 : (displayData.screen?.animation_duration || 500)}
+                animationDuration={isLowDeviceMode ? 300 : (isLiteMode ? 400 : (displayData.screen?.animation_duration || 500))}
               />
             ) : null}
             {/* Geçiş overlay: animasyon bitene kadar üstte kalır, base layer onReady verince kaldırılır */}
@@ -721,7 +721,7 @@ export default function DisplayPage() {
                   nextData={nextTemplateData}
                   duration={transitionDurationMs}
                   animationType={isLiteMode ? 'fade' : (currentTemplateData.screen?.animation_type || 'fade')}
-                  animationDuration={isLiteMode ? 400 : (currentTemplateData.screen?.animation_duration || 500)}
+                  animationDuration={isLowDeviceMode ? 300 : (isLiteMode ? 400 : (currentTemplateData.screen?.animation_duration || 500))}
                 />
               </div>
             )}
@@ -760,7 +760,7 @@ export default function DisplayPage() {
   }
 
   const animationType = isLiteMode ? 'fade' : (screenData.screen.animation_type || 'fade');
-  const animationDuration = isLiteMode ? 400 : (screenData.screen.animation_duration || 500);
+  const animationDuration = isLowDeviceMode ? 300 : (isLiteMode ? 400 : (screenData.screen.animation_duration || 500));
 
   return (
     <EmbedFitWrapper ref={displayContainerRef} fadeIn={justFinishedTransition}>

@@ -60,7 +60,7 @@ import androidx.core.content.ContextCompat
 
 /**
  * Ana Activity: Yayın kodu tek sefer girilir, kaydedilir; sonra hep aynı yayın.
- * - 5 dakikada bir watchdog: oynatma donmuş/kapanmışsa otomatik yayına döner.
+ * - 1 dakikada bir watchdog: oynatma donmuş/kapanmışsa otomatik yayına döner.
  * - Akıcı yayın: büyük buffer, otomatik retry.
  */
 class MainActivity : AppCompatActivity() {
@@ -74,14 +74,12 @@ class MainActivity : AppCompatActivity() {
         private const val KEY_API_BASE = "api_base"
         /** Config alınacak site (apiBaseUrl buradan gelir) */
         private const val BOOTSTRAP_BASE = "https://menuslide.com"
-        private const val WATCHDOG_INTERVAL_MS = 2 * 60 * 1000L // 2 dakika (donma öncesi müdahale)
-        private const val STUCK_THRESHOLD_MS = 90_000L // 1.5 dk oynatma yoksa yeniden başlat
-        /** WebView: stick/TV GPU kilitlenmesini önlemek için sık yenileme */
-        private const val WEBVIEW_RELOAD_INTERVAL_MS = 6 * 60 * 1000L // 6 dakika
-        /** Otomatik yeniden açılma: uygulama kapanınca kaç dakika sonra tekrar açılsın */
-        private const val RESTART_ALARM_INTERVAL_MS = 2 * 60 * 1000L // 2 dakika
-        /** Düşük RAM cihazlarda WebView daha sık yenilenir (bellek birikimi/kapanma önleme) */
-        private const val WEBVIEW_RELOAD_INTERVAL_LOW_RAM_MS = 3 * 60 * 1000L // 3 dakika
+        private const val WATCHDOG_INTERVAL_MS = 1 * 60 * 1000L // 1 dakika (erken donma müdahalesi)
+        private const val STUCK_THRESHOLD_MS = 75_000L // ~1.25 dk oynatma yoksa yeniden başlat
+        /** WebView: stick donma öncesi 2 dk yenile */
+        private const val WEBVIEW_RELOAD_INTERVAL_MS = 2 * 60 * 1000L
+        /** Otomatik yeniden açılma: uygulama kapanınca 2 dk sonra tekrar açılsın */
+        private const val RESTART_ALARM_INTERVAL_MS = 2 * 60 * 1000L
     }
 
     private val prefs by lazy { getSharedPreferences(PREFS, Context.MODE_PRIVATE) }
@@ -104,12 +102,6 @@ class MainActivity : AppCompatActivity() {
     private var lastPlayingTimeMs: Long = 0
     private var lastWebViewReloadMs: Long = 0
     private var watchdogRunnable: Runnable? = null
-
-    /** Düşük RAM veya eski TV: daha agresif bellek tasarrufu (daha sık yenileme, küçük buffer, yazılım katmanı). */
-    private val isLowMemoryDevice: Boolean by lazy {
-        val am = getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager ?: return@lazy false
-        am.memoryClass <= 96
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -512,9 +504,9 @@ class MainActivity : AppCompatActivity() {
         val url = currentStreamUrl ?: return
         val now = System.currentTimeMillis()
 
-        // Display sayfası (WebView) modu: donma önlemi için periyodik yenile (düşük RAM'de daha sık)
+        // Display sayfası (WebView) modu: donma önlemi için periyodik yenile (stick = hep 2 dk)
         if (url.contains("/display/")) {
-            val interval = if (isLowMemoryDevice) WEBVIEW_RELOAD_INTERVAL_LOW_RAM_MS else WEBVIEW_RELOAD_INTERVAL_MS
+            val interval = WEBVIEW_RELOAD_INTERVAL_MS
             if (now - lastWebViewReloadMs >= interval) {
                 Log.d(TAG, "Watchdog: WebView reload (freeze recovery)")
                 lastWebViewReloadMs = now
@@ -550,12 +542,11 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** Display URL'ine ?lite=1 (ve düşük RAM'de &low=1) ekler — zayıf cihazlarda donma/kapanma azalır. */
+    /** Display URL'ine her zaman ?lite=1&low=1 ekler — hedef sadece stick, donma/kapanma önleme. */
     private fun ensureDisplayUrlWithLite(url: String): String {
         if (!url.contains("/display/")) return url
         val hasQuery = url.contains("?")
-        var out = url + if (hasQuery) "&lite=1" else "?lite=1"
-        if (isLowMemoryDevice) out += "&low=1"
+        val out = url + if (hasQuery) "&lite=1&low=1" else "?lite=1&low=1"
         return out
     }
 
@@ -712,7 +703,8 @@ class MainActivity : AppCompatActivity() {
             val httpDataSourceFactory = DefaultHttpDataSource.Factory()
                 .setConnectTimeoutMs(15_000)
                 .setReadTimeoutMs(20_000)
-            val (minBufMs, maxBufMs) = if (isLowMemoryDevice) 15_000 to 60_000 else 30_000 to 120_000
+            // Stick hedef: düşük buffer (bellek/GPU yükü az)
+            val (minBufMs, maxBufMs) = 15_000 to 60_000
             val loadControl = DefaultLoadControl.Builder()
                 .setBufferDurationsMs(minBufMs, maxBufMs, 5_000, 5_000)
                 .build()
