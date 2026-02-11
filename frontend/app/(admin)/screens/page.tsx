@@ -790,7 +790,7 @@ export default function ScreensPage() {
                   </p>
                 )}
               </div>
-              <div className="mb-4 pb-4 border-b border-gray-100">
+              <div className="mb-3 pb-3 border-b border-gray-100">
                 <p className="text-xs sm:text-sm text-gray-600 mb-2 font-medium">{t('screens_public_url')}</p>
                 <div className="flex items-center gap-2 min-w-0">
                   <input
@@ -806,6 +806,36 @@ export default function ScreensPage() {
                     {t('btn_copy')}
                   </button>
                 </div>
+              </div>
+              <div className="mb-4 pb-4 border-b border-gray-100">
+                <p className="text-xs sm:text-sm text-gray-600 mb-2 font-medium">VLC için link (yayın akışı)</p>
+                {(screen as Screen).stream_url && (screen as Screen).stream_url!.trim() ? (
+                  <div className="flex items-center gap-2 min-w-0">
+                    <input
+                      type="text"
+                      value={(screen as Screen).stream_url!}
+                      readOnly
+                      className="flex-1 min-w-0 px-2 sm:px-3 py-1.5 text-xs sm:text-sm border border-violet-200 rounded-lg bg-violet-50 text-gray-900 font-mono truncate"
+                    />
+                    <button
+                      onClick={() => {
+                        const url = (screen as Screen).stream_url?.trim();
+                        if (url) {
+                          navigator.clipboard?.writeText(url);
+                          toast.showSuccess('VLC linki kopyalandı. VLC → Medya → Ağ Akışından Aç\'a yapıştırın.');
+                        }
+                      }}
+                      className="px-3 sm:px-4 py-1.5 text-xs sm:text-sm bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors font-medium whitespace-nowrap"
+                    >
+                      {t('btn_copy')}
+                    </button>
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-500 mb-1">Tanımlı değil. VLC’de doğrudan stream açmak için ekrana tıklayıp &quot;Yayın linki (VLC)&quot; alanını doldurun.</p>
+                )}
+                <Link href={localePath(`/screens/${screen.id}`)} className="text-xs text-violet-600 hover:underline font-medium">
+                  Ekranı düzenle →
+                </Link>
               </div>
               <div className="flex items-center justify-between text-xs sm:text-sm mb-4 flex-wrap gap-2">
                 <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${screen.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
