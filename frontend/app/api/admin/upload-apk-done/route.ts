@@ -47,15 +47,16 @@ export async function POST(request: Request) {
     if (row) {
       await supabase.from('tv_app_settings').update(updates).eq('id', (row as { id: string }).id);
     } else {
-      await supabase.from('tv_app_settings').insert({
+      const insertRow: Record<string, unknown> = {
         id: '00000000-0000-0000-0000-000000000001',
         api_base_url: '',
         download_url: publicUrl,
         watchdog_interval_minutes: 5,
-        ...(typeof updates.min_version_code === 'number' && { min_version_code: updates.min_version_code }),
-        ...(typeof updates.latest_version_code === 'number' && { latest_version_code: updates.latest_version_code }),
-        ...(updates.latest_version_name && { latest_version_name: updates.latest_version_name }),
-      });
+      };
+      if (typeof updates.min_version_code === 'number') insertRow.min_version_code = updates.min_version_code;
+      if (typeof updates.latest_version_code === 'number') insertRow.latest_version_code = updates.latest_version_code;
+      if (typeof updates.latest_version_name === 'string') insertRow.latest_version_name = updates.latest_version_name;
+      await supabase.from('tv_app_settings').insert(insertRow);
     }
 
     return NextResponse.json({
