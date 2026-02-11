@@ -410,7 +410,7 @@ export async function resolvePlayer(request: NextRequest): Promise<Response> {
   // Önce koda göre ekranı bul (is_active kontrolü ayrı: pasifse net mesaj verelim)
   const { data: screen, error: sbError } = await supabase
     .from('screens')
-    .select('id, public_slug, public_token, is_active')
+    .select('id, public_slug, public_token, is_active, stream_url')
     .eq('broadcast_code', code)
     .limit(1)
     .maybeSingle();
@@ -428,12 +428,16 @@ export async function resolvePlayer(request: NextRequest): Promise<Response> {
       message: 'Bu kod ile eşleşen ekran yok. Admin panel → Ekranlar sayfasındaki 5 haneli kodu aynen girin.',
     });
   }
-  const scr = screen as { is_active?: boolean; public_slug?: string; public_token?: string };
+  const scr = screen as { is_active?: boolean; public_slug?: string; public_token?: string; stream_url?: string | null };
   if (scr.is_active === false) {
     return Response.json({
       error: 'CODE_INACTIVE',
       message: 'Bu ekran şu an pasif. Admin panel → Ekranlar\'da ilgili TV\'yi Aktif yapın.',
     });
+  }
+  const customStreamUrl = (scr.stream_url ?? '').trim();
+  if (customStreamUrl && (customStreamUrl.startsWith('http://') || customStreamUrl.startsWith('https://'))) {
+    return Response.json({ streamUrl: customStreamUrl });
   }
   const slugOrToken = scr.public_slug || scr.public_token;
   if (!slugOrToken) {

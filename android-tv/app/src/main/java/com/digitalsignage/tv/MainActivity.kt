@@ -24,9 +24,11 @@ import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -76,14 +78,17 @@ class MainActivity : AppCompatActivity() {
         private const val BOOTSTRAP_BASE = "https://menuslide.com"
         private const val WATCHDOG_INTERVAL_MS = 1 * 60 * 1000L // 1 dakika (erken donma müdahalesi)
         private const val STUCK_THRESHOLD_MS = 75_000L // ~1.25 dk oynatma yoksa yeniden başlat
-        /** WebView: stick donma öncesi 2 dk yenile */
-        private const val WEBVIEW_RELOAD_INTERVAL_MS = 2 * 60 * 1000L
+        /** WebView: 4–5 dk donmadan önce yenile; reload yerine tam yeniden oluştur (1.5 dk) */
+        private const val WEBVIEW_RELOAD_INTERVAL_MS = 90 * 1000L // 1.5 dakika
         /** Otomatik yeniden açılma: uygulama kapanınca 2 dk sonra tekrar açılsın */
         private const val RESTART_ALARM_INTERVAL_MS = 2 * 60 * 1000L
     }
 
     private val prefs by lazy { getSharedPreferences(PREFS, Context.MODE_PRIVATE) }
-    private val scope = CoroutineScope(Dispatchers.Main + Job())
+    private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob() + CoroutineExceptionHandler { _, t ->
+        Log.e(TAG, "Coroutine crash", t)
+        mainHandler.post { safeShowErrorAndInput(getString(R.string.error_playback_failed)) }
+    })
     private val mainHandler = Handler(Looper.getMainLooper())
 
     private lateinit var screenCodeInput: View
@@ -161,19 +166,31 @@ class MainActivity : AppCompatActivity() {
                     if (minCode != null && currentCode < minCode) {
                         val downloadUrl = obj.optString("downloadUrl", "").trim()
                         mainHandler.post {
-                            showUpdateRequiredDialog(downloadUrl)
-                            onResult(false)
+                            try {
+                                showUpdateRequiredDialog(downloadUrl)
+                                onResult(false)
+                            } catch (e: Throwable) {
+                                Log.e(TAG, "showUpdateRequiredDialog", e)
+                                onResult(true)
+                            }
                         }
                         return@withContext false
                     }
                     if (latestCode != null && currentCode < latestCode) {
                         val downloadUrl = obj.optString("downloadUrl", "").trim()
                         val versionName = obj.optString("latestVersionName", "")
-                        mainHandler.post { showUpdateAvailableDialog(downloadUrl, versionName, onResult) }
+                        mainHandler.post {
+                            try {
+                                showUpdateAvailableDialog(downloadUrl, versionName, onResult)
+                            } catch (e: Throwable) {
+                                Log.e(TAG, "showUpdateAvailableDialog", e)
+                                onResult(true)
+                            }
+                        }
                         return@withContext false
                     }
                     true
-                } catch (e: Exception) {
+                } catch (e: Throwable) {
                     Log.e(TAG, "config/version check error", e)
                     true
                 }
@@ -445,31 +462,58 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun onStartClicked() {
-        hideKeyboard()
-        val code = inputCode.text?.toString()?.trim().orEmpty()
-        if (code.isEmpty()) {
-            showError(getString(R.string.hint_code))
-            return
+    /** Hata durumunda kodu giriş ekranına dön; hiçbir exception uygulamayı kapatmasın. */
+    private fun safeShowErrorAndInput(message: String) {
+        try {
+            if (isFinishing) return
+            stopPlaybackKeepAliveService()
+            showLoading(false)
+            showInputScreen(true)
+            showError(message)
+        } catch (e: Throwable) {
+            Log.e(TAG, "safeShowErrorAndInput", e)
         }
-        showError(null)
-        prefs.edit().putString(KEY_BROADCAST_CODE, code).commit()
-        showLoading(true)
-        // Önce uzaktan sürüm kontrolü; güncelleme zorunluysa yayına geçme
-        loadConfigAndCheckVersion { canProceed ->
-            mainHandler.post {
-                if (!canProceed) {
-                    showLoading(false)
-                    return@post
-                }
-                // Kesintisiz yayın için pil optimizasyonu muafiyeti öner (izin verilirse yayın başlar)
-                requestBatteryOptimizationExemption {
-                    prefs.edit().putBoolean(RestartReceiver.KEY_USER_EXIT, false).apply()
-                    resolveAndPlay(code)
-                    startWatchdog()
-                    scheduleRestartAlarm()
+    }
+
+    private fun onStartClicked() {
+        try {
+            hideKeyboard()
+            val code = inputCode.text?.toString()?.trim().orEmpty()
+            if (code.isEmpty()) {
+                showError(getString(R.string.hint_code))
+                return
+            }
+            showError(null)
+            prefs.edit().putString(KEY_BROADCAST_CODE, code).commit()
+            showLoading(true)
+            loadConfigAndCheckVersion { canProceed ->
+                mainHandler.post {
+                    try {
+                        if (!canProceed) {
+                            showLoading(false)
+                            showInputScreen(true)
+                            return@post
+                        }
+                        requestBatteryOptimizationExemption {
+                            try {
+                                prefs.edit().putBoolean(RestartReceiver.KEY_USER_EXIT, false).apply()
+                                resolveAndPlay(code)
+                                startWatchdog()
+                                scheduleRestartAlarm()
+                            } catch (e: Throwable) {
+                                Log.e(TAG, "resolveAndPlay/watchdog failed", e)
+                                safeShowErrorAndInput(getString(R.string.error_playback_failed))
+                            }
+                        }
+                    } catch (e: Throwable) {
+                        Log.e(TAG, "onStartClicked callback", e)
+                        safeShowErrorAndInput(e.message ?: getString(R.string.error_playback_failed))
+                    }
                 }
             }
+        } catch (e: Throwable) {
+            Log.e(TAG, "onStartClicked", e)
+            safeShowErrorAndInput(e.message ?: getString(R.string.error_playback_failed))
         }
     }
 
@@ -504,13 +548,13 @@ class MainActivity : AppCompatActivity() {
         val url = currentStreamUrl ?: return
         val now = System.currentTimeMillis()
 
-        // Display sayfası (WebView) modu: donma önlemi için periyodik yenile (stick = hep 2 dk)
+        // Display sayfası (WebView) modu: donma önlemi — reload yerine WebView'ı tamamen yeniden oluştur (bellek/GPU sıfırlanır)
         if (url.contains("/display/")) {
             val interval = WEBVIEW_RELOAD_INTERVAL_MS
-            if (now - lastWebViewReloadMs >= interval) {
-                Log.d(TAG, "Watchdog: WebView reload (freeze recovery)")
+            if (now - lastWebViewReloadMs >= interval && displayWebView != null) {
+                Log.d(TAG, "Watchdog: WebView replace (freeze prevention)")
                 lastWebViewReloadMs = now
-                displayWebView?.reload()
+                replaceDisplayWebViewAndLoad(url)
             }
             return
         }
@@ -553,19 +597,29 @@ class MainActivity : AppCompatActivity() {
     private fun resolveAndPlay(code: String) {
         resolveJob?.cancel()
         resolveJob = scope.launch {
-            val (url, errorMsg) = withContext(Dispatchers.IO) { resolveStreamUrl(code) }
-            if (!url.isNullOrEmpty()) {
-                val urlToLoad = ensureDisplayUrlWithLite(url)
-                currentStreamUrl = urlToLoad
-                startPlayback(urlToLoad)
-                showInputScreen(false)
-                showLoading(false)
-                lastPlayingTimeMs = System.currentTimeMillis()
-            } else {
-                stopPlaybackKeepAliveService()
-                showLoading(false)
-                showInputScreen(true)
-                showError(errorMsg ?: getString(R.string.error_invalid_response))
+            try {
+                val (url, errorMsg) = withContext(Dispatchers.IO) { resolveStreamUrl(code) }
+                if (!url.isNullOrEmpty()) {
+                    val urlToLoad = ensureDisplayUrlWithLite(url)
+                    currentStreamUrl = urlToLoad
+                        mainHandler.post {
+                            try {
+                                if (isFinishing) return@post
+                                startPlayback(urlToLoad)
+                                showInputScreen(false)
+                                showLoading(false)
+                                lastPlayingTimeMs = System.currentTimeMillis()
+                            } catch (e: Throwable) {
+                                Log.e(TAG, "startPlayback failed", e)
+                                safeShowErrorAndInput(getString(R.string.error_playback_failed))
+                            }
+                        }
+                } else {
+                    safeShowErrorAndInput(errorMsg ?: getString(R.string.error_invalid_response))
+                }
+            } catch (e: Throwable) {
+                Log.e(TAG, "resolveAndPlay failed", e)
+                mainHandler.post { safeShowErrorAndInput(e.message ?: getString(R.string.error_network)) }
             }
         }
     }
@@ -692,60 +746,59 @@ class MainActivity : AppCompatActivity() {
         lastPlayingTimeMs = System.currentTimeMillis()
         // /display/ = WebView (HTML menü). Diğer URL'ler (HLS/MP4, örn. test kodu EXOTEST) = ExoPlayer
         if (streamUrl.contains("/display/")) {
-            playerView.visibility = View.GONE
-            displayContainer.visibility = View.VISIBLE
-            webviewLoading.visibility = View.VISIBLE
-            applyFullscreenWhenPlaying(true)
-            lastWebViewReloadMs = System.currentTimeMillis()
-            displayWebView?.loadUrl(streamUrl)
-            Log.d(TAG, "loading display URL in WebView (lite/low for weak devices): $streamUrl")
-        } else {
-            displayContainer.visibility = View.GONE
-            val httpDataSourceFactory = DefaultHttpDataSource.Factory()
-                .setConnectTimeoutMs(15_000)
-                .setReadTimeoutMs(20_000)
-            // Stick hedef: düşük buffer (bellek/GPU yükü az)
-            val (minBufMs, maxBufMs) = 15_000 to 60_000
-            val loadControl = DefaultLoadControl.Builder()
-                .setBufferDurationsMs(minBufMs, maxBufMs, 5_000, 5_000)
-                .build()
-            val mediaSourceFactory = DefaultMediaSourceFactory(this).setDataSourceFactory(httpDataSourceFactory)
-            exoPlayer = ExoPlayer.Builder(this)
-                .setMediaSourceFactory(mediaSourceFactory)
-                .setLoadControl(loadControl)
-                .build()
-                .also { player ->
-                    displayContainer.visibility = View.GONE
-                    playerView.player = player
-                    playerView.useController = false
-                    playerView.visibility = View.VISIBLE
-                    applyFullscreenWhenPlaying(true)
+                playerView.visibility = View.GONE
+                displayContainer.visibility = View.VISIBLE
+                webviewLoading.visibility = View.VISIBLE
+                applyFullscreenWhenPlaying(true)
+                lastWebViewReloadMs = System.currentTimeMillis()
+                displayWebView?.loadUrl(streamUrl)
+                Log.d(TAG, "loading display URL in WebView (lite/low for weak devices): $streamUrl")
+            } else {
+                displayContainer.visibility = View.GONE
+                val httpDataSourceFactory = DefaultHttpDataSource.Factory()
+                    .setConnectTimeoutMs(15_000)
+                    .setReadTimeoutMs(20_000)
+                val (minBufMs, maxBufMs) = 15_000 to 60_000
+                val loadControl = DefaultLoadControl.Builder()
+                    .setBufferDurationsMs(minBufMs, maxBufMs, 5_000, 5_000)
+                    .build()
+                val mediaSourceFactory = DefaultMediaSourceFactory(this).setDataSourceFactory(httpDataSourceFactory)
+                exoPlayer = ExoPlayer.Builder(this)
+                    .setMediaSourceFactory(mediaSourceFactory)
+                    .setLoadControl(loadControl)
+                    .build()
+                    .also { player ->
+                        displayContainer.visibility = View.GONE
+                        playerView.player = player
+                        playerView.useController = false
+                        playerView.visibility = View.VISIBLE
+                        applyFullscreenWhenPlaying(true)
 
-                    player.setMediaItem(MediaItem.fromUri(streamUrl))
-                    player.prepare()
-                    player.playWhenReady = true
-                    player.repeatMode = Player.REPEAT_MODE_ALL
+                        player.setMediaItem(MediaItem.fromUri(streamUrl))
+                        player.prepare()
+                        player.playWhenReady = true
+                        player.repeatMode = Player.REPEAT_MODE_ALL
 
-                    player.addListener(object : Player.Listener {
-                        override fun onPlaybackStateChanged(playbackState: Int) {
-                            when (playbackState) {
-                                Player.STATE_READY -> lastPlayingTimeMs = System.currentTimeMillis()
-                                Player.STATE_BUFFERING -> { }
-                                Player.STATE_IDLE -> {
-                                    if (isNetworkAvailable()) {
-                                        player.prepare()
-                                        player.playWhenReady = true
+                        player.addListener(object : Player.Listener {
+                            override fun onPlaybackStateChanged(playbackState: Int) {
+                                when (playbackState) {
+                                    Player.STATE_READY -> lastPlayingTimeMs = System.currentTimeMillis()
+                                    Player.STATE_BUFFERING -> { }
+                                    Player.STATE_IDLE -> {
+                                        if (isNetworkAvailable()) {
+                                            player.prepare()
+                                            player.playWhenReady = true
+                                        }
                                     }
+                                    Player.STATE_ENDED -> { player.seekTo(0); player.play() }
                                 }
-                                Player.STATE_ENDED -> { player.seekTo(0); player.play() }
                             }
-                        }
-                        override fun onPlayerError(error: PlaybackException) {
-                            Log.e(TAG, "playback error", error)
-                            if (isNetworkAvailable()) player.prepare()
-                        }
-                    })
-                }
+                            override fun onPlayerError(error: PlaybackException) {
+                                Log.e(TAG, "playback error", error)
+                                if (isNetworkAvailable()) player.prepare()
+                            }
+                        })
+                    }
         }
     }
 

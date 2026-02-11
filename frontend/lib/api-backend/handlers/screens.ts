@@ -217,7 +217,7 @@ export async function update(id: string, request: NextRequest, user: JwtPayload)
   } catch {
     return Response.json({ message: 'Invalid JSON' }, { status: 400 });
   }
-  const allowed = ['name', 'location', 'is_active', 'animation_type', 'animation_duration', 'language_code', 'font_family', 'primary_color', 'background_style', 'background_color', 'background_image_url', 'logo_url', 'template_id', 'frame_type', 'ticker_text', 'ticker_style', 'allow_multi_device'];
+  const allowed = ['name', 'location', 'is_active', 'animation_type', 'animation_duration', 'language_code', 'font_family', 'primary_color', 'background_style', 'background_color', 'background_image_url', 'logo_url', 'template_id', 'frame_type', 'ticker_text', 'ticker_style', 'allow_multi_device', 'stream_url'];
   const updates: Record<string, unknown> = {};
   for (const k of allowed) if (body[k] !== undefined) updates[k] = body[k];
 

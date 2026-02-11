@@ -259,7 +259,7 @@ export default function DisplayPage() {
 
   // Lite/low mod: periyodik sayfa yenile — bellek birikimi ve donma/kapanma önlenir
   const LITE_RELOAD_MS = 5.5 * 60 * 1000;
-  const LOW_DEVICE_RELOAD_MS = 2 * 60 * 1000; // Zayıf cihaz / stick: 2 dk (4 dk donma öncesi yenile)
+  const LOW_DEVICE_RELOAD_MS = 90 * 1000; // Stick: 1.5 dk (4–5 dk donma öncesi yenile)
   const reloadMs = isLowDeviceMode ? LOW_DEVICE_RELOAD_MS : LITE_RELOAD_MS;
   useEffect(() => {
     if (!isLiteMode || typeof window === 'undefined') return;

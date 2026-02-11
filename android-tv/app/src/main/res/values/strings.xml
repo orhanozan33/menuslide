@@ -11,6 +11,7 @@
     <string name="error_server_config">Sunucu ayarı hatası. Yönetici ile iletişime geçin.</string>
     <string name="error_not_json">Sunucu beklenmeyen yanıt döndü (HTML/boş). TV ağ veya proxy ayarını kontrol edin.</string>
     <string name="error_no_stream">Yayın URL\'i alınamadı.</string>
+    <string name="error_playback_failed">Yayın başlatılamadı. İnternet ve kodu kontrol edin; tekrar deneyin.</string>
     <string name="update_required_title">Güncelleme gerekli</string>
     <string name="update_required_message">Bu sürüm artık desteklenmiyor. Kesintisiz yayın için lütfen güncelleyin.</string>
     <string name="update_available_title">Güncelleme var</string>

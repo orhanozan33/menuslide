@@ -51,6 +51,8 @@ interface Screen {
   template_transition_effect?: string;
   /** Son 2 dakikada bu ekran linkini açan benzersiz cihaz sayısı (heartbeat) */
   active_viewer_count?: number;
+  /** İsteğe bağlı HLS/MP4 stream URL (VLC ve TV uygulamasında kullanılır) */
+  stream_url?: string | null;
   templateRotations?: Array<{
     id: string;
     template_id: string;
