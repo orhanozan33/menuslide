@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:padding="48dp"
+    android:background="#111111">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/label_broadcast_code"
+        android:textColor="#FFFFFF"
+        android:textSize="22sp"
+        android:layout_marginBottom="24dp" />
+
+    <EditText
+        android:id="@+id/input_code"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:inputType="textCapCharacters"
+        android:hint="@string/hint_code"
+        android:textColor="#000000"
+        android:textColorHint="#888888"
+        android:background="@drawable/edittext_code_bg"
+        android:padding="12dp"
+        android:textSize="20sp"
+        android:maxLines="1"
+        android:layout_marginBottom="32dp" />
+
+    <Button
+        android:id="@+id/btn_activate"
+        android:layout_width="wrap_content"
+        android:layout_height="56dp"
+        android:minWidth="200dp"
+        android:text="@string/btn_activate"
+        android:textSize="18sp"
+        android:backgroundTint="#22C55E" />
+
+    <TextView
+        android:id="@+id/label_error"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:textColor="#EF4444"
+        android:textSize="16sp"
+        android:visibility="gone"
+        android:gravity="center" />
+
+    <ProgressBar
+        android:id="@+id/progress"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/text_version"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="32dp"
+        android:textColor="#666666"
+        android:textSize="14sp" />
+</LinearLayout>

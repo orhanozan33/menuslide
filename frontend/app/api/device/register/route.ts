@@ -112,10 +112,13 @@ export async function POST(request: Request) {
       ],
     };
 
+    const displayUrl = `${appUrl}/display/${displaySlug}`;
+    const displayUrlWithLite = displayUrl.includes('?') ? `${displayUrl}&lite=1` : `${displayUrl}?lite=1`;
+
     return NextResponse.json({
       deviceToken,
       layout,
-      videoUrls: [`${appUrl}/display/${displaySlug}`],
+      videoUrls: [displayUrlWithLite],
       refreshIntervalSeconds: 300,
     });
   } catch (e) {

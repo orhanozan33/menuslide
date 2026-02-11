@@ -169,10 +169,10 @@ export class BusinessesService {
       throw new ForbiddenException('Only super admins can delete businesses');
     }
 
-    const { error } = await this.supabase!
-      .from('businesses')
-      .delete()
-      .eq('id', id);
+    // Supabase: Cascade temizlik için RPC kullan (ekranlar, menüler, abonelik vb.)
+    const { error } = await this.supabase!.rpc('delete_business_cascade', {
+      p_business_id: id,
+    });
 
     if (error) throw error;
     return { message: 'Business deleted successfully' };

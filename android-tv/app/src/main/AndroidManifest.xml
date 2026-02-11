@@ -1,30 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  Android TV / Fire Stick: yayın kodu ile display sayfası.
-  - INTERNET zorunlu (API + display sayfası).
-  - Yayın: WebView ile /display/... sayfası (HTML); video stream ise ExoPlayer.
-  - Landscape, tek activity.
--->
+<!-- Enterprise Digital Signage: Native layout + ExoPlayer. No WebView. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.digitalsignage.tv">
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    <!-- Kesintisiz yayın: sistem uygulamayı pil tasarrufu için kapatmasın -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
-    <!-- Güncelleme: indirilen APK'yı kurmak için (aynı uygulama güncellemesi) -->
-    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
+        android:name=".TvApplication"
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:theme="@style/AppTheme"
-        android:usesCleartextTraffic="true"
+        android:usesCleartextTraffic="false"
         android:largeHeap="true">
 
         <activity
@@ -32,7 +25,13 @@
             android:exported="true"
             android:launchMode="singleTask"
             android:screenOrientation="landscape"
-            android:configChanges="orientation|screenSize|keyboardHidden">
+            android:configChanges="orientation|screenSize|keyboardHidden" />
+
+        <!-- Launcher: önce kod ekranı (telefon/stick’te açılış çökmesi azalır) -->
+        <activity
+            android:name=".activation.ActivationActivity"
+            android:exported="true"
+            android:screenOrientation="landscape">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -41,7 +40,7 @@
         </activity>
 
         <receiver
-            android:name=".BootReceiver"
+            android:name=".receiver.BootReceiver"
             android:exported="true"
             android:enabled="true">
             <intent-filter>
@@ -50,23 +49,16 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </receiver>
-        <receiver
-            android:name=".RestartReceiver"
-            android:exported="false"
-            android:enabled="true">
-            <intent-filter>
-                <action android:name="com.digitalsignage.tv.RESTART_CHECK" />
-            </intent-filter>
-        </receiver>
 
         <service
-            android:name=".PlaybackKeepAliveService"
+            android:name=".service.HeartbeatService"
             android:exported="false"
             android:foregroundServiceType="specialUse">
             <meta-data
                 android:name="android.app.FOREGROUND_SERVICE_SPECIAL_USE"
-                android:value="Digital signage: app displays content 24/7 on screen; foreground service keeps playback from being killed by system." />
+                android:value="Digital signage: heartbeat and stability." />
         </service>
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

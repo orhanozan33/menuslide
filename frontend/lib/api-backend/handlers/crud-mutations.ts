@@ -439,9 +439,26 @@ export async function deleteUser(id: string, user: JwtPayload): Promise<Response
     return Response.json({ success: true });
   }
   const supabase = getServerSupabase();
+
+  // 1) İlişkili verileri temizle (Supabase'de tam temizlik)
   await supabase.from('admin_permissions').delete().eq('user_id', id);
+  try {
+    await supabase.from('screen_edit_history').delete().eq('user_id', id);
+  } catch {
+    // Tablo yoksa veya hata olursa devam et
+  }
+
+  // 2) Supabase Auth'dan kullanıcıyı sil (tekrar giriş yapamasın)
+  try {
+    await supabase.auth.admin.deleteUser(id);
+  } catch {
+    // Auth kaydı yoksa veya zaten silinmişse devam et
+  }
+
+  // 3) public.users'dan sil
   const { error } = await supabase.from('users').delete().eq('id', id);
   if (error) return Response.json({ message: error.message }, { status: 500 });
+
   if (businessId) {
     const { data: other } = await supabase.from('users').select('id').eq('business_id', businessId).limit(1).maybeSingle();
     if (!other) {

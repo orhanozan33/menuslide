@@ -1,6 +1,6 @@
-# MenuSlide TV Uygulaması – Adım Adım Kullanım (v1.0.6)
+# MenuSlide TV Uygulaması – Adım Adım Kullanım (v1.0.14)
 
-Bu rehber, **yeni derlenen sürümü (versionCode 6)** yükledikten sonra kullanıcıların sürüm uyarısı ve izinleri görmesi ile uygulamanın kapanınca otomatik tekrar açılması için yapmanız gerekenleri adım adım anlatır.
+Bu rehber, **yeni derlenen sürümü (versionCode 14)** yükledikten sonra kullanıcıların sürüm uyarısı ve izinleri görmesi ile uygulamanın kapanınca otomatik tekrar açılması için yapmanız gerekenleri adım adım anlatır.
 
 ---
 
@@ -15,7 +15,7 @@ Kullanıcıların “güncelleme var” ve “izin ver” ekranlarını görmesi
    - Proje içi yol: `frontend/public/downloads/Menuslide.apk`  
    - veya `android-tv/app/build/outputs/apk/release/app-release.apk`
 5. Yükleme bitince **“Kaydet”** butonuna basın.  
-   Böylece `latest_version_code = 6` ve `latest_version_name = 1.0.6` sunucuya yazılır; eski sürümü açan kullanıcılar güncelleme ve izin isteği görecek.
+   Böylece `latest_version_code = 14` ve `latest_version_name = 1.0.14` sunucuya yazılır; eski sürümü açan kullanıcılar güncelleme ve izin isteği görecek.
 
 ---
 
@@ -32,7 +32,7 @@ Kullanıcıların “güncelleme var” ve “izin ver” ekranlarını görmesi
 Yeni sürüm ilk açıldığında:
 
 1. **Sürüm kontrolü**  
-   Uygulama sunucudan config alır. Eğer cihazdaki sürüm sunucudaki `latest_version_code` (6) altındaysa:
+   Uygulama sunucudan config alır. Eğer cihazdaki sürüm sunucudaki `latest_version_code` (14) altındaysa:
    - “Güncelleme var” veya “Güncelleme gerekli” diyaloğu çıkar.
    - **Güncelle** ile indirip kurabilir.
 
