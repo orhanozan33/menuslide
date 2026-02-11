@@ -18,7 +18,7 @@ async function getListBusinessId(
     const { data: u } = await supabase.from('users').select('business_id').eq('id', String(userIdParam).trim()).maybeSingle();
     return u?.business_id ?? null;
   }
-  if (user.role === 'business_user' && user.userId) {
+  if ((user.role === 'business_user' || user.role === 'tv_user') && user.userId) {
     const { data: u } = await supabase.from('users').select('business_id').eq('id', user.userId).single();
     return u?.business_id ?? null;
   }
@@ -51,7 +51,7 @@ export async function handleGet(
 
   if (useLocalDb()) {
     if (id && id.length === 36 && id.match(/^[0-9a-f-]{36}$/i)) {
-      if (user.role === 'business_user' && actualTable === 'businesses') {
+      if ((user.role === 'business_user' || user.role === 'tv_user') && actualTable === 'businesses') {
         const u = await queryOne<{ business_id: string | null }>('SELECT business_id FROM users WHERE id = $1', [user.userId]);
         if (!u || u.business_id !== id) return Response.json({ message: 'Access denied' }, { status: 403 });
       }
@@ -72,18 +72,18 @@ export async function handleGet(
     }
     let sql = `SELECT * FROM ${actualTable}`;
     const params: unknown[] = [];
-    if (user.role === 'business_user' && user.userId && TABLES_SCOPED_BY_BUSINESS.has(actualTable)) {
+    if ((user.role === 'business_user' || user.role === 'tv_user') && user.userId && TABLES_SCOPED_BY_BUSINESS.has(actualTable)) {
       const u = await queryOne<{ business_id: string | null }>('SELECT business_id FROM users WHERE id = $1', [user.userId]);
       if (u?.business_id) {
         params.push(u.business_id);
         sql += ` WHERE business_id = $1`;
       }
     }
-    if (user.role === 'business_user' && actualTable === 'content_library') {
+    if ((user.role === 'business_user' || user.role === 'tv_user') && actualTable === 'content_library') {
       sql += (params.length ? ' AND' : ' WHERE') + ` (uploaded_by = $${params.length + 1} OR uploaded_by IS NULL)`;
       params.push(user.userId);
     }
-    if (user.role === 'business_user' && actualTable === 'businesses' && !id) {
+    if ((user.role === 'business_user' || user.role === 'tv_user') && actualTable === 'businesses' && !id) {
       const u = await queryOne<{ business_id: string | null }>('SELECT business_id FROM users WHERE id = $1', [user.userId]);
       if (u?.business_id) {
         sql = `SELECT * FROM businesses WHERE id = $1`;
@@ -107,11 +107,11 @@ export async function handleGet(
     sql += ' ORDER BY created_at DESC LIMIT 500';
     const list = await queryLocal(sql, params);
     if (actualTable === 'menus') {
-      const businessId = user.role === 'business_user' ? (await queryOne<{ business_id: string | null }>('SELECT business_id FROM users WHERE id = $1', [user.userId]))?.business_id : null;
+      const businessId = (user.role === 'business_user' || user.role === 'tv_user') ? (await queryOne<{ business_id: string | null }>('SELECT business_id FROM users WHERE id = $1', [user.userId]))?.business_id : null;
       return Response.json({ menus: list, business_id: businessId ?? null });
     }
     if (actualTable === 'screens') {
-      const businessId = user.role === 'business_user'
+      const businessId = (user.role === 'business_user' || user.role === 'tv_user')
         ? (await queryOne<{ business_id: string | null }>('SELECT business_id FROM users WHERE id = $1', [user.userId]))?.business_id
         : (userIdParam ? (await queryOne<{ business_id: string | null }>('SELECT business_id FROM users WHERE id = $1', [searchParams.get('user_id')]))?.business_id : null);
       const subActive = businessId ? (await queryOne('SELECT id FROM subscriptions WHERE business_id = $1 AND status = $2 LIMIT 1', [businessId, 'active'])) != null : true;
@@ -166,15 +166,15 @@ export async function handleGet(
   const supabase = getServerSupabase();
   let query = supabase.from(actualTable).select('*');
 
-  if (user.role === 'business_user' && user.userId && TABLES_SCOPED_BY_BUSINESS.has(actualTable)) {
+  if ((user.role === 'business_user' || user.role === 'tv_user') && user.userId && TABLES_SCOPED_BY_BUSINESS.has(actualTable)) {
     const { data: u } = await supabase.from('users').select('business_id').eq('id', user.userId).single();
     const businessId = u?.business_id;
     if (businessId) query = query.eq('business_id', businessId);
   }
-  if (user.role === 'business_user' && user.userId && actualTable === 'content_library') {
+  if ((user.role === 'business_user' || user.role === 'tv_user') && user.userId && actualTable === 'content_library') {
     query = query.or(`uploaded_by.eq.${user.userId},uploaded_by.is.null`);
   }
-  if (user.role === 'business_user' && user.userId && actualTable === 'businesses' && !id) {
+  if ((user.role === 'business_user' || user.role === 'tv_user') && user.userId && actualTable === 'businesses' && !id) {
     const { data: u } = await supabase.from('users').select('business_id').eq('id', user.userId).single();
     const bizId = (u as { business_id?: string } | null)?.business_id;
     if (bizId) query = query.eq('id', bizId);
@@ -182,7 +182,7 @@ export async function handleGet(
   }
 
   if (id && id.length === 36 && id.match(/^[0-9a-f-]{36}$/i)) {
-    if (user.role === 'business_user' && actualTable === 'businesses') {
+    if ((user.role === 'business_user' || user.role === 'tv_user') && actualTable === 'businesses') {
       const { data: u } = await supabase.from('users').select('business_id').eq('id', user.userId).single();
       if ((u as { business_id?: string } | null)?.business_id !== id) {
         return Response.json({ message: 'Access denied' }, { status: 403 });

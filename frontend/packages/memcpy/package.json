@@ -1,0 +1,6 @@
+{
+  "name": "memcpy",
+  "version": "0.6.0",
+  "main": "index.js",
+  "description": "Stub for bytebuffer (app-info-parser) - Vercel/native build fix"
+}

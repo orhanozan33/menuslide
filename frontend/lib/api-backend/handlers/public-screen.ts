@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server';
 import { getServerSupabase } from '@/lib/supabase-server';
 
-const VIEWER_STALE_MS = 5 * 60 * 1000; // 5 dk – TV geçici kesintide oturum silinmesin
+// Tek cihaz modunda: 30 sn heartbeat gelmeyen oturum silinir; böylece diğer açık cihaz ~30 sn içinde yayına devam eder
+const VIEWER_STALE_MS = 30 * 1000; // 30 sn
 
 /** GET public/screen/:token – TV yayını verisi (Supabase) */
 export async function getScreenByToken(token: string, request: NextRequest): Promise<Response> {
@@ -328,16 +329,15 @@ export async function recordViewerHeartbeat(token: string, request: NextRequest)
   if (!screenId) return Response.json({ ok: false, allowed: false });
 
   let allowMultiDevice = !!(screenRow as { allow_multi_device?: boolean })?.allow_multi_device;
-  // sistemtv@gmail.com kullanıcısı için link kısıtlaması kaldırılmıştır (aynı link birden fazla TV'de açık olabilir)
-  if (!allowMultiDevice && (screenRow as { business_id?: string })?.business_id) {
-    const { data: owner } = await supabase
+  // sistemtv@gmail.com kullanıcısı için tek cihaz kısıtlaması yok — sistemde bu kullanıcı varsa tüm ekranlarda çoklu cihaz
+  if (!allowMultiDevice) {
+    const { data: sistemTvUser } = await supabase
       .from('users')
       .select('id')
-      .eq('business_id', (screenRow as { business_id: string }).business_id)
       .ilike('email', 'sistemtv@gmail.com')
       .limit(1)
       .maybeSingle();
-    if (owner) allowMultiDevice = true;
+    if (sistemTvUser) allowMultiDevice = true;
   }
   if (allowMultiDevice) return Response.json({ ok: true, allowed: true });
 

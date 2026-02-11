@@ -5,7 +5,7 @@ const nextConfig: NextConfig = {
   reactStrictMode: false,
   transpilePackages: ['react-konva', 'konva'],
   serverExternalPackages: ['pg'],
-  webpack: (config, { isServer }) => {
+  webpack: (config) => {
     const dir = path.join(process.cwd(), 'node_modules');
     config.resolve = config.resolve || {};
     config.resolve.alias = {

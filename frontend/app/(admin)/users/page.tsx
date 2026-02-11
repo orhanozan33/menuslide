@@ -377,7 +377,7 @@ export default function UsersPage() {
   }
 
   const adminUsers = users.filter((u: User) => u.role === 'admin' || u.role === 'super_admin');
-  const businessUsers = users.filter((u: User) => u.role === 'business_user');
+  const businessUsers = users.filter((u: User) => u.role === 'business_user' || u.role === 'tv_user');
 
   const canViewAdminList = isSuper || can('view_admin_list');
   const canViewBusinessList = isSuper || can('view_business_list');
@@ -677,9 +677,9 @@ export default function UsersPage() {
                     </td>
                     <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-700">
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        user.role === 'admin' ? 'bg-slate-200 text-slate-800' : 'bg-blue-100 text-blue-800'
+                        user.role === 'admin' ? 'bg-slate-200 text-slate-800' : user.role === 'tv_user' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'
                       }`}>
-                        {user.role === 'super_admin' ? t('users_role_super_admin') : user.role === 'admin' ? 'Admin' : t('users_role_user')}
+                        {user.role === 'super_admin' ? t('users_role_super_admin') : user.role === 'admin' ? 'Admin' : user.role === 'tv_user' ? t('users_role_tv_user') : t('users_role_user')}
                       </span>
                     </td>
                     <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-700">

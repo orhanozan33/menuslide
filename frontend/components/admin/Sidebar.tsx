@@ -88,25 +88,25 @@ export default function Sidebar({ user, mobileOpen = false, onMobileClose }: Sid
   };
 
   const menuItems: MenuItem[] = [
-    { titleKey: 'sidebar_dashboard', href: 'dashboard', icon: '📊', roles: ['super_admin', 'admin', 'business_user'] },
-    { titleKey: 'sidebar_menus', href: 'menus', icon: '🍽️', roles: ['super_admin', 'admin', 'business_user'] },
-    { titleKey: 'sidebar_screens', href: 'screens', icon: '📺', roles: ['super_admin', 'admin', 'business_user'] },
-    { titleKey: 'sidebar_sistem', href: 'sistem', icon: '🔧', roles: ['super_admin', 'admin', 'business_user'] },
+    { titleKey: 'sidebar_dashboard', href: 'dashboard', icon: '📊', roles: ['super_admin', 'admin', 'business_user', 'tv_user'] },
+    { titleKey: 'sidebar_menus', href: 'menus', icon: '🍽️', roles: ['super_admin', 'admin', 'business_user', 'tv_user'] },
+    { titleKey: 'sidebar_screens', href: 'screens', icon: '📺', roles: ['super_admin', 'admin', 'business_user', 'tv_user'] },
+    { titleKey: 'sidebar_sistem', href: 'sistem', icon: '🔧', roles: ['super_admin', 'admin', 'business_user', 'tv_user'] },
     { titleKey: 'sidebar_full_editor_templates', href: 'templates/full-editor', icon: '🖼️', roles: ['super_admin', 'admin'] },
-    { titleKey: 'sidebar_editor', href: 'editor', icon: '✏️', roles: ['super_admin', 'admin', 'business_user'] },
-    { titleKey: 'sidebar_templates_system', href: 'templates/system', icon: '🎨', roles: ['super_admin', 'admin', 'business_user'] },
-    { titleKey: 'sidebar_templates_mine', href: 'templates/mine', icon: '📋', roles: ['business_user'] },
+    { titleKey: 'sidebar_editor', href: 'editor', icon: '✏️', roles: ['super_admin', 'admin', 'business_user', 'tv_user'] },
+    { titleKey: 'sidebar_templates_system', href: 'templates/system', icon: '🎨', roles: ['super_admin', 'admin', 'business_user', 'tv_user'] },
+    { titleKey: 'sidebar_templates_mine', href: 'templates/mine', icon: '📋', roles: ['business_user', 'tv_user'] },
     { titleKey: 'sidebar_library', href: 'library', icon: '📚', roles: ['super_admin', 'admin'] },
-    { titleKey: 'sidebar_uploads', href: 'user-uploads', icon: '📤', roles: ['super_admin', 'admin', 'business_user'] },
-    { titleKey: 'sidebar_pricing', href: 'pricing', icon: '💰', roles: ['super_admin', 'admin', 'business_user'] },
-    { titleKey: 'sidebar_my_account', href: 'account', icon: '⚙️', roles: ['business_user'] },
+    { titleKey: 'sidebar_uploads', href: 'user-uploads', icon: '📤', roles: ['super_admin', 'admin', 'business_user', 'tv_user'] },
+    { titleKey: 'sidebar_pricing', href: 'pricing', icon: '💰', roles: ['super_admin', 'admin', 'business_user', 'tv_user'] },
+    { titleKey: 'sidebar_my_account', href: 'account', icon: '⚙️', roles: ['business_user', 'tv_user'] },
     { titleKey: 'sidebar_reports', href: 'reports', icon: '📊', roles: ['super_admin', 'admin'] },
     { titleKey: 'sidebar_registration_requests', href: 'registration-requests', icon: '🔔', roles: ['super_admin', 'admin'] },
     { titleKey: 'sidebar_users', href: 'users', icon: '👥', roles: ['super_admin', 'admin'] },
     { titleKey: 'sidebar_stripe', href: 'settings/stripe', icon: '💳', roles: ['super_admin', 'admin'] },
     { titleKey: 'sidebar_settings', href: 'settings', icon: '⚙️', roles: ['super_admin', 'admin'] },
-    { titleKey: 'sidebar_whatsapp', href: `https://wa.me/${whatsappNumber}`, icon: 'whatsapp', roles: ['super_admin', 'admin', 'business_user'], external: true },
-    { titleKey: 'sidebar_how_to_use', href: 'how-to-use', icon: '📖', roles: ['super_admin', 'admin', 'business_user'] },
+    { titleKey: 'sidebar_whatsapp', href: `https://wa.me/${whatsappNumber}`, icon: 'whatsapp', roles: ['super_admin', 'admin', 'business_user', 'tv_user'], external: true },
+    { titleKey: 'sidebar_how_to_use', href: 'how-to-use', icon: '📖', roles: ['super_admin', 'admin', 'business_user', 'tv_user'] },
   ];
 
   // Admin sidebar: href -> yetki sayfa anahtarı (settings/stripe -> stripe). Her key tek olmalı.
@@ -185,7 +185,8 @@ export default function Sidebar({ user, mobileOpen = false, onMobileClose }: Sid
             </div>
             <div className="text-[11px] text-slate-500">
               {user?.role === 'super_admin' ? t('sidebar_super_admin') :
-               user?.role === 'admin' ? t('sidebar_admin') : t('sidebar_business_user')}
+               user?.role === 'admin' ? t('sidebar_admin') :
+               user?.role === 'tv_user' ? t('sidebar_tv_user') : t('sidebar_business_user')}
             </div>
           </div>
         )}

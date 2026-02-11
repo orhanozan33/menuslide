@@ -37,21 +37,14 @@ function useInIframe() {
   return inIframe;
 }
 
-const HIDE_FULLSCREEN_BTN_MS = 3000;
-
 const EmbedFitWrapper = React.forwardRef<HTMLDivElement, { children: React.ReactNode; fadeIn?: boolean }>(function EmbedFitWrapper({ children, fadeIn }, ref) {
   const [scale, setScale] = useState(1);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [showFullscreenBtn, setShowFullscreenBtn] = useState(true);
   const containerRef = useRef<HTMLDivElement>(null);
-  const hideBtnTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const update = () => {
       const el = document.fullscreenElement;
-      setIsFullscreen(!!el);
-      if (!el) setShowFullscreenBtn(true);
       const w = el ? el.clientWidth : window.innerWidth;
       const h = el ? el.clientHeight : window.innerHeight;
       const s = Math.min(w / EMBED_WIDTH, h / EMBED_HEIGHT);
@@ -66,34 +59,6 @@ const EmbedFitWrapper = React.forwardRef<HTMLDivElement, { children: React.React
     };
   }, []);
 
-  const toggleFullscreen = useCallback(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    if (document.fullscreenElement) {
-      document.exitFullscreen?.();
-    } else {
-      el.requestFullscreen?.();
-    }
-  }, []);
-
-  const onInteractionShowBtn = useCallback(() => {
-    if (!document.fullscreenElement) return;
-    setShowFullscreenBtn(true);
-    if (hideBtnTimerRef.current) clearTimeout(hideBtnTimerRef.current);
-    hideBtnTimerRef.current = setTimeout(() => {
-      setShowFullscreenBtn(false);
-      hideBtnTimerRef.current = null;
-    }, HIDE_FULLSCREEN_BTN_MS);
-  }, []);
-
-  useEffect(() => {
-    const handleKeyDown = () => onInteractionShowBtn();
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [onInteractionShowBtn]);
-
-  const showBtn = !isFullscreen || showFullscreenBtn;
-
   return (
     <div
       ref={(el) => {
@@ -102,7 +67,6 @@ const EmbedFitWrapper = React.forwardRef<HTMLDivElement, { children: React.React
         else if (typeof ref === 'function') ref(el);
       }}
       role="presentation"
-      onClick={isFullscreen ? onInteractionShowBtn : undefined}
       style={{
         position: 'fixed' as const,
         inset: 0,
@@ -136,21 +100,6 @@ const EmbedFitWrapper = React.forwardRef<HTMLDivElement, { children: React.React
       >
         {children}
       </div>
-      {showBtn && (
-        <button
-          type="button"
-          onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }}
-          aria-label={isFullscreen ? 'Tam ekran kapat' : 'Tam ekran'}
-          title={isFullscreen ? 'Tam ekran kapat' : 'Tam ekran'}
-          className="absolute top-4 right-4 z-[200] w-12 h-12 rounded-lg bg-black/60 hover:bg-black/80 text-white flex items-center justify-center border border-white/20 focus:outline-none focus:ring-2 focus:ring-white/50"
-        >
-          {isFullscreen ? (
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-          ) : (
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1v4m0 0h-4m4 0l-5-5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
-          )}
-        </button>
-      )}
     </div>
   );
 });
@@ -282,8 +231,8 @@ export default function DisplayPage() {
 
   const POLL_INTERVAL_MS = 60_000; // 60s - tek interval, 1000 TV için ölçeklenebilir
   const MAX_BACKOFF_MS = 60_000;
-  const HEARTBEAT_INTERVAL_MS = 45_000;
-  const HEARTBEAT_RETRY_WHEN_BLOCKED_MS = 20_000; // Bloklu iken daha sık dene (diğer cihaz kapanınca hemen açılsın)
+  const HEARTBEAT_INTERVAL_MS = 20_000; // 20 sn – sunucu 30 sn’de eski oturumu sildiği için buna göre at (aktif cihaz silinmesin)
+  const HEARTBEAT_RETRY_WHEN_BLOCKED_MS = 15_000; // Bloklu iken 15 sn’de bir tara; diğer cihaz kapanınca ~30 sn içinde bu açılsın
 
   // Tüm rotasyon slotlarını önbelleğe al (veya güncelleme gelince yenile)
   const preloadRotationCache = useCallback(async (baseData: ScreenData) => {
