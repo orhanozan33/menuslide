@@ -81,6 +81,7 @@ export default function SettingsPage() {
   const [tvAppConfigSaving, setTvAppConfigSaving] = useState(false);
   const [showTvAppModal, setShowTvAppModal] = useState(false);
   const [apkUploading, setApkUploading] = useState(false);
+  const [syncVersionLoading, setSyncVersionLoading] = useState(false);
   const apkInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -789,45 +790,34 @@ export default function SettingsPage() {
                           upsert: true,
                         });
                         if (uploadErr) throw new Error(uploadErr.message);
+                        const doneBody = {
+                          versionCode: versionCode !== '' ? versionCode : undefined,
+                          versionName: versionName || undefined,
+                        };
                         const doneRes = await fetch('/api/admin/upload-apk-done', {
                           method: 'POST',
-                          headers: { Authorization: `Bearer ${authToken}` },
+                          headers: {
+                            Authorization: `Bearer ${authToken}`,
+                            'Content-Type': 'application/json',
+                          },
+                          body: JSON.stringify(doneBody),
                         });
                         if (!doneRes.ok) throw new Error('URL güncellenemedi');
-                        const { url } = await doneRes.json();
+                        const doneData = await doneRes.json();
+                        const url = doneData.url || '';
 
                         setTvAppConfig((p) => ({
                           ...p,
-                          downloadUrl: url || '',
+                          downloadUrl: url,
                           minVersionCode: versionCode !== '' ? versionCode : p.minVersionCode,
                           latestVersionCode: versionCode !== '' ? versionCode : p.latestVersionCode,
                           latestVersionName: versionName || p.latestVersionName,
                         }));
 
                         if (versionCode !== '' || versionName) {
-                          const savePayload = {
-                            apiBaseUrl: tvAppConfig.apiBaseUrl,
-                            downloadUrl: url || '',
-                            watchdogIntervalMinutes: tvAppConfig.watchdogIntervalMinutes,
-                            minVersionCode: versionCode !== '' ? versionCode : null,
-                            latestVersionCode: versionCode !== '' ? versionCode : null,
-                            latestVersionName: versionName || tvAppConfig.latestVersionName || null,
-                          };
-                          const saveRes = await fetch('/api/tv-app-config', {
-                            method: 'PATCH',
-                            headers: {
-                              'Content-Type': 'application/json',
-                              Authorization: `Bearer ${authToken}`,
-                            },
-                            body: JSON.stringify(savePayload),
-                          });
-                          if (saveRes.ok) {
-                            toast.showSuccess(t('settings_tv_app_upload_success') + ' Sürüm bilgisi kaydedildi; kullanıcılar güncelleme alacak.');
-                          } else {
-                            toast.showSuccess(t('settings_tv_app_upload_success') + ' Sürüm alanlarını kontrol edip Kaydet ile kaydedin.');
-                          }
+                          toast.showSuccess(t('settings_tv_app_upload_success') + ' Sürüm bilgisi kaydedildi; kullanıcılar güncelleme alacak.');
                         } else {
-                          toast.showSuccess(t('settings_tv_app_upload_success'));
+                          toast.showSuccess(t('settings_tv_app_upload_success') + ' Sürüm okunamadı; isterseniz "Sürümü APK\'dan oku" ile güncelleyin.');
                         }
                       } catch (err) {
                         toast.showError(t('settings_tv_app_upload_error') + (err instanceof Error ? `: ${err.message}` : ''));
@@ -861,6 +851,47 @@ export default function SettingsPage() {
               <div className="border-t border-gray-200 pt-4 mt-4">
                 <p className="text-sm font-medium text-gray-700 mb-2">Uzaktan sürüm (mobil güncelleme)</p>
                 <p className="text-xs text-gray-500 mb-2">APK yüklediğinizde sürüm bilgisi otomatik okunur ve kaydedilir; kullanıcılar güncelleme alır. Min: bu kodun altındaki uygulamalar güncelleme zorunlu görür.</p>
+                <div className="flex flex-wrap items-center gap-2 mb-3">
+                  <button
+                    type="button"
+                    disabled={syncVersionLoading || !tvAppConfig.downloadUrl?.startsWith('http')}
+                    onClick={async () => {
+                      const authToken = typeof window !== 'undefined' ? (sessionStorage.getItem('impersonation_token') || localStorage.getItem('auth_token')) : null;
+                      if (!authToken) {
+                        toast.showError('Oturum gerekli.');
+                        return;
+                      }
+                      setSyncVersionLoading(true);
+                      try {
+                        const res = await fetch('/api/admin/sync-tv-app-version', {
+                          method: 'POST',
+                          headers: { Authorization: `Bearer ${authToken}` },
+                        });
+                        const data = await res.json().catch(() => ({}));
+                        if (!res.ok) {
+                          toast.showError(data.message || 'Sürüm okunamadı.');
+                          return;
+                        }
+                        setTvAppConfig((p) => ({
+                          ...p,
+                          minVersionCode: data.versionCode ?? p.minVersionCode,
+                          latestVersionCode: data.versionCode ?? p.latestVersionCode,
+                          latestVersionName: data.versionName ?? p.latestVersionName,
+                        }));
+                        toast.showSuccess(`Sürüm güncellendi: ${data.versionName ?? data.versionCode}`);
+                        loadTvAppConfig();
+                      } finally {
+                        setSyncVersionLoading(false);
+                      }
+                    }}
+                    className="px-3 py-1.5 text-sm bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50"
+                  >
+                    {syncVersionLoading ? t('common_saving') : 'Sürümü APK\'dan oku'}
+                  </button>
+                  {!tvAppConfig.downloadUrl?.startsWith('http') && (
+                    <span className="text-xs text-gray-500">İndirme linki tam URL olmalı (örn. Supabase Storage).</span>
+                  )}
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Min versionCode</label>
