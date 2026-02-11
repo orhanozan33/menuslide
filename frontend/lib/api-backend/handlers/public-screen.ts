@@ -36,6 +36,19 @@ export async function getScreenByToken(token: string, request: NextRequest): Pro
       if (biz) screenRow = { ...screensByToken[0], business_name: biz.name };
     }
   }
+  // 3) Yayın kodu (broadcast_code) ile de ara — /display/10012 gibi link TV’deki kodla aynı olsun
+  if (!screenRow) {
+    const { data: screensByCode } = await supabase
+      .from('screens')
+      .select('id, name, location, business_id, animation_type, animation_duration, language_code, font_family, primary_color, background_style, background_color, background_image_url, logo_url, template_id, frame_type, ticker_text, ticker_style')
+      .eq('broadcast_code', token)
+      .eq('is_active', true)
+      .limit(1);
+    if (screensByCode?.length) {
+      const { data: biz } = await supabase.from('businesses').select('id, name').eq('id', screensByCode[0].business_id).eq('is_active', true).single();
+      if (biz) screenRow = { ...screensByCode[0], business_name: biz.name };
+    }
+  }
 
   if (!screenRow) {
     return Response.json({
@@ -306,6 +319,10 @@ export async function recordViewerHeartbeat(token: string, request: NextRequest)
   if (!screenRow) {
     const { data: byToken } = await supabase.from('screens').select('id, allow_multi_device, business_id').eq('public_token', token).eq('is_active', true).limit(1).maybeSingle();
     screenRow = byToken;
+  }
+  if (!screenRow) {
+    const { data: byCode } = await supabase.from('screens').select('id, allow_multi_device, business_id').eq('broadcast_code', token).eq('is_active', true).limit(1).maybeSingle();
+    screenRow = byCode;
   }
   const screenId = screenRow?.id ?? null;
   if (!screenId) return Response.json({ ok: false, allowed: false });

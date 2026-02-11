@@ -80,8 +80,8 @@ class MainActivity : AppCompatActivity() {
         private const val WEBVIEW_RELOAD_INTERVAL_MS = 6 * 60 * 1000L // 6 dakika
         /** Otomatik yeniden açılma: uygulama kapanınca kaç dakika sonra tekrar açılsın */
         private const val RESTART_ALARM_INTERVAL_MS = 2 * 60 * 1000L // 2 dakika
-        /** Düşük RAM cihazlarda WebView daha sık yenilenir (bellek birikimi önleme) */
-        private const val WEBVIEW_RELOAD_INTERVAL_LOW_RAM_MS = 5 * 60 * 1000L // 5 dakika
+        /** Düşük RAM cihazlarda WebView daha sık yenilenir (bellek birikimi/kapanma önleme) */
+        private const val WEBVIEW_RELOAD_INTERVAL_LOW_RAM_MS = 3 * 60 * 1000L // 3 dakika
     }
 
     private val prefs by lazy { getSharedPreferences(PREFS, Context.MODE_PRIVATE) }
@@ -550,13 +550,23 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /** Display URL'ine ?lite=1 (ve düşük RAM'de &low=1) ekler — zayıf cihazlarda donma/kapanma azalır. */
+    private fun ensureDisplayUrlWithLite(url: String): String {
+        if (!url.contains("/display/")) return url
+        val hasQuery = url.contains("?")
+        var out = url + if (hasQuery) "&lite=1" else "?lite=1"
+        if (isLowMemoryDevice) out += "&low=1"
+        return out
+    }
+
     private fun resolveAndPlay(code: String) {
         resolveJob?.cancel()
         resolveJob = scope.launch {
             val (url, errorMsg) = withContext(Dispatchers.IO) { resolveStreamUrl(code) }
             if (!url.isNullOrEmpty()) {
-                currentStreamUrl = url
-                startPlayback(url)
+                val urlToLoad = ensureDisplayUrlWithLite(url)
+                currentStreamUrl = urlToLoad
+                startPlayback(urlToLoad)
                 showInputScreen(false)
                 showLoading(false)
                 lastPlayingTimeMs = System.currentTimeMillis()
@@ -696,7 +706,7 @@ class MainActivity : AppCompatActivity() {
             applyFullscreenWhenPlaying(true)
             lastWebViewReloadMs = System.currentTimeMillis()
             displayWebView?.loadUrl(streamUrl)
-            Log.d(TAG, "loading display URL in WebView: $streamUrl")
+            Log.d(TAG, "loading display URL in WebView (lite/low for weak devices): $streamUrl")
         } else {
             displayContainer.visibility = View.GONE
             val httpDataSourceFactory = DefaultHttpDataSource.Factory()

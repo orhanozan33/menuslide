@@ -236,6 +236,20 @@ export default function DisplayPage() {
   const { t, localePath } = useTranslation();
   const previewIndexParam = searchParams?.get('previewIndex');
   const previewIndex = previewIndexParam != null && /^\d+$/.test(previewIndexParam) ? parseInt(previewIndexParam, 10) : null;
+  const liteParam = searchParams?.get('lite');
+  const lowParam = searchParams?.get('low');
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    setPrefersReducedMotion(mq.matches);
+    const handler = () => setPrefersReducedMotion(mq.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+  const isLiteMode = liteParam === '1' || lowParam === '1' || prefersReducedMotion;
+  /** Düşük güçlü cihazlar: daha sık sayfa yenileme (bellek sıfırlanır, kapanma azalır) */
+  const isLowDeviceMode = lowParam === '1';
 
   const [screenData, setScreenData] = useState<ScreenData | null>(null);
   const [currentMenuIndex, setCurrentMenuIndex] = useState(0);
@@ -293,6 +307,18 @@ export default function DisplayPage() {
     mountedRef.current = true;
     return () => { mountedRef.current = false; };
   }, []);
+
+  // Lite/low mod: periyodik sayfa yenile — bellek birikimi ve donma/kapanma önlenir
+  const LITE_RELOAD_MS = 5.5 * 60 * 1000;
+  const LOW_DEVICE_RELOAD_MS = 3 * 60 * 1000; // Zayıf cihaz: 3 dk (daha sık = daha az bellek)
+  const reloadMs = isLowDeviceMode ? LOW_DEVICE_RELOAD_MS : LITE_RELOAD_MS;
+  useEffect(() => {
+    if (!isLiteMode || typeof window === 'undefined') return;
+    const t = setTimeout(() => {
+      window.location.reload();
+    }, reloadMs);
+    return () => clearTimeout(t);
+  }, [isLiteMode, isLowDeviceMode, reloadMs]);
 
   useEffect(() => {
     const initialRotation = previewIndex != null && previewIndex >= 0 ? previewIndex : undefined;
@@ -619,7 +645,12 @@ export default function DisplayPage() {
   if (viewAllowed === false) {
     return (
       <EmbedFitWrapper ref={displayContainerRef}>
-        <div className="fixed inset-0 bg-black" />
+        <div className="fixed inset-0 bg-black flex flex-col items-center justify-center text-white px-4">
+          <p className="text-xl md:text-2xl text-center text-slate-300 max-w-lg">
+            Bu yayın şu an başka bir cihazda açık. Aynı anda yalnızca bir cihaz izleyebilir.
+          </p>
+          <p className="mt-4 text-base text-slate-500">Diğer cihazı kapatırsanız birkaç saniye içinde burada açılır.</p>
+        </div>
       </EmbedFitWrapper>
     );
   }
@@ -637,10 +668,14 @@ export default function DisplayPage() {
   }
 
   if (error || !screenData) {
+    const isPlaceholderToken = /^TOKEN$/i.test((token || '').trim());
+    const message = isPlaceholderToken
+      ? 'TOKEN örnek bir kelimedir. Admin panel → Ekranlar → ilgili ekranın "Halka Açık URL" linkini kullanın (zayıf cihaz için …/display/10011?lite=1 veya ?low=1).'
+      : (error || t('display_screen_not_found'));
     return (
       <EmbedFitWrapper ref={displayContainerRef}>
-        <div className="fixed inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white">
-          <div className="text-2xl md:text-5xl font-light text-center px-4">{error || t('display_screen_not_found')}</div>
+        <div className="fixed inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white px-4">
+          <div className="text-xl md:text-3xl font-light text-center max-w-2xl">{message}</div>
         </div>
       </EmbedFitWrapper>
     );
@@ -650,8 +685,8 @@ export default function DisplayPage() {
   const displayData = currentTemplateData || screenData;
   const nextRotation = screenData.templateRotations?.[nextTemplateIndex];
   const rotationEffect = nextRotation?.transition_effect;
-  const transitionEffect = rotationEffect || (screenData.screen as any).template_transition_effect || 'fade';
-  const transitionDurationMs = nextRotation?.transition_duration ?? 1400;
+  const transitionEffect = isLiteMode ? 'fade' : (rotationEffect || (screenData.screen as any).template_transition_effect || 'fade');
+  const transitionDurationMs = isLiteMode ? 500 : (nextRotation?.transition_duration ?? 1400);
 
   const tickerText = (screenData.screen as any)?.ticker_text || '';
   const tickerStyle = (screenData.screen as any)?.ticker_style || 'default';
@@ -722,8 +757,8 @@ export default function DisplayPage() {
                 key={displayTypeKey}
                 inline
                 screenData={displayData as any}
-                animationType={displayData.screen?.animation_type || 'fade'}
-                animationDuration={displayData.screen?.animation_duration || 500}
+                animationType={isLiteMode ? 'fade' : (displayData.screen?.animation_type || 'fade')}
+                animationDuration={isLiteMode ? 400 : (displayData.screen?.animation_duration || 500)}
               />
             ) : null}
             {/* Geçiş overlay: animasyon bitene kadar üstte kalır, base layer onReady verince kaldırılır */}
@@ -736,8 +771,8 @@ export default function DisplayPage() {
                   currentData={currentTemplateData}
                   nextData={nextTemplateData}
                   duration={transitionDurationMs}
-                  animationType={currentTemplateData.screen?.animation_type || 'fade'}
-                  animationDuration={currentTemplateData.screen?.animation_duration || 500}
+                  animationType={isLiteMode ? 'fade' : (currentTemplateData.screen?.animation_type || 'fade')}
+                  animationDuration={isLiteMode ? 400 : (currentTemplateData.screen?.animation_duration || 500)}
                 />
               </div>
             )}
@@ -775,8 +810,8 @@ export default function DisplayPage() {
     );
   }
 
-  const animationType = screenData.screen.animation_type || 'fade';
-  const animationDuration = screenData.screen.animation_duration || 500;
+  const animationType = isLiteMode ? 'fade' : (screenData.screen.animation_type || 'fade');
+  const animationDuration = isLiteMode ? 400 : (screenData.screen.animation_duration || 500);
 
   return (
     <EmbedFitWrapper ref={displayContainerRef} fadeIn={justFinishedTransition}>

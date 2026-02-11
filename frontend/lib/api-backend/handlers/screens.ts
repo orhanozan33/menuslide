@@ -73,7 +73,7 @@ async function isSubscriptionActive(supabase: ReturnType<typeof getServerSupabas
 
 const SUPER_ADMIN_MAX_SCREENS = 50;
 
-/** Abonelik ve ekran limiti kontrolü. super_admin için işletme başına ekran limiti. */
+/** Abonelik ve ekran limiti kontrolü. super_admin: işletme başına cap. admin/tv_user: limit yok (sistem TV = sınırsız yayın). */
 async function canCreateScreen(businessId: string, user: JwtPayload): Promise<{ ok: boolean; message?: string }> {
   if (user.role === 'super_admin') {
     try {
@@ -93,6 +93,9 @@ async function canCreateScreen(businessId: string, user: JwtPayload): Promise<{ 
       console.error('[screens] super_admin limit check error:', e);
       return { ok: false, message: 'Limit kontrolü yapılamadı.' };
     }
+    return { ok: true };
+  }
+  if (user.role === 'admin' || user.role === 'tv_user') {
     return { ok: true };
   }
   try {
@@ -432,7 +435,8 @@ export async function publishTemplates(screenId: string, request: NextRequest, u
   if (useLocalDb()) {
     const screen = await checkScreenAccessLocal(screenId, user);
     if (!screen) return Response.json({ message: 'Not found or access denied' }, { status: 404 });
-    if (!(await isSubscriptionActiveLocal(screen.business_id))) return Response.json({ message: 'Subscription expired or payment failed. Renew your subscription to broadcast.' }, { status: 403 });
+    const skipSubCheck = user.role === 'admin' || user.role === 'super_admin' || user.role === 'tv_user';
+    if (!skipSubCheck && !(await isSubscriptionActiveLocal(screen.business_id))) return Response.json({ message: 'Subscription expired or payment failed. Renew your subscription to broadcast.' }, { status: 403 });
     await runLocal('DELETE FROM screen_template_rotations WHERE screen_id = $1', [screenId]);
     await runLocal('DELETE FROM screen_blocks WHERE screen_id = $1', [screenId]);
     await updateLocal('screens', screenId, { template_id: isFirstFullEditor ? null : first.template_id ?? null, is_active: true });
@@ -517,8 +521,11 @@ export async function publishTemplates(screenId: string, request: NextRequest, u
   const supabase = getServerSupabase();
   const screen = await checkScreenAccess(supabase, screenId, user);
   if (!screen) return Response.json({ message: 'Not found or access denied' }, { status: 404 });
-  const active = await isSubscriptionActive(supabase, screen.business_id);
-  if (!active) return Response.json({ message: 'Subscription expired or payment failed. Renew your subscription to broadcast.' }, { status: 403 });
+  const skipSubCheck = user.role === 'admin' || user.role === 'super_admin' || user.role === 'tv_user';
+  if (!skipSubCheck) {
+    const active = await isSubscriptionActive(supabase, screen.business_id);
+    if (!active) return Response.json({ message: 'Subscription expired or payment failed. Renew your subscription to broadcast.' }, { status: 403 });
+  }
   let res = await supabase.from('screen_template_rotations').delete().eq('screen_id', screenId);
   if (res.error) return Response.json({ message: res.error.message || 'Failed to clear rotations' }, { status: 500 });
   res = await supabase.from('screen_blocks').delete().eq('screen_id', screenId);
