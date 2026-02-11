@@ -146,8 +146,15 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** Config alır, API base kaydeder; uzaktan sürüm kontrolü yapar. Güncelleme zorunluysa onResult(false). */
+    /** Config alır, API base kaydeder; uzaktan sürüm kontrolü yapar. Güncelleme zorunluysa onResult(false). Tek seferde onResult çağrılır (timeout ile takılma önlenir). */
     private fun loadConfigAndCheckVersion(onResult: (canProceed: Boolean) -> Unit) {
+        var called = java.util.concurrent.atomic.AtomicBoolean(false)
+        fun once(proceed: Boolean) {
+            if (called.compareAndSet(false, true)) onResult(proceed)
+        }
+        mainHandler.postDelayed({
+            once(true)
+        }, 20_000L)
         scope.launch {
             val canProceed = withContext(Dispatchers.IO) {
                 try {
@@ -168,10 +175,10 @@ class MainActivity : AppCompatActivity() {
                         mainHandler.post {
                             try {
                                 showUpdateRequiredDialog(downloadUrl)
-                                onResult(false)
+                                once(false)
                             } catch (e: Throwable) {
                                 Log.e(TAG, "showUpdateRequiredDialog", e)
-                                onResult(true)
+                                once(true)
                             }
                         }
                         return@withContext false
@@ -181,10 +188,10 @@ class MainActivity : AppCompatActivity() {
                         val versionName = obj.optString("latestVersionName", "")
                         mainHandler.post {
                             try {
-                                showUpdateAvailableDialog(downloadUrl, versionName, onResult)
+                                showUpdateAvailableDialog(downloadUrl, versionName) { proceed -> once(proceed) }
                             } catch (e: Throwable) {
                                 Log.e(TAG, "showUpdateAvailableDialog", e)
-                                onResult(true)
+                                once(true)
                             }
                         }
                         return@withContext false
@@ -195,7 +202,7 @@ class MainActivity : AppCompatActivity() {
                     true
                 }
             }
-            if (canProceed) onResult(true)
+            if (canProceed) once(true)
         }
     }
 
@@ -303,8 +310,19 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** Kesintisiz yayın için pil optimizasyonundan muafiyet iste. TV'de diyalog bazen görünmediği için önce doğrudan sistem ekranını açmayı dene. */
+    /** TV/stick ise true (pil optimizasyonu ekranı atlanır, kullanıcı uygulamada kalır). */
+    private fun isTvOrStick(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) return false
+        return packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK)
+    }
+
+    /** Kesintisiz yayın için pil optimizasyonundan muafiyet iste. TV/stick'te ekran atlanır; kod girişi sonrası doğrudan yayına geçilir. */
     private fun requestBatteryOptimizationExemption(onDone: () -> Unit) {
+        if (isTvOrStick()) {
+            Log.d(TAG, "TV/stick: skipping battery optimization screen")
+            onDone()
+            return
+        }
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
             onDone()
             return
@@ -485,6 +503,7 @@ class MainActivity : AppCompatActivity() {
             }
             showError(null)
             prefs.edit().putString(KEY_BROADCAST_CODE, code).commit()
+            showInputScreen(false)
             showLoading(true)
             loadConfigAndCheckVersion { canProceed ->
                 mainHandler.post {
