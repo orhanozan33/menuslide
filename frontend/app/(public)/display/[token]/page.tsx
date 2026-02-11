@@ -638,8 +638,8 @@ export default function DisplayPage() {
   const displayData = currentTemplateData || screenData;
   const nextRotation = screenData.templateRotations?.[nextTemplateIndex];
   const rotationEffect = nextRotation?.transition_effect;
-  const transitionEffect = isLiteMode ? 'fade' : (rotationEffect || (screenData.screen as any).template_transition_effect || 'fade');
-  const transitionDurationMs = isLowDeviceMode ? 300 : (isLiteMode ? 500 : (nextRotation?.transition_duration ?? 1400));
+  const transitionEffect = isLiteMode ? 'slide-right' : (rotationEffect || (screenData.screen as any).template_transition_effect || 'fade');
+  const transitionDurationMs = isLowDeviceMode ? 300 : (isLiteMode ? 5000 : (nextRotation?.transition_duration ?? 1400));
 
   const tickerText = (screenData.screen as any)?.ticker_text || '';
   const tickerStyle = (screenData.screen as any)?.ticker_style || 'default';
