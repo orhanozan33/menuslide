@@ -387,6 +387,10 @@ export async function checkPlayerConfig(): Promise<Response> {
   }
 }
 
+/** ExoPlayer denemesi: bu kodu stick'te girince HLS test stream döner. */
+const EXO_TEST_CODE = 'EXOTEST';
+const EXO_TEST_HLS = 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8';
+
 /** POST /player/resolve – TV uygulaması: yayın kodu (12345) ile display URL döner. Body: { code, deviceId } */
 export async function resolvePlayer(request: NextRequest): Promise<Response> {
   let body: { code?: string | number; deviceId?: string } = {};
@@ -397,6 +401,10 @@ export async function resolvePlayer(request: NextRequest): Promise<Response> {
   }
   const code = String(body?.code ?? '').trim();
   if (!code) return Response.json({ error: 'CODE_REQUIRED' }, { status: 400 });
+
+  if (code.toUpperCase() === EXO_TEST_CODE) {
+    return Response.json({ streamUrl: EXO_TEST_HLS });
+  }
 
   const supabase = getServerSupabase();
   // Önce koda göre ekranı bul (is_active kontrolü ayrı: pasifse net mesaj verelim)

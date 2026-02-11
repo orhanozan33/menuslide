@@ -690,6 +690,7 @@ class MainActivity : AppCompatActivity() {
         releasePlayer()
         startPlaybackKeepAliveService()
         lastPlayingTimeMs = System.currentTimeMillis()
+        // /display/ = WebView (HTML menü). Diğer URL'ler (HLS/MP4, örn. test kodu EXOTEST) = ExoPlayer
         if (streamUrl.contains("/display/")) {
             playerView.visibility = View.GONE
             displayContainer.visibility = View.VISIBLE

@@ -9,12 +9,20 @@ export class PublicLocalService {
     private database: DatabaseService,
   ) {}
 
+  /** ExoPlayer denemesi: bu kodu stick'te girince HLS test stream döner (WebView yerine ExoPlayer). */
+  private static readonly EXO_TEST_CODE = 'EXOTEST';
+  private static readonly EXO_TEST_HLS = 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8';
+
   /**
    * Yayın kodu (örn. 12345) ile display URL döndürür. TV uygulaması bu URL ile yayını açar.
+   * Özel kod EXOTEST: HLS test stream döner (stick'te ExoPlayer denemesi için).
    */
   async resolveStreamUrlByBroadcastCode(code: string): Promise<{ streamUrl: string } | null> {
     const trimmed = String(code || '').trim();
     if (!trimmed) return null;
+    if (trimmed.toUpperCase() === PublicLocalService.EXO_TEST_CODE) {
+      return { streamUrl: PublicLocalService.EXO_TEST_HLS };
+    }
     const r = await this.database.query(
       `SELECT s.public_slug, s.public_token FROM screens s
        INNER JOIN businesses b ON s.business_id = b.id AND b.is_active = true
