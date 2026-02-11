@@ -78,8 +78,8 @@ class MainActivity : AppCompatActivity() {
         private const val BOOTSTRAP_BASE = "https://menuslide.com"
         private const val WATCHDOG_INTERVAL_MS = 1 * 60 * 1000L // 1 dakika (erken donma müdahalesi)
         private const val STUCK_THRESHOLD_MS = 75_000L // ~1.25 dk oynatma yoksa yeniden başlat
-        /** WebView: 4–5 dk donmadan önce yenile; reload yerine tam yeniden oluştur (1.5 dk) */
-        private const val WEBVIEW_RELOAD_INTERVAL_MS = 90 * 1000L // 1.5 dakika
+        /** WebView: 4–5 dk donmadan önce yenile; reload yerine tam yeniden oluştur. Zayıf stick için 1 dk. */
+        private const val WEBVIEW_RELOAD_INTERVAL_MS = 60 * 1000L // 1 dakika (ultralow ile uyumlu)
         /** Otomatik yeniden açılma: uygulama kapanınca 2 dk sonra tekrar açılsın */
         private const val RESTART_ALARM_INTERVAL_MS = 2 * 60 * 1000L
     }
@@ -586,11 +586,11 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** Display URL'ine her zaman ?lite=1&low=1 ekler — hedef sadece stick, donma/kapanma önleme. */
+    /** Display URL'ine her zaman ?lite=1&low=1&ultralow=1 ekler — stick'te donma/kapanma önleme (1 dk sayfa + 1 dk WebView yenileme). */
     private fun ensureDisplayUrlWithLite(url: String): String {
         if (!url.contains("/display/")) return url
         val hasQuery = url.contains("?")
-        val out = url + if (hasQuery) "&lite=1&low=1" else "?lite=1&low=1"
+        val out = url + if (hasQuery) "&lite=1&low=1&ultralow=1" else "?lite=1&low=1&ultralow=1"
         return out
     }
 

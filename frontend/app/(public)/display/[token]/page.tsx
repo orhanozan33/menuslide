@@ -187,6 +187,7 @@ export default function DisplayPage() {
   const previewIndex = previewIndexParam != null && /^\d+$/.test(previewIndexParam) ? parseInt(previewIndexParam, 10) : null;
   const liteParam = searchParams?.get('lite');
   const lowParam = searchParams?.get('low');
+  const ultralowParam = searchParams?.get('ultralow');
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -196,9 +197,11 @@ export default function DisplayPage() {
     mq.addEventListener('change', handler);
     return () => mq.removeEventListener('change', handler);
   }, []);
-  const isLiteMode = liteParam === '1' || lowParam === '1' || prefersReducedMotion;
+  const isLiteMode = liteParam === '1' || lowParam === '1' || ultralowParam === '1' || prefersReducedMotion;
   /** Düşük güçlü cihazlar: daha sık sayfa yenileme (bellek sıfırlanır, kapanma azalır) */
-  const isLowDeviceMode = lowParam === '1';
+  const isLowDeviceMode = lowParam === '1' || ultralowParam === '1';
+  /** Çok zayıf stick: 1 dk sayfa yenileme (ultralow=1) */
+  const isUltralowMode = ultralowParam === '1';
 
   const [screenData, setScreenData] = useState<ScreenData | null>(null);
   const [currentMenuIndex, setCurrentMenuIndex] = useState(0);
@@ -257,17 +260,18 @@ export default function DisplayPage() {
     return () => { mountedRef.current = false; };
   }, []);
 
-  // Lite/low mod: periyodik sayfa yenile — bellek birikimi ve donma/kapanma önlenir
+  // Lite/low/ultralow mod: periyodik sayfa yenile — bellek birikimi ve donma/kapanma önlenir
   const LITE_RELOAD_MS = 5.5 * 60 * 1000;
-  const LOW_DEVICE_RELOAD_MS = 90 * 1000; // Stick: 1.5 dk (4–5 dk donma öncesi yenile)
-  const reloadMs = isLowDeviceMode ? LOW_DEVICE_RELOAD_MS : LITE_RELOAD_MS;
+  const LOW_DEVICE_RELOAD_MS = 90 * 1000; // Stick: 1.5 dk
+  const ULTRALOW_RELOAD_MS = 60 * 1000; // Çok zayıf stick: 1 dk
+  const reloadMs = isUltralowMode ? ULTRALOW_RELOAD_MS : (isLowDeviceMode ? LOW_DEVICE_RELOAD_MS : LITE_RELOAD_MS);
   useEffect(() => {
     if (!isLiteMode || typeof window === 'undefined') return;
     const t = setTimeout(() => {
       window.location.reload();
     }, reloadMs);
     return () => clearTimeout(t);
-  }, [isLiteMode, isLowDeviceMode, reloadMs]);
+  }, [isLiteMode, isLowDeviceMode, isUltralowMode, reloadMs]);
 
   useEffect(() => {
     const initialRotation = previewIndex != null && previewIndex >= 0 ? previewIndex : undefined;
