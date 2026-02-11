@@ -351,15 +351,35 @@ export default function ScreenDetailPage() {
 
           <div className="mb-4 p-4 bg-violet-50 rounded-lg border border-violet-200">
             <h3 className="text-lg font-semibold text-gray-900 mb-2">Yayın linki (VLC / stream)</h3>
-            <p className="text-sm text-gray-600 mb-2">HLS veya MP4 stream URL girin; TV uygulaması ve VLC bu linki kullanır. Boş bırakırsanız web sayfası kullanılır.</p>
+            <p className="text-sm text-amber-800 bg-amber-100 border border-amber-300 rounded p-2 mb-2">
+              <strong>VLC sadece medya akışı oynatır.</strong> Yukarıdaki &quot;Web link&quot; (menuslide.com/display/...) bir web sayfasıdır; VLC bu linki oynatamaz. Bu alana mutlaka <strong>doğrudan HLS (.m3u8) veya MP4 stream URL</strong> girin (yayın sunucunuzdan, IP kameradan veya test için örn. https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8).
+            </p>
             <input
               type="url"
               value={editStreamUrl}
               onChange={(e) => setEditStreamUrl(e.target.value)}
-              placeholder="https://... .m3u8 veya https://... .mp4"
+              placeholder="https://... .m3u8 veya https://... .mp4 (menuslide.com/display/... DEĞİL)"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 text-gray-900 mb-2"
             />
-            <p className="text-xs text-gray-500 mb-2">Kaydet butonuna basarak kaydedin.</p>
+            {editStreamUrl.trim() && (
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-sm text-gray-600">VLC’de açmak için:</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const url = editStreamUrl.trim();
+                    if (url) {
+                      navigator.clipboard.writeText(url);
+                      toast.showSuccess('Stream linki kopyalandı. VLC → Medya → Ağ Akışından Aç\'a yapıştırın.');
+                    }
+                  }}
+                  className="px-3 py-1.5 bg-violet-600 text-white rounded hover:bg-violet-700 text-sm"
+                >
+                  Linki kopyala
+                </button>
+              </div>
+            )}
+            <p className="text-xs text-gray-500">Kaydet butonuna basarak kaydedin. Boş bırakırsanız TV uygulaması web sayfasını açar.</p>
           </div>
 
           <div className="mb-4 p-4 bg-emerald-50 rounded-lg border border-emerald-200">
