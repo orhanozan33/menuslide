@@ -25,7 +25,9 @@ export async function captureDisplayScreenshot(displayPageUrl: string): Promise<
       fullPage: false,
     });
     if (!buffer) return null;
-    return buffer instanceof Buffer ? buffer : Buffer.from(buffer as ArrayBuffer);
+    if (buffer instanceof Buffer) return buffer;
+    const arr = new Uint8Array(buffer as unknown as ArrayBuffer);
+    return Buffer.from(arr);
   } finally {
     await browser.close();
   }
