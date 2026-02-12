@@ -50,10 +50,11 @@ async function createScreensForBusiness(businessId: string, maxScreens: number):
       const name = `TV${currentCount + i + 1}`;
       const publicToken = randomBytes(32).toString('hex');
       const publicSlug = `${businessName}-${name}-${Date.now().toString(36)}`.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-');
+      const streamUrl = `https://cdn.menuslide.com/stream/${publicSlug}.m3u8`;
       await client.query(
-        `INSERT INTO screens (business_id, name, public_token, public_slug, is_active, animation_type, animation_duration)
-         VALUES ($1, $2, $3, $4, true, 'fade', 500)`,
-        [businessId, name, publicToken, publicSlug]
+        `INSERT INTO screens (business_id, name, public_token, public_slug, is_active, animation_type, animation_duration, stream_url)
+         VALUES ($1, $2, $3, $4, true, 'fade', 500, $5)`,
+        [businessId, name, publicToken, publicSlug, streamUrl]
       );
     }
   } else {
@@ -68,7 +69,8 @@ async function createScreensForBusiness(businessId: string, maxScreens: number):
       const name = `TV${currentCount + i + 1}`;
       const publicToken = randomBytes(32).toString('hex');
       const publicSlug = `${businessName}-${name}-${Date.now().toString(36)}`.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-');
-      await supabase.from('screens').insert({ business_id: businessId, name, public_token: publicToken, public_slug: publicSlug, is_active: true, animation_type: 'fade', animation_duration: 500 });
+      const streamUrl = `https://cdn.menuslide.com/stream/${publicSlug}.m3u8`;
+      await supabase.from('screens').insert({ business_id: businessId, name, public_token: publicToken, public_slug: publicSlug, is_active: true, animation_type: 'fade', animation_duration: 500, stream_url: streamUrl });
     }
   }
 }

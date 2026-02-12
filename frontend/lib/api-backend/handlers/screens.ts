@@ -169,6 +169,7 @@ export async function create(request: NextRequest, user: JwtPayload): Promise<Re
       if (!exists) break;
       broadcastCode = generateBroadcastCode();
     }
+    const defaultStreamUrl = `https://cdn.menuslide.com/stream/${publicSlug}.m3u8`;
     const data = await insertLocal('screens', {
       business_id: businessId,
       name,
@@ -181,6 +182,7 @@ export async function create(request: NextRequest, user: JwtPayload): Promise<Re
       animation_duration: 500,
       template_id: body.template_id ?? null,
       allow_multi_device: allowMultiDevice,
+      stream_url: defaultStreamUrl,
     });
     await mirrorToSupabase('screens', 'insert', { row: data });
     if (user.role === 'admin' || user.role === 'super_admin') await insertAdminActivityLog(user, { action_type: 'screen_create', page_key: 'screens', resource_type: 'screen', resource_id: (data as { id: string }).id, details: { name: body.name || 'TV1' } });
@@ -204,6 +206,7 @@ export async function create(request: NextRequest, user: JwtPayload): Promise<Re
     if (!existing) break;
     broadcastCode = generateBroadcastCode();
   }
+  const defaultStreamUrl = `https://cdn.menuslide.com/stream/${publicSlug}.m3u8`;
   const { data, error } = await supabase.from('screens').insert({
     business_id: businessId,
     name,
@@ -216,6 +219,7 @@ export async function create(request: NextRequest, user: JwtPayload): Promise<Re
     animation_duration: 500,
     template_id: body.template_id ?? null,
     allow_multi_device: allowMultiDevice,
+    stream_url: defaultStreamUrl,
   }).select().single();
   if (error) return Response.json({ message: error.message }, { status: 500 });
   if (user.role === 'admin' || user.role === 'super_admin') await insertAdminActivityLog(user, { action_type: 'screen_create', page_key: 'screens', resource_type: 'screen', resource_id: (data as { id: string }).id, details: { name: body.name || 'TV1' } });

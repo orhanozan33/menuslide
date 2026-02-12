@@ -16,9 +16,10 @@ export async function captureDisplayScreenshot(displayPageUrl: string): Promise<
     const page = await browser.newPage();
     await page.setViewport({ width: 1920, height: 1080, deviceScaleFactor: 1 });
     await page.goto(displayPageUrl, {
-      waitUntil: 'networkidle2',
-      timeout: 30000,
+      waitUntil: 'load',
+      timeout: 18000,
     });
+    await new Promise((r) => setTimeout(r, 2000));
     const buffer = await page.screenshot({
       type: 'jpeg',
       quality: 90,

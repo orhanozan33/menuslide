@@ -331,6 +331,24 @@ export default function ScreenDetailPage() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 text-sm"
                 />
                 <p className="text-xs text-gray-500 mt-1">HLS (.m3u8) veya MP4 URL. Doluysa TV uygulaması bu yayını oynatır.</p>
+                {(!editStreamUrl || !editStreamUrl.trim()) && (screen?.public_slug || screen?.public_token) && (
+                  <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded-lg flex flex-wrap items-center gap-2">
+                    <span className="text-xs text-gray-700">Önerilen URL (her TV için otomatik):</span>
+                    <code className="text-xs text-gray-800 flex-1 min-w-0 truncate">
+                      https://cdn.menuslide.com/stream/{(screen?.public_slug || screen?.public_token) ?? ''}.m3u8
+                    </code>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const slug = screen?.public_slug || screen?.public_token || '';
+                        setEditStreamUrl(`https://cdn.menuslide.com/stream/${slug}.m3u8`);
+                      }}
+                      className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
+                    >
+                      Bunu kullan
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
             <button

@@ -204,6 +204,7 @@ async function createScreensForBusiness(businessId: string, maxScreens: number):
     const name = `TV${currentCount + i + 1}`;
     const publicToken = generatePublicToken();
     const publicSlug = `${businessName}-${name}-${Date.now().toString(36)}`.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-');
+    const streamUrl = `https://cdn.menuslide.com/stream/${publicSlug}.m3u8`;
     await supabase.from('screens').insert({
       business_id: businessId,
       name,
@@ -212,6 +213,7 @@ async function createScreensForBusiness(businessId: string, maxScreens: number):
       is_active: true,
       animation_type: 'fade',
       animation_duration: 500,
+      stream_url: streamUrl,
     });
   }
 }
