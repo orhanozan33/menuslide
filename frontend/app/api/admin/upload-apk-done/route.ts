@@ -31,6 +31,7 @@ export async function POST(request: Request) {
     const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(APK_PATH);
     const publicUrl = urlData?.publicUrl ?? '';
 
+    const apiBase = process.env.NEXT_PUBLIC_APP_URL?.trim() || 'https://menuslide.com';
     const updates: Record<string, unknown> = {
       download_url: publicUrl,
       updated_at: new Date().toISOString(),
@@ -43,13 +44,15 @@ export async function POST(request: Request) {
       updates.latest_version_name = body.versionName.trim();
     }
 
-    const { data: row } = await supabase.from('tv_app_settings').select('id').limit(1).maybeSingle();
+    const { data: row } = await supabase.from('tv_app_settings').select('id, api_base_url').limit(1).maybeSingle();
     if (row) {
-      await supabase.from('tv_app_settings').update(updates).eq('id', (row as { id: string }).id);
+      const existing = row as { id: string; api_base_url?: string | null };
+      if (!existing.api_base_url?.trim()) updates.api_base_url = apiBase;
+      await supabase.from('tv_app_settings').update(updates).eq('id', existing.id);
     } else {
       const insertRow: Record<string, unknown> = {
         id: '00000000-0000-0000-0000-000000000001',
-        api_base_url: '',
+        api_base_url: apiBase,
         download_url: publicUrl,
         watchdog_interval_minutes: 5,
       };

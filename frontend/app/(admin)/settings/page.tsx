@@ -335,17 +335,20 @@ export default function SettingsPage() {
     try {
       const res = await fetch('/api/tv-app-config', { cache: 'no-store' });
       const data = await res.json().catch(() => ({}));
+      const apiBaseUrl = data.apiBaseUrl?.trim() || (typeof window !== 'undefined' ? window.location.origin : '') || 'https://menuslide.com';
+      const downloadUrl = data.downloadUrl?.trim() || '/downloads/Menuslide.apk';
       setTvAppConfig({
-        apiBaseUrl: data.apiBaseUrl ?? '',
-        downloadUrl: data.downloadUrl ?? '/downloads/Menuslide.apk',
+        apiBaseUrl,
+        downloadUrl,
         watchdogIntervalMinutes: typeof data.watchdogIntervalMinutes === 'number' ? data.watchdogIntervalMinutes : 5,
         minVersionCode: typeof data.minVersionCode === 'number' ? data.minVersionCode : '',
         latestVersionCode: typeof data.latestVersionCode === 'number' ? data.latestVersionCode : '',
         latestVersionName: typeof data.latestVersionName === 'string' ? data.latestVersionName : '',
       });
     } catch {
+      const fallbackApi = typeof window !== 'undefined' ? window.location.origin : 'https://menuslide.com';
       setTvAppConfig({
-        apiBaseUrl: '',
+        apiBaseUrl: fallbackApi,
         downloadUrl: '/downloads/Menuslide.apk',
         watchdogIntervalMinutes: 5,
         minVersionCode: '',

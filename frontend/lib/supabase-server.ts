@@ -12,6 +12,11 @@ function chainNoop(): any {
 }
 const noopFrom = () => chainNoop();
 
+/** Supabase env vars set? (No-op client used when false.) */
+export function isServerSupabaseConfigured(): boolean {
+  return !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
+}
+
 /**
  * Server-side Supabase client with service role (bypasses RLS).
  * When NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is missing, returns a no-op client (yerel mod).

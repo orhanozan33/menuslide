@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/container"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#111111">
+
+    <!-- Code input (visible until valid code loads) -->
+    <LinearLayout
+        android:id="@+id/screen_code_input"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:padding="48dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/hint_display_code"
+            android:textColor="@color/white"
+            android:textSize="22sp"
+            android:layout_marginBottom="24dp" />
+
+        <EditText
+            android:id="@+id/input_code"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:maxLines="1"
+            android:inputType="number"
+            android:hint="e.g. 57126"
+            android:background="@color/input_bg"
+            android:padding="12dp"
+            android:textSize="20sp"
+            android:textColor="@color/white"
+            android:layout_marginBottom="32dp" />
+
+        <Button
+            android:id="@+id/btn_start"
+            android:layout_width="wrap_content"
+            android:layout_height="56dp"
+            android:minWidth="200dp"
+            android:text="@string/btn_start"
+            android:textSize="18sp" />
+
+        <TextView
+            android:id="@+id/label_error"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:textColor="#EF4444"
+            android:textSize="14sp"
+            android:visibility="gone" />
+    </LinearLayout>
+
+    <!-- Dynamic layout container (native-rendered sections) -->
+    <FrameLayout
+        android:id="@+id/display_container"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone" />
+</FrameLayout>

@@ -1,0 +1,106 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="com.digitalsignage.tv.signage"
+4    android:versionCode="1"
+5    android:versionName="1.0.0" >
+6
+7    <uses-sdk
+8        android:minSdkVersion="24"
+9        android:targetSdkVersion="34" />
+10
+11    <uses-permission android:name="android.permission.INTERNET" />
+11-->/Users/admin/Desktop/Tvproje/android-tv-native/app/src/main/AndroidManifest.xml:4:5-67
+11-->/Users/admin/Desktop/Tvproje/android-tv-native/app/src/main/AndroidManifest.xml:4:22-64
+12    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+12-->/Users/admin/Desktop/Tvproje/android-tv-native/app/src/main/AndroidManifest.xml:5:5-79
+12-->/Users/admin/Desktop/Tvproje/android-tv-native/app/src/main/AndroidManifest.xml:5:22-76
+13    <uses-permission android:name="android.permission.WAKE_LOCK" />
+13-->/Users/admin/Desktop/Tvproje/android-tv-native/app/src/main/AndroidManifest.xml:6:5-68
+13-->/Users/admin/Desktop/Tvproje/android-tv-native/app/src/main/AndroidManifest.xml:6:22-65
+14
+15    <permission
+15-->[androidx.core:core:1.12.0] /Users/admin/.gradle/caches/transforms-4/c9cd83be15381d3aa5343fb66962032e/transformed/core-1.12.0/AndroidManifest.xml:22:5-24:47
+16        android:name="com.digitalsignage.tv.signage.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+16-->[androidx.core:core:1.12.0] /Users/admin/.gradle/caches/transforms-4/c9cd83be15381d3aa5343fb66962032e/transformed/core-1.12.0/AndroidManifest.xml:23:9-81
+17        android:protectionLevel="signature" />
+17-->[androidx.core:core:1.12.0] /Users/admin/.gradle/caches/transforms-4/c9cd83be15381d3aa5343fb66962032e/transformed/core-1.12.0/AndroidManifest.xml:24:9-44
+18
+19    <uses-permission android:name="com.digitalsignage.tv.signage.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+19-->[androidx.core:core:1.12.0] /Users/admin/.gradle/caches/transforms-4/c9cd83be15381d3aa5343fb66962032e/transformed/core-1.12.0/AndroidManifest.xml:26:5-97
+19-->[androidx.core:core:1.12.0] /Users/admin/.gradle/caches/transforms-4/c9cd83be15381d3aa5343fb66962032e/transformed/core-1.12.0/AndroidManifest.xml:26:22-94
+20
+21    <application
+21-->/Users/admin/Desktop/Tvproje/android-tv-native/app/src/main/AndroidManifest.xml:8:5-31:19
+22        android:name="com.digitalsignage.tv.signage.App"
+22-->/Users/admin/Desktop/Tvproje/android-tv-native/app/src/main/AndroidManifest.xml:9:9-28
+23        android:allowBackup="false"
+23-->/Users/admin/Desktop/Tvproje/android-tv-native/app/src/main/AndroidManifest.xml:10:9-36
+24        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+24-->[androidx.core:core:1.12.0] /Users/admin/.gradle/caches/transforms-4/c9cd83be15381d3aa5343fb66962032e/transformed/core-1.12.0/AndroidManifest.xml:28:18-86
+25        android:debuggable="true"
+26        android:extractNativeLibs="false"
+27        android:hardwareAccelerated="true"
+27-->/Users/admin/Desktop/Tvproje/android-tv-native/app/src/main/AndroidManifest.xml:14:9-43
+28        android:icon="@android:drawable/ic_media_play"
+28-->/Users/admin/Desktop/Tvproje/android-tv-native/app/src/main/AndroidManifest.xml:11:9-55
+29        android:label="@string/app_name"
+29-->/Users/admin/Desktop/Tvproje/android-tv-native/app/src/main/AndroidManifest.xml:12:9-41
+30        android:largeHeap="true"
+30-->/Users/admin/Desktop/Tvproje/android-tv-native/app/src/main/AndroidManifest.xml:15:9-33
+31        android:theme="@style/Theme.DigitalSignage"
+31-->/Users/admin/Desktop/Tvproje/android-tv-native/app/src/main/AndroidManifest.xml:13:9-52
+32        android:usesCleartextTraffic="true" >
+32-->/Users/admin/Desktop/Tvproje/android-tv-native/app/src/main/AndroidManifest.xml:16:9-44
+33        <activity
+33-->/Users/admin/Desktop/Tvproje/android-tv-native/app/src/main/AndroidManifest.xml:18:9-30:20
+34            android:name="com.digitalsignage.tv.signage.MainActivity"
+34-->/Users/admin/Desktop/Tvproje/android-tv-native/app/src/main/AndroidManifest.xml:19:13-41
+35            android:configChanges="orientation|screenSize|keyboardHidden"
+35-->/Users/admin/Desktop/Tvproje/android-tv-native/app/src/main/AndroidManifest.xml:23:13-74
+36            android:exported="true"
+36-->/Users/admin/Desktop/Tvproje/android-tv-native/app/src/main/AndroidManifest.xml:20:13-36
+37            android:launchMode="singleTask"
+37-->/Users/admin/Desktop/Tvproje/android-tv-native/app/src/main/AndroidManifest.xml:21:13-44
+38            android:screenOrientation="landscape"
+38-->/Users/admin/Desktop/Tvproje/android-tv-native/app/src/main/AndroidManifest.xml:22:13-50
+39            android:theme="@style/Theme.DigitalSignage.Fullscreen" >
+39-->/Users/admin/Desktop/Tvproje/android-tv-native/app/src/main/AndroidManifest.xml:24:13-67
+40            <intent-filter>
+40-->/Users/admin/Desktop/Tvproje/android-tv-native/app/src/main/AndroidManifest.xml:25:13-29:29
+41                <action android:name="android.intent.action.MAIN" />
+41-->/Users/admin/Desktop/Tvproje/android-tv-native/app/src/main/AndroidManifest.xml:26:17-69
+41-->/Users/admin/Desktop/Tvproje/android-tv-native/app/src/main/AndroidManifest.xml:26:25-66
+42
+43                <category android:name="android.intent.category.LAUNCHER" />
+43-->/Users/admin/Desktop/Tvproje/android-tv-native/app/src/main/AndroidManifest.xml:27:17-77
+43-->/Users/admin/Desktop/Tvproje/android-tv-native/app/src/main/AndroidManifest.xml:27:27-74
+44                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+44-->/Users/admin/Desktop/Tvproje/android-tv-native/app/src/main/AndroidManifest.xml:28:17-86
+44-->/Users/admin/Desktop/Tvproje/android-tv-native/app/src/main/AndroidManifest.xml:28:27-83
+45            </intent-filter>
+46        </activity>
+47
+48        <provider
+48-->[androidx.emoji2:emoji2:1.2.0] /Users/admin/.gradle/caches/transforms-4/e8d5f4c1d4d95bf9308bb04b47b21d91/transformed/emoji2-1.2.0/AndroidManifest.xml:24:9-32:20
+49            android:name="androidx.startup.InitializationProvider"
+49-->[androidx.emoji2:emoji2:1.2.0] /Users/admin/.gradle/caches/transforms-4/e8d5f4c1d4d95bf9308bb04b47b21d91/transformed/emoji2-1.2.0/AndroidManifest.xml:25:13-67
+50            android:authorities="com.digitalsignage.tv.signage.androidx-startup"
+50-->[androidx.emoji2:emoji2:1.2.0] /Users/admin/.gradle/caches/transforms-4/e8d5f4c1d4d95bf9308bb04b47b21d91/transformed/emoji2-1.2.0/AndroidManifest.xml:26:13-68
+51            android:exported="false" >
+51-->[androidx.emoji2:emoji2:1.2.0] /Users/admin/.gradle/caches/transforms-4/e8d5f4c1d4d95bf9308bb04b47b21d91/transformed/emoji2-1.2.0/AndroidManifest.xml:27:13-37
+52            <meta-data
+52-->[androidx.emoji2:emoji2:1.2.0] /Users/admin/.gradle/caches/transforms-4/e8d5f4c1d4d95bf9308bb04b47b21d91/transformed/emoji2-1.2.0/AndroidManifest.xml:29:13-31:52
+53                android:name="androidx.emoji2.text.EmojiCompatInitializer"
+53-->[androidx.emoji2:emoji2:1.2.0] /Users/admin/.gradle/caches/transforms-4/e8d5f4c1d4d95bf9308bb04b47b21d91/transformed/emoji2-1.2.0/AndroidManifest.xml:30:17-75
+54                android:value="androidx.startup" />
+54-->[androidx.emoji2:emoji2:1.2.0] /Users/admin/.gradle/caches/transforms-4/e8d5f4c1d4d95bf9308bb04b47b21d91/transformed/emoji2-1.2.0/AndroidManifest.xml:31:17-49
+55            <meta-data
+55-->[androidx.lifecycle:lifecycle-process:2.4.1] /Users/admin/.gradle/caches/transforms-4/0c4338c42fe524af9aad3dbbf1e3b616/transformed/lifecycle-process-2.4.1/AndroidManifest.xml:31:13-33:52
+56                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
+56-->[androidx.lifecycle:lifecycle-process:2.4.1] /Users/admin/.gradle/caches/transforms-4/0c4338c42fe524af9aad3dbbf1e3b616/transformed/lifecycle-process-2.4.1/AndroidManifest.xml:32:17-78
+57                android:value="androidx.startup" />
+57-->[androidx.lifecycle:lifecycle-process:2.4.1] /Users/admin/.gradle/caches/transforms-4/0c4338c42fe524af9aad3dbbf1e3b616/transformed/lifecycle-process-2.4.1/AndroidManifest.xml:33:17-49
+58        </provider>
+59    </application>
+60
+61</manifest>

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Digital Signage</string>
+    <string name="hint_display_code">Display Code</string>
+    <string name="btn_start">Start</string>
+    <string name="error_invalid_code">Invalid or inactive code</string>
+    <string name="error_network">Network error. Retrying…</string>
+</resources>

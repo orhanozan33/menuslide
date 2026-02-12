@@ -1,0 +1,19 @@
+R_DEF: Internal format may change without notice
+local
+color black
+color input_bg
+color white
+id btn_start
+id container
+id display_container
+id input_code
+id label_error
+id screen_code_input
+layout activity_main
+string app_name
+string btn_start
+string error_invalid_code
+string error_network
+string hint_display_code
+style Theme.DigitalSignage
+style Theme.DigitalSignage.Fullscreen

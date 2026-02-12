@@ -1,6 +1,6 @@
 # TV uygulaması derleme sonrası – adım adım
 
-Derleme bitti. APK dosyası: **frontend/public/downloads/Menuslide.apk** (sürüm 1.0.11).
+Derleme bitti. APK dosyası: **frontend/public/downloads/Menuslide.apk** (güncel sürüm derleme çıktısına bakın).
 
 ---
 
@@ -27,14 +27,21 @@ Derleme bitti. APK dosyası: **frontend/public/downloads/Menuslide.apk** (sürü
 
 ---
 
-## 2. Stick’te uygulamayı açın
+## 2. Güncelleme sonrası uygulama açılmıyorsa
+
+- **Veriyi temizleyin:** Ayarlar → Uygulamalar → Menu Slide → Depolama → **Veriyi temizle**. Sonra uygulamayı tekrar açın; kod giriş ekranı gelir, kodu yeniden girin.
+- **Kaldırıp yeniden kurun:** Menu Slide’ı kaldırın, aynı APK’yı tekrar kurun. İlk açılışta kod girişi ister.
+
+---
+
+## 3. Stick’te uygulamayı açın
 
 - Uygulama adı: **Menu Slide** (veya manifest’teki `app_name`).  
 - Launcher’da (Ana sayfa / Uygulamalar) ikonuna tıklayın.
 
 ---
 
-## 3. Yayın kodunu girin
+## 4. Yayın kodunu girin
 
 1. Açılışta **5 haneli yayın kodu** istenir (örn. 57126).  
 2. Bu kodu **Admin panel → Ekranlar → ilgili TV** kartındaki “TV uygulaması yayın kodu”ndan alın.  
@@ -43,7 +50,7 @@ Derleme bitti. APK dosyası: **frontend/public/downloads/Menuslide.apk** (sürü
 
 ---
 
-## 4. Ne olması beklenir (bu sürümde)
+## 5. Ne olması beklenir (bu sürümde)
 
 - Kod ekranı kapanır, sadece **yükleme göstergesi** görünür.  
 - **Pil optimizasyonu (Settings) ekranı açılmaz** (TV/stick’te atlanıyor).  
@@ -52,7 +59,7 @@ Derleme bitti. APK dosyası: **frontend/public/downloads/Menuslide.apk** (sürü
 
 ---
 
-## 5. Hata alırsanız
+## 6. Hata alırsanız
 
 - **“Kod bulunamadı”:** Admin’deki 5 haneli kodla birebir aynı mı kontrol edin; başında/sonunda boşluk olmasın.  
 - **“Sunucu hatası” / “Yanıt geçersiz”:** Stick internet bağlı mı, **https://menuslide.com** (veya kendi API adresiniz) açılıyor mu kontrol edin.  
@@ -60,7 +67,7 @@ Derleme bitti. APK dosyası: **frontend/public/downloads/Menuslide.apk** (sürü
 
 ---
 
-## 6. Frontend’i deploy etmek (APK’yı siteden indirtmek için)
+## 7. Frontend’i deploy etmek (APK’yı siteden indirtmek için)
 
 - APK’yı siteden indirtmek istiyorsanız projeyi deploy edin (örn. `git push` sonrası Vercel otomatik deploy eder).  
 - Deploy’dan sonra **https://[site]/downloads/Menuslide.apk** çalışır.  

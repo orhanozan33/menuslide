@@ -1,13 +1,14 @@
 # Vercel + Supabase Deployment Guide
 
-Bu rehber, Menu Slide projesini **Vercel** (frontend) ve **Supabase** (veritabanı) ile deploy etmek için gerekli adımları açıklar.
+Bu rehber, Menu Slide projesini **Vercel** ve **Supabase** ile deploy etmek için gerekli adımları açıklar.
+
+> **Bu projede yalnızca Vercel ve Supabase kullanılmaktadır.** Ek sunucu (Railway, Render, AWS vb.) gerekmez.
 
 ## Mimari Özet
 
-- **Frontend (Next.js)**: Vercel'de host edilir
-- **Backend (NestJS)**: Railway, Render veya Fly.io'da host edilir
-- **Veritabanı**: Supabase PostgreSQL
-- **Storage**: Supabase Storage (resimler/videolar için)
+- **Vercel**: Next.js uygulaması (frontend + API routes: `/api/proxy`, `/api/tv-app-config`, ekranlar, display vb.)
+- **Supabase**: PostgreSQL veritabanı + Storage (resimler, videolar, **APK** — bucket: `menuslide`, örn. `downloads/Menuslide.apk`)
+- **Android TV ayarları**: Admin → Ayarlar → API taban URL (örn. `https://menuslide.com/api/proxy`), APK indirme linki Supabase Storage’tan
 
 ---
 

@@ -7,6 +7,7 @@ export const revalidate = 0;
 
 const defaultConfig = {
   apiBaseUrl: process.env.NEXT_PUBLIC_APP_URL || '',
+  // Yalnızca Vercel (API) + Supabase (DB + Storage). downloadUrl Supabase Storage veya /downloads/... olabilir.
   downloadUrl: '/downloads/Menuslide.apk',
   watchdogIntervalMinutes: 5,
   minVersionCode: null as number | null,
