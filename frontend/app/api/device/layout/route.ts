@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
       };
       videoUrls = [streamUrl];
     } else {
-      const renderImageUrl = `${appUrl}/api/render/${encodeURIComponent(displaySlug)}`;
+      const renderImageUrl = `${appUrl}/api/render/${encodeURIComponent(displaySlug ?? '')}`;
       layout = {
         version: 1,
         type: 'components',
