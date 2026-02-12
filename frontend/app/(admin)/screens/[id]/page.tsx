@@ -114,7 +114,22 @@ export default function ScreenDetailPage() {
       setEditFrameType(data?.frame_type || 'none');
       setEditTickerText(data?.ticker_text || '');
       setEditTickerStyle(data?.ticker_style || 'default');
-      setEditStreamUrl(data?.stream_url || '');
+      const existingStreamUrl = data?.stream_url ? String(data.stream_url).trim() : '';
+      setEditStreamUrl(existingStreamUrl || '');
+      const slug = data?.public_slug || data?.public_token;
+      if (!existingStreamUrl && slug) {
+        const defaultStreamUrl = `https://cdn.menuslide.com/stream/${slug}.m3u8`;
+        try {
+          await apiClient(`/screens/${screenId}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ stream_url: defaultStreamUrl }),
+          });
+          setEditStreamUrl(defaultStreamUrl);
+          setScreen((prev: any) => (prev ? { ...prev, stream_url: defaultStreamUrl } : prev));
+        } catch (e) {
+          console.error('Auto-set stream_url failed:', e);
+        }
+      }
     } catch (error) {
       console.error('Error loading screen:', error);
     } finally {
@@ -330,25 +345,7 @@ export default function ScreenDetailPage() {
                   placeholder="https://cdn.menuslide.com/stream.m3u8"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 text-sm"
                 />
-                <p className="text-xs text-gray-500 mt-1">HLS (.m3u8) veya MP4 URL. Doluysa TV uygulaması bu yayını oynatır.</p>
-                {(!editStreamUrl || !editStreamUrl.trim()) && (screen?.public_slug || screen?.public_token) && (
-                  <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded-lg flex flex-wrap items-center gap-2">
-                    <span className="text-xs text-gray-700">Önerilen URL (her TV için otomatik):</span>
-                    <code className="text-xs text-gray-800 flex-1 min-w-0 truncate">
-                      https://cdn.menuslide.com/stream/{(screen?.public_slug || screen?.public_token) ?? ''}.m3u8
-                    </code>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const slug = screen?.public_slug || screen?.public_token || '';
-                        setEditStreamUrl(`https://cdn.menuslide.com/stream/${slug}.m3u8`);
-                      }}
-                      className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
-                    >
-                      Bunu kullan
-                    </button>
-                  </div>
-                )}
+                <p className="text-xs text-gray-500 mt-1">HLS (.m3u8) veya MP4 URL. Boşsa bu ekran için otomatik tanımlanır ve kaydedilir.</p>
               </div>
             </div>
             <button
