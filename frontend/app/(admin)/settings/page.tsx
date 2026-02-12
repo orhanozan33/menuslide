@@ -383,6 +383,7 @@ export default function SettingsPage() {
         const err = await res.json().catch(() => ({}));
         throw new Error(err?.message || t('settings_save_failed'));
       }
+      await loadTvAppConfig();
       toast.showSuccess(t('settings_tv_app_saved'));
     } catch (e: any) {
       toast.showError(e?.message || t('settings_save_failed'));
@@ -620,7 +621,10 @@ export default function SettingsPage() {
         ) : (
           <button
             type="button"
-            onClick={() => setShowTvAppModal(true)}
+            onClick={() => {
+            setShowTvAppModal(true);
+            loadTvAppConfig();
+          }}
             className="w-full text-left bg-white border-2 border-gray-200 rounded-xl p-5 hover:border-blue-400 hover:shadow-md transition-all"
           >
             <div className="text-sm text-gray-700 space-y-1">

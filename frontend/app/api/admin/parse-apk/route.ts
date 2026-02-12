@@ -32,9 +32,36 @@ export async function POST(request: Request) {
 
     try {
       const parser = new AppInfoParser(tmpPath);
-      const result = await parser.parse();
-      const versionCode = result?.versionCode != null ? Number(result.versionCode) : undefined;
-      const versionName = result?.versionName != null ? String(result.versionName) : undefined;
+      const result = (await parser.parse()) as Record<string, unknown> | null;
+      const extractVersion = (obj: unknown, code: boolean): unknown => {
+        const search = (r: Record<string, unknown>): unknown => {
+          const keys = Object.keys(r || {});
+          const list = code
+            ? ['versionCode', 'version_code', 'android:versionCode', 'versionCodeMajor']
+            : ['versionName', 'version_name', 'android:versionName'];
+          for (const k of list) {
+            if (r[k] != null) return r[k];
+          }
+          const re = code ? /version[_-]?code/i : /version[_-]?name/i;
+          const found = keys.find((key) => re.test(key));
+          return found != null ? r[found] : undefined;
+        };
+        let v = search((obj as Record<string, unknown>) || {});
+        if (v != null) return v;
+        const r = obj as Record<string, unknown>;
+        for (const key of Object.keys(r || {})) {
+          const child = r[key];
+          if (child && typeof child === 'object' && !Array.isArray(child)) {
+            v = search(child as Record<string, unknown>);
+            if (v != null) return v;
+          }
+        }
+        return undefined;
+      };
+      const rawVersionCode = extractVersion(result, true);
+      const rawVersionName = extractVersion(result, false);
+      const versionCode = rawVersionCode != null ? Number(rawVersionCode) : undefined;
+      const versionName = rawVersionName != null ? String(rawVersionName) : undefined;
       return NextResponse.json({
         versionCode: Number.isInteger(versionCode) ? versionCode : undefined,
         versionName: versionName || undefined,
