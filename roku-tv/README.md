@@ -32,11 +32,22 @@ Same backend as Android: `https://menuslide.com/api`
 
 ## Flow
 
-1. RootScene loads
-2. If no deviceToken → ActivationScene (keyboard for 5-digit code)
-3. ApiRegister → save token + layout
-4. MainScene → Video node plays layout.videoUrl (HLS/MP4)
-5. Heartbeat every refreshIntervalSeconds
+```
+App start
+    ↓
+ActivationScene? (no token) → ApiRegister → save token + layout
+    ↓
+MainScene: load layout from cache or GET /device/layout
+    ↓
+JSON cache (Registry)
+    ↓
+SceneGraph render (Video node)
+    ↓
+Timer (every 5 min):
+    POST /device/heartbeat
+    GET /device/version
+    → layoutVersion changed? → GET /device/layout → re-render
+```
 
 ## TCL Canada
 

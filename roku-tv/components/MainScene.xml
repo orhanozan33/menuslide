@@ -19,12 +19,20 @@
       loop="true"
       enableUI="false"
       mute="true"/>
+    <Poster
+      id="mainImageDisplay"
+      width="1920"
+      height="1080"
+      translation="[0, 0]"
+      visible="false"
+      loadDisplayMode="scaleToFit"/>
+    <Group id="layoutGroup"/>
     <Label
       id="status"
       translation="[100, 100]"
       width="1720"
       height="60"
-      text="Loading..."
+      text="Yayın Yükleniyor..."
       font="font:MediumBoldSystemFont"
       color="0xFFFFFFFF"
       visible="true"/>

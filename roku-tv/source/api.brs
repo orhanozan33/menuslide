@@ -17,11 +17,11 @@ function ApiRegister(displayCode as string, deviceId as string) as object
     req.setMinimumTransferRate(1024, 5)
     req.retainBodyOnError(true)
     json = invalid
+    port = CreateObject("roMessagePort")
+    req.setPort(port)
     for i = 0 to 2
         ok = req.asyncPostFromString(body)
         if ok
-            port = CreateObject("roMessagePort")
-            req.setPort(port)
             msg = wait(15000, port)
             if type(msg) = "roUrlEvent" and msg.getResponseCode() = 200
                 json = ParseJson(msg.getString())
@@ -37,17 +37,17 @@ function ApiLayout(deviceToken as string) as object
     base = "https://menuslide.com/api"
     xfer = CreateObject("roUrlTransfer")
     url = base + "/device/layout?deviceToken=" + xfer.Escape(deviceToken)
-    req = CreateObject("roUrlTransfer")
-    req.setUrl(url)
-    req.setRequest("GET")
-    req.addHeader("X-Device-Token", deviceToken)
-    req.setMinimumTransferRate(1024, 5)
+    port = CreateObject("roMessagePort")
     json = invalid
     for i = 0 to 2
+        req = CreateObject("roUrlTransfer")
+        req.setUrl(url)
+        req.setRequest("GET")
+        req.addHeader("X-Device-Token", deviceToken)
+        req.setMinimumTransferRate(1024, 5)
+        req.setPort(port)
         ok = req.asyncGetToString()
         if ok
-            port = CreateObject("roMessagePort")
-            req.setPort(port)
             msg = wait(15000, port)
             if type(msg) = "roUrlEvent" and msg.getResponseCode() = 200
                 json = ParseJson(msg.getString())
@@ -55,11 +55,24 @@ function ApiLayout(deviceToken as string) as object
             end if
         end if
         sleep(2000 + i * 3000)
-        req = CreateObject("roUrlTransfer")
-        req.setUrl(url)
-        req.addHeader("X-Device-Token", deviceToken)
-        req.setMinimumTransferRate(1024, 5)
     end for
+    return json
+end function
+
+function ApiVersion(deviceToken as string) as object
+    base = "https://menuslide.com/api"
+    xfer = CreateObject("roUrlTransfer")
+    url = base + "/device/version?deviceToken=" + xfer.Escape(deviceToken)
+    req = CreateObject("roUrlTransfer")
+    req.setUrl(url)
+    req.setRequest("GET")
+    req.addHeader("X-Device-Token", deviceToken)
+    req.setMinimumTransferRate(1024, 3)
+    json = invalid
+    ok = req.GetToString()
+    if ok <> invalid and ok <> ""
+        json = ParseJson(ok)
+    end if
     return json
 end function
 

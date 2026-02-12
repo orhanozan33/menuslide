@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
     const supabase = getServerSupabase();
     const { data: screen, error } = await supabase
       .from('screens')
-      .select('id, public_slug, public_token, broadcast_code, stream_url')
+      .select('id, public_slug, public_token, broadcast_code, stream_url, updated_at')
       .eq('id', screenId)
       .eq('is_active', true)
       .limit(1)
@@ -52,6 +52,7 @@ export async function GET(request: NextRequest) {
     const streamUrl = (screen as { stream_url?: string | null }).stream_url?.trim();
 
     let layout: object;
+    let videoUrls: string[];
 
     if (streamUrl && (streamUrl.endsWith('.m3u8') || streamUrl.endsWith('.mp4'))) {
       layout = {
@@ -59,7 +60,9 @@ export async function GET(request: NextRequest) {
         videoUrl: streamUrl,
         backgroundColor: '#000000',
       };
+      videoUrls = [streamUrl];
     } else {
+      const renderImageUrl = `${appUrl}/api/render/${encodeURIComponent(displaySlug)}`;
       layout = {
         version: 1,
         type: 'components',
@@ -91,11 +94,16 @@ export async function GET(request: NextRequest) {
           },
         ],
       };
+      videoUrls = [renderImageUrl];
     }
+
+    const layoutVersion = (screen as { updated_at?: string }).updated_at ?? new Date().toISOString();
 
     return NextResponse.json({
       deviceToken,
       layout,
+      layoutVersion,
+      videoUrls,
       refreshIntervalSeconds: 300,
     });
   } catch (e) {

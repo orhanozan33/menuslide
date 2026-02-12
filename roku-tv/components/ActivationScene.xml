@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8" ?>
-<component name="ActivationScene" extends="Group">
+<component name="ActivationScene" extends="Group" focusable="true">
+  <script type="text/brightscript" uri="pkg:/source/api.brs"/>
   <script type="text/brightscript" uri="pkg:/components/ActivationScene.brs"/>
   <interface>
     <field id="transitionToMain" type="string" value="" alwaysNotify="true"/>
@@ -9,24 +10,34 @@
       id="bg"
       width="1920"
       height="1080"
-      color="0x000000FF"/>
+      color="0x1a1a2eFF"/>
     <Label
       id="title"
-      translation="[400, 280]"
-      width="1120"
-      height="80"
-      text="MenuSlide Digital Signage"
+      translation="[200, 150]"
+      width="1520"
+      height="120"
+      text="MENUSLIDE AKTIVASYON"
       horizAlign="center"
-      font="font:LargeBoldSystemFont"/>
+      font="font:LargeBoldSystemFont"
+      color="0xFFFFFFFF"/>
     <Label
       id="hint"
-      translation="[400, 400]"
-      width="1120"
-      height="48"
-      text="Press OK to enter display code (5 digits)"
+      translation="[80, 450]"
+      width="1760"
+      height="150"
+      text="5 haneli kodu girmek icin: Kumandada OK veya SELECT tusuna basin"
       horizAlign="center"
-      font="font:MediumBoldSystemFont"
-      color="0xAAAAAAFF"/>
+      font="font:LargeBoldSystemFont"
+      color="0x00FF00FF"/>
+    <Label
+      id="ver"
+      translation="[100, 900]"
+      width="1720"
+      height="48"
+      text="v1.0.13 Build 13"
+      horizAlign="center"
+      font="font:SmallSystemFont"
+      color="0x666666FF"/>
     <Label
       id="error"
       translation="[400, 880]"

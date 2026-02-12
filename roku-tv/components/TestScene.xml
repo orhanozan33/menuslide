@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<component name="TestScene" extends="Group" focusable="true">
+  <script type="text/brightscript" uri="pkg:/source/api.brs"/>
+  <script type="text/brightscript" uri="pkg:/components/TestScene.brs"/>
+  <children>
+    <Rectangle width="1920" height="1080" color="0x1a1a2eFF"/>
+    <Label
+      id="title"
+      translation="[200, 80]"
+      width="1520"
+      height="100"
+      text="MenuSlide"
+      horizAlign="center"
+      font="font:LargeBoldSystemFont"
+      color="0xFFFFFFFF"/>
+    <Label
+      id="subtitle"
+      translation="[200, 180]"
+      width="1520"
+      height="60"
+      text="Digital Signage"
+      horizAlign="center"
+      font="font:MediumBoldSystemFont"
+      color="0x94a3b8FF"/>
+    <Label
+      id="hint"
+      translation="[200, 350]"
+      width="1520"
+      height="80"
+      text="Press OK to enter 5-digit code"
+      horizAlign="center"
+      font="font:MediumBoldSystemFont"
+      color="0x00FF00FF"/>
+  </children>
+</component>

@@ -4,7 +4,7 @@ import path from 'path';
 const nextConfig: NextConfig = {
   reactStrictMode: false,
   transpilePackages: ['react-konva', 'konva'],
-  serverExternalPackages: ['pg'],
+  serverExternalPackages: ['pg', 'puppeteer'],
   webpack: (config) => {
     const dir = path.join(process.cwd(), 'node_modules');
     config.resolve = config.resolve || {};

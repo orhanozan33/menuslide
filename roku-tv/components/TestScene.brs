@@ -1,12 +1,14 @@
 sub init()
-    m.title = m.top.findNode("title")
-    m.hint = m.top.findNode("hint")
-    m.error = m.top.findNode("error")
     m.sec = CreateObject("roRegistrySection", "menuslide")
     m.deviceId = CreateObject("roDeviceInfo").getChannelClientId()
     if m.deviceId = "" then m.deviceId = CreateObject("roDeviceInfo").getDeviceUniqueId()
     m.keyboardShown = false
-    m.top.setFocus(true)
+    token = m.sec.read("deviceToken")
+    if token <> "" and token <> invalid
+        showMain()
+    else
+        m.top.setFocus(true)
+    end if
 end sub
 
 function onKeyEvent(key as string, press as boolean) as boolean
@@ -21,8 +23,8 @@ end function
 sub showKeyboard()
     m.keyboardShown = true
     kb = CreateObject("roSGNode", "StandardKeyboardDialog")
-    kb.title = "Display Code (5 digits)"
-    kb.message = ["Enter the 5-digit code from Admin Screens"]
+    kb.title = "5-digit code"
+    kb.message = ["Broadcast Code from Admin screen"]
     kb.textEditBox.hintText = "12345"
     kb.textEditBox.maxTextLength = 10
     kb.textEditBox.keyboardSubtype = "numeric"
@@ -37,47 +39,42 @@ sub onKeyboardSubmit()
     if m.top.dialog <> invalid then m.top.dialog.close = true
     m.keyboardShown = false
     if code = "" or Len(code) < 4
-        m.error.text = "Enter valid display code (5 digits)"
-        m.error.visible = true
         return
     end if
-    m.error.visible = false
     doRegister(code)
 end sub
 
 sub doRegister(displayCode as string)
     json = ApiRegister(displayCode, m.deviceId)
     if json = invalid
-        m.error.text = "Network error. Retry."
-        m.error.visible = true
         return
     end if
-    err = json.error
-    if err <> invalid
-        msg = json.message
-        if msg = invalid then msg = "Activation failed"
-        m.error.text = msg
-        m.error.visible = true
+    if json.error <> invalid
         return
     end if
     token = json.deviceToken
     if token = invalid or token = ""
-        m.error.text = "Invalid response"
-        m.error.visible = true
         return
     end if
     m.sec.write("deviceToken", token)
     m.sec.write("displayCode", displayCode)
-    layout = json.layout
-    if layout <> invalid
-        layoutStr = FormatJson(layout)
-        m.sec.write("layout", layoutStr)
+    if json.layout <> invalid
+        m.sec.write("layout", FormatJson(json.layout))
     end if
     if json.layoutVersion <> invalid and json.layoutVersion <> ""
         m.sec.write("layoutVersion", json.layoutVersion)
     end if
-    refresh = json.refreshIntervalSeconds
-    if refresh <> invalid then m.sec.write("refreshInterval", Str(refresh))
+    if json.refreshIntervalSeconds <> invalid
+        m.sec.write("refreshInterval", Str(json.refreshIntervalSeconds))
+    end if
     m.sec.flush()
-    m.top.transitionToMain = "main"
+    showMain()
 end sub
+
+sub showMain()
+    if m.main <> invalid then return
+    m.main = m.top.createChild("MainScene")
+    m.main.id = "main"
+    m.main.setFocus(true)
+end sub
+' v1.0.14 - Build 14 - TestScene + aktivasyon + MainScene, 2026-02-12

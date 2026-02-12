@@ -89,8 +89,7 @@ export async function POST(request: Request) {
       layout = { type: 'video', videoUrl: streamUrl, backgroundColor: '#000000' };
       videoUrls = [streamUrl];
     } else {
-      const displayUrl = `${appUrl}/display/${displaySlug}`;
-      const displayUrlWithLite = displayUrl.includes('?') ? `${displayUrl}&lite=1` : `${displayUrl}?lite=1`;
+      const renderImageUrl = `${appUrl}/api/render/${encodeURIComponent(displaySlug ?? '')}`;
       layout = {
         version: 1,
         type: 'components',
@@ -100,7 +99,7 @@ export async function POST(request: Request) {
           { id: 'text2', type: 'text', x: 24, y: 80, width: 800, height: 32, zIndex: 1, text: `Display: ${displaySlug}. Set stream_url (HLS/MP4) in Admin for video.`, textColor: '#AAAAAA', textSize: 16 },
         ],
       };
-      videoUrls = [displayUrlWithLite];
+      videoUrls = [renderImageUrl];
     }
 
     const layoutVersion = (screen as { updated_at?: string }).updated_at ?? new Date().toISOString();

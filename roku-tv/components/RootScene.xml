@@ -1,11 +1,11 @@
-<?xml version="1.0" encoding="utf-8" ?>
-<component name="RootScene" extends="Group">
+<?xml version="1.0" encoding="utf-8"?>
+<component name="RootScene" extends="Scene">
   <script type="text/brightscript" uri="pkg:/components/RootScene.brs"/>
   <interface>
-    <field id="showMain" type="boolean" value="false" alwaysNotify="true"/>
+    <field id="requestregister" name="requestregister" type="assocarray"/>
+    <field id="registerresult" name="registerresult" type="assocarray" alwaysNotify="true"/>
   </interface>
   <children>
-    <ActivationScene id="activation"/>
-    <MainScene id="main" visible="false"/>
+    <ContentGroup id="content"/>
   </children>
 </component>

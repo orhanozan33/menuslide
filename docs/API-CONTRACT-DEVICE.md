@@ -78,9 +78,27 @@ Base URL: `https://menuslide.com/api`
 
 **Query:** `?deviceToken=xxx` (fallback)
 
-**Success (200):** Same layout object as register.
+**Success (200):** Same layout object as register + `layoutVersion` (ISO timestamp).
 
 **Errors:** 401 (token required), 404 (token invalid)
+
+---
+
+### GET /device/version
+
+Lightweight check. Call before full layout fetch when polling.
+
+**Headers / Query:** Same as layout.
+
+**Success (200):**
+```json
+{
+  "layoutVersion": "2024-01-15T12:00:00.000Z",
+  "refreshIntervalSeconds": 300
+}
+```
+
+Client: compare `layoutVersion` with cached; if different → `GET /device/layout` and re-render.
 
 ---
 

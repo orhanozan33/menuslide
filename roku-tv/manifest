@@ -1,22 +1,17 @@
-## Channel Metadata
 title=MenuSlide Digital Signage
 major_version=1
 minor_version=0
-build_version=1
+build_version=19
 
-## Display (add icon-focus.png, icon-side.png, splash.png to images/)
+mm_icon_focus_fhd=pkg:/images/icon-focus-fhd.png
 mm_icon_focus_hd=pkg:/images/icon-focus.png
 mm_icon_focus_sd=pkg:/images/icon-focus.png
 mm_icon_side_hd=pkg:/images/icon-side.png
 mm_icon_side_sd=pkg:/images/icon-side.png
 
-splash_screen_fhd=pkg:/images/splash.png
-splash_screen_hd=pkg:/images/splash.png
-splash_screen_sd=pkg:/images/splash.png
-splash_color=#000000
+splash_color=#1a1a2e
+splash_min_time=0
 
-## Resolution
-resolution=1920x1080
+ui_resolutions=fhd
+rsg_version=1.2
 
-## Required permissions
-bs_const=enable_https_inspection=false

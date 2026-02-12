@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<component name="SimpleScene" extends="Group" focusable="true">
+  <script type="text/brightscript" uri="pkg:/components/SimpleScene.brs"/>
+  <children>
+    <Rectangle
+      width="1920"
+      height="1080"
+      translation="[0, 0]"
+      color="0x1a1a2eFF"/>
+    <Label
+      id="mainLabel"
+      translation="[100, 350]"
+      width="1720"
+      height="200"
+      text="MENUSLIDE - Press OK"
+      horizAlign="center"
+      vertAlign="center"
+      font="font:LargeBoldSystemFont"
+      color="0x00FF00FF"/>
+    <Label
+      id="subLabel"
+      translation="[100, 600]"
+      width="1720"
+      height="80"
+      text="Build 14 - Digital Signage"
+      horizAlign="center"
+      font="font:MediumBoldSystemFont"
+      color="0x94a3b8FF"/>
+  </children>
+</component>

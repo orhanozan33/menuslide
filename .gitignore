@@ -51,3 +51,6 @@ database/export-from-local-data.sql
 
 # Built APK (her build farklı; dağıtım Supabase/indirme linki ile)
 frontend/public/downloads/*.apk
+
+# Roku channel zip (oluşturmak için: roku-tv/package.sh)
+roku-tv/*.zip
