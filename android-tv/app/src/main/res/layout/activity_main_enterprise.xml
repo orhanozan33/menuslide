@@ -1,20 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#000000">
 
-    <!-- Native layout (text, images, video) -->
+    <!-- ExoPlayer for direct HLS/MP4 -->
+    <androidx.media3.ui.PlayerView
+        android:id="@+id/player_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone"
+        app:show_buffering="when_playing"
+        app:use_controller="false" />
+
+    <!-- Native layout (text, images, video components) -->
     <FrameLayout
         android:id="@+id/root_container"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
-
-    <!-- WebView for display URL (menu broadcast) -->
-    <WebView
-        android:id="@+id/display_webview"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="#000000"
-        android:visibility="gone" />
 </FrameLayout>

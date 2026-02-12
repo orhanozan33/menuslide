@@ -1,16 +1,11 @@
 package com.digitalsignage.tv
 
-import android.annotation.SuppressLint
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
-import android.webkit.WebSettings
-import android.webkit.WebView
-import android.webkit.WebViewClient
 import android.widget.FrameLayout
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -38,8 +33,6 @@ class MainActivity : AppCompatActivity() {
     @Inject lateinit var playerManager: PlayerManager
 
     private var renderJob: Job? = null
-    private var webViewRefreshJob: Job? = null
-    private var displayUrlForRefresh: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -51,65 +44,54 @@ class MainActivity : AppCompatActivity() {
             return
         }
         setContentView(R.layout.activity_main_enterprise)
-        checkForUpdate()
         keepScreenOn()
         applyFullscreen()
         startForegroundHeartbeat()
 
-        var displayUrl = repository.getDisplayUrl()
-        if (!displayUrl.isNullOrBlank()) {
-            if (!displayUrl.contains("lite=1") && !displayUrl.contains("ultralow=1")) {
-                displayUrl = if (displayUrl.contains("?")) "$displayUrl&lite=1" else "$displayUrl?lite=1"
-                repository.saveDisplayUrl(displayUrl)
+        lifecycleScope.launch { loadNativeLayoutOrVideo() }
+    }
+
+    private suspend fun loadNativeLayoutOrVideo() {
+        val layoutJson = withContext(Dispatchers.IO) { repository.getCachedLayoutJson() }
+        val payload = layoutJson?.let { layoutRenderer.parseLayout(it) }
+        val root = findViewById<FrameLayout>(R.id.root_container)
+        val playerView = findViewById<PlayerView>(R.id.player_view)
+
+        val videoUrl = extractVideoUrl(payload)
+        if (!videoUrl.isNullOrBlank() && (videoUrl.endsWith(".m3u8") || videoUrl.endsWith(".mp4"))) {
+            withContext(Dispatchers.Main) {
+                root.visibility = android.view.View.GONE
+                playerView.visibility = android.view.View.VISIBLE
+                playerManager.attachPlayerView(playerView)
+                playerManager.setVideoUrl(videoUrl, null)
             }
-            displayUrlForRefresh = displayUrl
-            loadDisplayInWebView(displayUrl)
-            startWebViewPeriodicRefresh()
         } else {
-            renderJob = lifecycleScope.launch { loadAndRenderLayout() }
-        }
-    }
-
-    private companion object {
-        const val WEBVIEW_REFRESH_INTERVAL_MS = 10 * 60 * 1000L
-    }
-
-    private fun startWebViewPeriodicRefresh() {
-        webViewRefreshJob?.cancel()
-        webViewRefreshJob = lifecycleScope.launch {
-            while (true) {
-                delay(WEBVIEW_REFRESH_INTERVAL_MS)
-                val url = displayUrlForRefresh ?: return@launch
-                runOnUiThread { reloadWebViewToFreeMemory(url) }
+            withContext(Dispatchers.Main) {
+                playerView.visibility = android.view.View.GONE
+                root.visibility = android.view.View.VISIBLE
+                layoutRenderer.render(payload, root)
+                attachVideoToFirstVideoView(root)
+            }
+            renderJob = lifecycleScope.launch {
+                while (true) {
+                    delay(15_000)
+                    val json = withContext(Dispatchers.IO) { repository.getCachedLayoutJson() }
+                    val p = json?.let { layoutRenderer.parseLayout(it) }
+                    withContext(Dispatchers.Main) {
+                        layoutRenderer.render(p, root)
+                        attachVideoToFirstVideoView(root)
+                    }
+                }
             }
         }
     }
 
-    @SuppressLint("SetJavaScriptEnabled")
-    private fun loadDisplayInWebView(url: String) {
-        val webView = findViewById<WebView>(R.id.display_webview)
-        val rootContainer = findViewById<FrameLayout>(R.id.root_container)
-        webView.visibility = View.VISIBLE
-        rootContainer.visibility = View.GONE
-        webView.settings.apply {
-            javaScriptEnabled = true
-            domStorageEnabled = true
-            cacheMode = WebSettings.LOAD_NO_CACHE
-            mediaPlaybackRequiresUserGesture = false
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-            }
+    private fun extractVideoUrl(payload: com.digitalsignage.tv.data.api.LayoutPayload?): String? {
+        payload ?: return null
+        if (payload.type == "video" && !payload.videoUrl.isNullOrBlank()) {
+            return payload.videoUrl.takeIf { it.startsWith("http") }
         }
-        webView.webViewClient = WebViewClient()
-        webView.loadUrl(url)
-    }
-
-    private fun reloadWebViewToFreeMemory(url: String) {
-        val webView = findViewById<WebView>(R.id.display_webview)
-        if (webView.visibility != View.VISIBLE) return
-        webView.clearCache(true)
-        webView.loadUrl("about:blank")
-        webView.loadUrl(url)
+        return payload.components?.firstOrNull { it.type == "video" }?.videoUrl?.takeIf { it?.startsWith("http") == true }
     }
 
     private fun keepScreenOn() {
@@ -178,14 +160,13 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         renderJob?.cancel()
-        webViewRefreshJob?.cancel()
-        try {
-            val webView = findViewById<WebView>(R.id.display_webview)
-            webView.loadUrl("about:blank")
-            webView.destroy()
-        } catch (_: Exception) { }
         playerManager.release()
         super.onDestroy()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        checkForUpdate()
     }
 
     private fun checkForUpdate() {
@@ -193,15 +174,17 @@ class MainActivity : AppCompatActivity() {
             val config = withContext(Dispatchers.IO) { repository.getTvAppConfig() } ?: return@launch
             val currentCode = BuildConfig.VERSION_CODE
             val minRequired = config.minVersionCode
-            val latestAvailable = config.latestVersionCode
+            val latestAvailable = config.latestVersionCode ?: config.minVersionCode
 
             val isRequired = minRequired != null && currentCode < minRequired
             val isOptional = latestAvailable != null && currentCode < latestAvailable && !isRequired
 
             if (isRequired || isOptional) {
                 val downloadUrl = buildDownloadUrl(config.apiBaseUrl, config.downloadUrl)
-                withContext(Dispatchers.Main) {
-                    showUpdateDialog(required = isRequired, downloadUrl = downloadUrl)
+                if (downloadUrl.isNotBlank() && !isFinishing) {
+                    withContext(Dispatchers.Main) {
+                        if (!isFinishing) showUpdateDialog(required = isRequired, downloadUrl = downloadUrl)
+                    }
                 }
             }
         }

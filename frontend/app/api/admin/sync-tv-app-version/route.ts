@@ -25,16 +25,21 @@ export async function POST() {
     const supabase = getServerSupabase();
     const { data: row } = await supabase
       .from('tv_app_settings')
-      .select('id, download_url')
+      .select('id, api_base_url, download_url')
       .limit(1)
       .maybeSingle();
     if (!row) {
       return NextResponse.json({ message: 'TV uygulaması ayarı bulunamadı.' }, { status: 404 });
     }
 
-    const downloadUrl = (row as { download_url?: string }).download_url;
-    if (!downloadUrl || !downloadUrl.startsWith('http')) {
-      return NextResponse.json({ message: 'İndirme linki geçerli bir URL değil.' }, { status: 400 });
+    const r = row as { download_url?: string; api_base_url?: string };
+    let downloadUrl = (r.download_url ?? '').trim();
+    if (!downloadUrl) {
+      return NextResponse.json({ message: 'İndirme linki boş.' }, { status: 400 });
+    }
+    if (!downloadUrl.startsWith('http')) {
+      const base = (r.api_base_url ?? process.env.NEXT_PUBLIC_APP_URL ?? 'https://menuslide.com').trim().replace(/\/$/, '');
+      downloadUrl = downloadUrl.startsWith('/') ? `${base}${downloadUrl}` : `${base}/${downloadUrl}`;
     }
 
     const res = await fetch(downloadUrl, { cache: 'no-store' });

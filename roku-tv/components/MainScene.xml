@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<component name="MainScene" extends="Group" xsdDialect="Roku-SceneGraph">
+  <script type="text/brightscript" uri="pkg:/components/MainScene.brs"/>
+  <interface>
+    <field id="layout" type="assocarray"/>
+  </interface>
+  <children>
+    <Rectangle
+      id="bg"
+      width="1920"
+      height="1080"
+      color="0x000000FF"/>
+    <Video
+      id="video"
+      width="1920"
+      height="1080"
+      translation="[0, 0]"
+      visible="false"
+      loop="true"
+      enableUI="false"
+      mute="true"/>
+    <Label
+      id="status"
+      translation="[100, 100]"
+      width="1720"
+      height="60"
+      text="Loading..."
+      font="font:MediumBoldSystemFont"
+      color="0xFFFFFFFF"
+      visible="true"/>
+  </children>
+</component>

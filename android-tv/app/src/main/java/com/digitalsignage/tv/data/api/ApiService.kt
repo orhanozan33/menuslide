@@ -36,6 +36,8 @@ data class RegisterResponse(
 
 data class LayoutPayload(
     val version: Int? = null,
+    val type: String? = null,
+    val videoUrl: String? = null,
     val backgroundColor: String? = null,
     val components: List<LayoutComponent>? = null
 )

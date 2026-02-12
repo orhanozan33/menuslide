@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<component name="RootScene" extends="Group">
+  <script type="text/brightscript" uri="pkg:/components/RootScene.brs"/>
+  <interface>
+    <field id="showMain" type="boolean" value="false" alwaysNotify="true"/>
+  </interface>
+  <children>
+    <ActivationScene id="activation"/>
+    <MainScene id="main" visible="false"/>
+  </children>
+</component>

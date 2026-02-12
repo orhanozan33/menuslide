@@ -861,7 +861,7 @@ export default function SettingsPage() {
                 <div className="flex flex-wrap items-center gap-2 mb-3">
                   <button
                     type="button"
-                    disabled={syncVersionLoading || !tvAppConfig.downloadUrl?.startsWith('http')}
+                    disabled={syncVersionLoading || !tvAppConfig.downloadUrl?.trim()}
                     onClick={async () => {
                       const authToken = typeof window !== 'undefined' ? (sessionStorage.getItem('impersonation_token') || localStorage.getItem('auth_token')) : null;
                       if (!authToken) {
@@ -896,7 +896,7 @@ export default function SettingsPage() {
                     {syncVersionLoading ? t('common_saving') : 'Sürümü APK\'dan oku'}
                   </button>
                   {!tvAppConfig.downloadUrl?.startsWith('http') && (
-                    <span className="text-xs text-gray-500">İndirme linki tam URL olmalı (örn. Supabase Storage).</span>
+                    <span className="text-xs text-gray-500">Görece link (/downloads/...) kullanılıyorsa API taban URL ile birleştirilir.</span>
                   )}
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

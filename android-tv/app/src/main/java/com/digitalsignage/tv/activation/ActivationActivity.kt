@@ -43,8 +43,6 @@ class ActivationActivity : AppCompatActivity() {
             findViewById<TextView>(R.id.text_version)?.text = getString(R.string.version_label, BuildConfig.VERSION_NAME ?: "1.0")
         } catch (_: Throwable) { }
 
-        checkForUpdate()
-
         val inputCode = findViewById<EditText>(R.id.input_code)
         val btnActivate = findViewById<Button>(R.id.btn_activate)
         val labelError = findViewById<TextView>(R.id.label_error)
@@ -76,6 +74,11 @@ class ActivationActivity : AppCompatActivity() {
         btnActivate.setOnClickListener { doActivate() }
     }
 
+    override fun onResume() {
+        super.onResume()
+        checkForUpdate()
+    }
+
     private fun performActivate(
         code: String,
         inputCode: EditText,
@@ -104,18 +107,20 @@ class ActivationActivity : AppCompatActivity() {
             val config = withContext(Dispatchers.IO) { repository.getTvAppConfig() } ?: return@launch
             val currentCode = BuildConfig.VERSION_CODE
             val minRequired = config.minVersionCode
-            val latestAvailable = config.latestVersionCode
+            val latestAvailable = config.latestVersionCode ?: config.minVersionCode
 
             val isRequired = minRequired != null && currentCode < minRequired
             val isOptional = latestAvailable != null && currentCode < latestAvailable && !isRequired
 
             if (isRequired || isOptional) {
                 val downloadUrl = buildDownloadUrl(config.apiBaseUrl, config.downloadUrl)
-                withContext(Dispatchers.Main) {
-                    showUpdateDialog(
-                        required = isRequired,
-                        downloadUrl = downloadUrl
-                    )
+                if (downloadUrl.isNotBlank() && !isFinishing) {
+                    withContext(Dispatchers.Main) {
+                        if (!isFinishing) showUpdateDialog(
+                            required = isRequired,
+                            downloadUrl = downloadUrl
+                        )
+                    }
                 }
             }
         }
