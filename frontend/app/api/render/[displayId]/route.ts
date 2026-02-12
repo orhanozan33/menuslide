@@ -28,7 +28,8 @@ export async function GET(
         { status: 503, headers: { 'Content-Type': 'text/plain' } }
       );
     }
-    return new NextResponse(bytes, {
+    const body = new Uint8Array(bytes);
+    return new NextResponse(body, {
       headers: {
         'Content-Type': 'image/jpeg',
         'Cache-Control': 'private, max-age=60',
