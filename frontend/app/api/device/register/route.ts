@@ -16,9 +16,9 @@ export async function POST(request: Request) {
         { status: 503 }
       );
     }
-    const body = await request.json();
-    const displayCode = String(body?.displayCode ?? '').trim();
-    const deviceId = String(body?.deviceId ?? '').trim();
+    const body = (await request.json()) as Record<string, unknown>;
+    const displayCode = String(body?.displayCode ?? body?.displaycode ?? '').trim();
+    const deviceId = String(body?.deviceId ?? body?.deviceid ?? '').trim();
     if (!displayCode) {
       return NextResponse.json({ error: 'displayCode required' }, { status: 400 });
     }
@@ -27,7 +27,7 @@ export async function POST(request: Request) {
     // Önce broadcast_code ile ara (string), sayısal kod ise sayı ile de dene
     const { data: byBroadcast, error: errBroadcast } = await supabase
       .from('screens')
-      .select('id, public_slug, public_token, broadcast_code, stream_url')
+      .select('id, public_slug, public_token, broadcast_code, stream_url, updated_at')
       .eq('broadcast_code', displayCode)
       .eq('is_active', true)
       .limit(1)
@@ -40,7 +40,7 @@ export async function POST(request: Request) {
     if (!screen && /^\d+$/.test(displayCode)) {
     const { data: byNum } = await supabase
       .from('screens')
-      .select('id, public_slug, public_token, broadcast_code, stream_url')
+      .select('id, public_slug, public_token, broadcast_code, stream_url, updated_at')
         .eq('broadcast_code', parseInt(displayCode, 10))
         .eq('is_active', true)
         .limit(1)
@@ -50,7 +50,7 @@ export async function POST(request: Request) {
     if (!screen) {
       const { data: bySlug, error: errSlug } = await supabase
         .from('screens')
-        .select('id, public_slug, public_token, broadcast_code, stream_url')
+        .select('id, public_slug, public_token, broadcast_code, stream_url, updated_at')
         .eq('public_slug', displayCode)
         .eq('is_active', true)
         .limit(1)
@@ -61,7 +61,7 @@ export async function POST(request: Request) {
     if (!screen) {
       const { data: byToken, error: errToken } = await supabase
         .from('screens')
-        .select('id, public_slug, public_token, broadcast_code, stream_url')
+        .select('id, public_slug, public_token, broadcast_code, stream_url, updated_at')
         .eq('public_token', displayCode)
         .eq('is_active', true)
         .limit(1)
@@ -103,9 +103,12 @@ export async function POST(request: Request) {
       videoUrls = [displayUrlWithLite];
     }
 
+    const layoutVersion = (screen as { updated_at?: string }).updated_at ?? new Date().toISOString();
+
     return NextResponse.json({
       deviceToken,
       layout,
+      layoutVersion,
       videoUrls,
       refreshIntervalSeconds: 300,
     });
