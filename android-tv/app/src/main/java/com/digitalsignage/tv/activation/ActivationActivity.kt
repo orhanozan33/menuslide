@@ -4,8 +4,10 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.view.View
+import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
+import android.widget.ListView
 import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.activity.viewModels
@@ -32,13 +34,6 @@ class ActivationActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         try {
-            if (repository.getDeviceToken() != null) {
-                startActivity(Intent(this, MainActivity::class.java).apply { flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK })
-                finish()
-                return
-            }
-        } catch (_: Throwable) { }
-        try {
             setContentView(R.layout.activity_activation)
         } catch (e: Throwable) {
             android.util.Log.e("Activation", "setContentView failed", e)
@@ -54,27 +49,52 @@ class ActivationActivity : AppCompatActivity() {
         val btnActivate = findViewById<Button>(R.id.btn_activate)
         val labelError = findViewById<TextView>(R.id.label_error)
         val progress = findViewById<ProgressBar>(R.id.progress)
+        val listRecentCodes = findViewById<ListView>(R.id.list_recent_codes)
 
-        btnActivate.setOnClickListener {
+        val recentCodes = repository.getRecentCodes()
+        val adapter = ArrayAdapter(this, R.layout.list_item_recent_code, R.id.item_code, recentCodes)
+        listRecentCodes.adapter = adapter
+
+        listRecentCodes.setOnItemClickListener { _, _, position, _ ->
+            val code = adapter.getItem(position)?.toString()?.trim() ?: return@setOnItemClickListener
+            if (code.isNotEmpty()) {
+                inputCode.setText(code)
+                performActivate(code, inputCode, btnActivate, labelError, progress)
+            }
+        }
+
+        fun doActivate() {
             val code = inputCode.text?.toString()?.trim().orEmpty()
             if (code.isEmpty()) {
                 labelError.text = getString(R.string.hint_code)
                 labelError.visibility = View.VISIBLE
-                return@setOnClickListener
+                return
             }
-            labelError.visibility = View.GONE
-            progress.visibility = View.VISIBLE
-            btnActivate.isEnabled = false
-            viewModel.activate(code) { result ->
-                progress.visibility = View.GONE
-                btnActivate.isEnabled = true
-                result.onSuccess {
-                    startActivity(Intent(this, MainActivity::class.java).apply { flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK })
-                    finish()
-                }.onFailure {
-                    labelError.text = it.message ?: "Activation failed"
-                    labelError.visibility = View.VISIBLE
-                }
+            performActivate(code, inputCode, btnActivate, labelError, progress)
+        }
+
+        btnActivate.setOnClickListener { doActivate() }
+    }
+
+    private fun performActivate(
+        code: String,
+        inputCode: EditText,
+        btnActivate: Button,
+        labelError: TextView,
+        progress: ProgressBar
+    ) {
+        labelError.visibility = View.GONE
+        progress.visibility = View.VISIBLE
+        btnActivate.isEnabled = false
+        viewModel.activate(code) { result ->
+            progress.visibility = View.GONE
+            btnActivate.isEnabled = true
+            result.onSuccess {
+                startActivity(Intent(this, MainActivity::class.java).apply { flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK })
+                finish()
+            }.onFailure {
+                labelError.text = it.message ?: "Activation failed"
+                labelError.visibility = View.VISIBLE
             }
         }
     }

@@ -51,8 +51,6 @@ interface Screen {
   template_transition_effect?: string;
   /** Son 2 dakikada bu ekran linkini açan benzersiz cihaz sayısı (heartbeat) */
   active_viewer_count?: number;
-  /** İsteğe bağlı HLS/MP4 stream URL (VLC ve TV uygulamasında kullanılır) */
-  stream_url?: string | null;
   templateRotations?: Array<{
     id: string;
     template_id: string;
@@ -514,18 +512,25 @@ export default function ScreensPage() {
     }
   };
 
+  const isRegularUser = userRole !== 'super_admin' && userRole !== 'admin';
+
   const handlePublishClick = async (screen: Screen) => {
     setSelectedScreenId(screen.id);
     await loadTemplates();
     const current =
-      screen.templateRotations?.map((r) => ({
-        template_id: r.template_id || (r as { full_editor_template_id?: string }).full_editor_template_id || '',
-        display_duration: r.display_duration ?? 5,
-        template_type: (r as { full_editor_template_id?: string }).full_editor_template_id ? ('full_editor' as const) : ('block' as const),
-        full_editor_template_id: (r as { full_editor_template_id?: string }).full_editor_template_id ?? undefined,
-        transition_effect: (r as { transition_effect?: string }).transition_effect ?? 'fade',
-        transition_duration: (r as { transition_duration?: number }).transition_duration ?? 1400,
-      })) ?? [];
+      screen.templateRotations?.map((r) => {
+        const dur = r.display_duration ?? 5;
+        const transDur = (r as { transition_duration?: number }).transition_duration ?? 1400;
+        const effect = (r as { transition_effect?: string }).transition_effect ?? 'fade';
+        return {
+          template_id: r.template_id || (r as { full_editor_template_id?: string }).full_editor_template_id || '',
+          display_duration: isRegularUser ? Math.max(30, dur) : dur,
+          template_type: (r as { full_editor_template_id?: string }).full_editor_template_id ? ('full_editor' as const) : ('block' as const),
+          full_editor_template_id: (r as { full_editor_template_id?: string }).full_editor_template_id ?? undefined,
+          transition_effect: isRegularUser ? 'slide-left' : effect,
+          transition_duration: isRegularUser ? Math.min(5000, transDur) : transDur,
+        };
+      }) ?? [];
     setSelectedTemplates(current);
     setPublishFrameType(screen.frame_type || 'none');
     setPublishTickerText(screen.ticker_text || '');
@@ -549,6 +554,14 @@ export default function ScreensPage() {
     }
   };
 
+  const displayDurationMin = isRegularUser ? 30 : 1;
+  const displayDurationMax = isRegularUser ? 300 : 300;
+  const transitionDurationMax = 5000;
+  const transitionEffectOptions = isRegularUser ? TRANSITION_OPTIONS.filter((o) => o.value === 'slide-left') : TRANSITION_OPTIONS;
+  const defaultDisplayDuration = isRegularUser ? 30 : 5;
+  const defaultTransitionEffect = isRegularUser ? 'slide-left' : 'fade';
+  const defaultTransitionDuration = isRegularUser ? 5000 : 1400;
+
   const handleTemplateToggle = (templateId: string, isFullEditor?: boolean) => {
     setSelectedTemplates((prev) => {
       const exists = prev.find((t) => t.template_id === templateId);
@@ -557,36 +570,39 @@ export default function ScreensPage() {
       } else {
         return [...prev, {
           template_id: templateId,
-          display_duration: 5,
+          display_duration: defaultDisplayDuration,
           template_type: isFullEditor ? 'full_editor' : 'block',
           full_editor_template_id: isFullEditor ? templateId : undefined,
-          transition_effect: 'fade',
-          transition_duration: 1400,
+          transition_effect: defaultTransitionEffect,
+          transition_duration: defaultTransitionDuration,
         }];
       }
     });
   };
 
   const handleDurationChange = (templateId: string, duration: number) => {
+    const clamped = Math.max(displayDurationMin, Math.min(displayDurationMax, duration));
     setSelectedTemplates((prev) =>
       prev.map((t) =>
-        t.template_id === templateId ? { ...t, display_duration: duration } : t
+        t.template_id === templateId ? { ...t, display_duration: clamped } : t
       )
     );
   };
 
   const handleTransitionEffectChange = (templateId: string, value: string) => {
+    const allowed = isRegularUser && value !== 'slide-left' ? 'slide-left' : value;
     setSelectedTemplates((prev) =>
       prev.map((t) =>
-        t.template_id === templateId ? { ...t, transition_effect: value } : t
+        t.template_id === templateId ? { ...t, transition_effect: allowed } : t
       )
     );
   };
 
   const handleTransitionDurationChange = (templateId: string, value: number) => {
+    const clamped = Math.min(transitionDurationMax, Math.max(200, value));
     setSelectedTemplates((prev) =>
       prev.map((t) =>
-        t.template_id === templateId ? { ...t, transition_duration: value } : t
+        t.template_id === templateId ? { ...t, transition_duration: clamped } : t
       )
     );
   };
@@ -806,36 +822,6 @@ export default function ScreensPage() {
                     {t('btn_copy')}
                   </button>
                 </div>
-              </div>
-              <div className="mb-4 pb-4 border-b border-gray-100">
-                <p className="text-xs sm:text-sm text-gray-600 mb-2 font-medium">VLC için link (yayın akışı)</p>
-                {(screen as Screen).stream_url && (screen as Screen).stream_url!.trim() ? (
-                  <div className="flex items-center gap-2 min-w-0">
-                    <input
-                      type="text"
-                      value={(screen as Screen).stream_url!}
-                      readOnly
-                      className="flex-1 min-w-0 px-2 sm:px-3 py-1.5 text-xs sm:text-sm border border-violet-200 rounded-lg bg-violet-50 text-gray-900 font-mono truncate"
-                    />
-                    <button
-                      onClick={() => {
-                        const url = (screen as Screen).stream_url?.trim();
-                        if (url) {
-                          navigator.clipboard?.writeText(url);
-                          toast.showSuccess('VLC linki kopyalandı. VLC → Medya → Ağ Akışından Aç\'a yapıştırın.');
-                        }
-                      }}
-                      className="px-3 sm:px-4 py-1.5 text-xs sm:text-sm bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors font-medium whitespace-nowrap"
-                    >
-                      {t('btn_copy')}
-                    </button>
-                  </div>
-                ) : (
-                  <p className="text-xs text-gray-500 mb-1">Tanımlı değil. VLC’de doğrudan stream açmak için ekrana tıklayıp &quot;Yayın linki (VLC)&quot; alanını doldurun.</p>
-                )}
-                <Link href={localePath(`/screens/${screen.id}`)} className="text-xs text-violet-600 hover:underline font-medium">
-                  Ekranı düzenle →
-                </Link>
               </div>
               <div className="flex items-center justify-between text-xs sm:text-sm mb-4 flex-wrap gap-2">
                 <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${screen.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
@@ -1064,11 +1050,11 @@ export default function ScreensPage() {
                               </label>
                               <input
                                 type="number"
-                                min="1"
-                                max="300"
-                                value={selectedTemplate?.display_duration ?? 5}
+                                min={displayDurationMin}
+                                max={displayDurationMax}
+                                value={selectedTemplate?.display_duration ?? defaultDisplayDuration}
                                 onChange={(e) =>
-                                  handleDurationChange(template.id, Math.max(1, parseInt(e.target.value) || 5))
+                                  handleDurationChange(template.id, Math.max(displayDurationMin, parseInt(e.target.value) || defaultDisplayDuration))
                                 }
                                 className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 text-sm"
                               />
@@ -1079,11 +1065,11 @@ export default function ScreensPage() {
                                 {t('screens_transition_effect')}
                               </label>
                               <select
-                                value={selectedTemplate?.transition_effect ?? 'fade'}
+                                value={selectedTemplate?.transition_effect ?? defaultTransitionEffect}
                                 onChange={(e) => handleTransitionEffectChange(template.id, e.target.value)}
                                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 text-sm"
                               >
-                                {TRANSITION_OPTIONS.map((opt) => (
+                                {transitionEffectOptions.map((opt) => (
                                   <option key={opt.value} value={opt.value}>{t(opt.labelKey)}</option>
                                 ))}
                               </select>
@@ -1095,11 +1081,11 @@ export default function ScreensPage() {
                               <input
                                 type="number"
                                 min="200"
-                                max="5000"
+                                max={transitionDurationMax}
                                 step="100"
-                                value={selectedTemplate?.transition_duration ?? 1400}
+                                value={selectedTemplate?.transition_duration ?? defaultTransitionDuration}
                                 onChange={(e) =>
-                                  handleTransitionDurationChange(template.id, Math.max(200, parseInt(e.target.value) || 1400))
+                                  handleTransitionDurationChange(template.id, Math.max(200, Math.min(transitionDurationMax, parseInt(e.target.value) || defaultTransitionDuration)))
                                 }
                                 className="w-28 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 text-sm"
                               />
@@ -1111,8 +1097,8 @@ export default function ScreensPage() {
                               const previewIndex = selectedTemplates.findIndex((t) => t.template_id === template.id);
                               if (previewIndex < 0 || !slug) return null;
                               const previewUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/display/${slug}?previewIndex=${previewIndex}`;
-                              const effect = selectedTemplate?.transition_effect ?? 'fade';
-                              const durationMs = selectedTemplate?.transition_duration ?? 1400;
+                              const effect = selectedTemplate?.transition_effect ?? defaultTransitionEffect;
+                              const durationMs = selectedTemplate?.transition_duration ?? defaultTransitionDuration;
                               return (
                                 <div className="pt-2">
                                   <button

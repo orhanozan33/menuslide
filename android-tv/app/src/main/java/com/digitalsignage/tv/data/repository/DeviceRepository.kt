@@ -86,6 +86,7 @@ class DeviceRepository @Inject constructor(
                 saveDeviceToken(body.deviceToken)
                 val displayUrl = body.videoUrls?.firstOrNull()?.trim()?.takeIf { it.isNotEmpty() }
                 saveDisplayUrl(displayUrl)
+                addRecentCode(displayCode.trim())
                 val layoutJson = body.layout?.let { gson.toJson(it) }
                 deviceDao.insert(
                     DeviceEntity(
@@ -150,9 +151,26 @@ class DeviceRepository @Inject constructor(
         try { api.getTvAppConfig().body() } catch (_: Exception) { null }
     }
 
+    private val recentCodesMax = 10
+
+    fun getRecentCodes(): List<String> {
+        val raw = prefs.getString(KEY_RECENT_CODES, null) ?: return emptyList()
+        return raw.split(',').map { it.trim() }.filter { it.isNotEmpty() }
+    }
+
+    fun addRecentCode(code: String) {
+        if (code.isBlank()) return
+        val current = getRecentCodes().toMutableList()
+        current.remove(code)
+        current.add(0, code)
+        val trimmed = current.take(recentCodesMax)
+        prefs.edit().putString(KEY_RECENT_CODES, trimmed.joinToString(",")).apply()
+    }
+
     companion object {
         private const val KEY_DEVICE_TOKEN = "device_token"
         private const val KEY_DEVICE_ID = "device_id"
         private const val KEY_DISPLAY_URL = "display_url"
+        private const val KEY_RECENT_CODES = "recent_codes"
     }
 }

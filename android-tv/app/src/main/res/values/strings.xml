@@ -3,6 +3,7 @@
     <string name="app_name">MenuSlide TV</string>
     <string name="label_broadcast_code">Display Code</string>
     <string name="hint_code">Enter code</string>
+    <string name="recent_codes_title">Daha önce girilen kodlar</string>
     <string name="btn_start">Start</string>
     <string name="btn_activate">Activate</string>
     <string name="error_network">Connection error. Will retry.</string>

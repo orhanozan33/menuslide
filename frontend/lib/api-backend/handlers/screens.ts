@@ -73,8 +73,21 @@ async function isSubscriptionActive(supabase: ReturnType<typeof getServerSupabas
 
 const SUPER_ADMIN_MAX_SCREENS = 50;
 
-/** Abonelik ve ekran limiti kontrolü. super_admin: işletme başına cap. admin/tv_user: limit yok (sistem TV = sınırsız yayın). */
+/** Abonelik ve ekran limiti kontrolü. super_admin: işletme başına cap. admin/tv_user: limit yok (sistem TV = sınırsız yayın). sistemtv@gmail.com: sadece bu kullanıcı için ekran ve yayın limiti yok. */
 async function canCreateScreen(businessId: string, user: JwtPayload): Promise<{ ok: boolean; message?: string }> {
+  // sistemtv@gmail.com kullanıcısının işletmesi için ekran limiti yok — sadece bu kullanıcı için geçerli
+  try {
+    if (useLocalDb()) {
+      const row = await queryOne<{ cnt: string }>('SELECT COUNT(*)::text as cnt FROM users WHERE business_id = $1 AND LOWER(email) = $2', [businessId, 'sistemtv@gmail.com']);
+      if (row && parseInt(row.cnt || '0', 10) > 0) return { ok: true };
+    } else {
+      const supabase = getServerSupabase();
+      const { data } = await supabase.from('users').select('id').eq('business_id', businessId).ilike('email', 'sistemtv@gmail.com').limit(1).maybeSingle();
+      if (data) return { ok: true };
+    }
+  } catch {
+    // Hata olursa normal akışa devam et
+  }
   if (user.role === 'super_admin') {
     try {
       let count = 0;
@@ -217,7 +230,7 @@ export async function update(id: string, request: NextRequest, user: JwtPayload)
   } catch {
     return Response.json({ message: 'Invalid JSON' }, { status: 400 });
   }
-  const allowed = ['name', 'location', 'is_active', 'animation_type', 'animation_duration', 'language_code', 'font_family', 'primary_color', 'background_style', 'background_color', 'background_image_url', 'logo_url', 'template_id', 'frame_type', 'ticker_text', 'ticker_style', 'allow_multi_device', 'stream_url'];
+  const allowed = ['name', 'location', 'is_active', 'animation_type', 'animation_duration', 'language_code', 'font_family', 'primary_color', 'background_style', 'background_color', 'background_image_url', 'logo_url', 'template_id', 'frame_type', 'ticker_text', 'ticker_style', 'allow_multi_device'];
   const updates: Record<string, unknown> = {};
   for (const k of allowed) if (body[k] !== undefined) updates[k] = body[k];
 
@@ -429,6 +442,20 @@ export async function publishTemplates(screenId: string, request: NextRequest, u
   }
   const templates = (body.templates ?? []) as PublishTemplate[];
   if (templates.length === 0) return Response.json({ message: 'At least one template required' }, { status: 400 });
+
+  // Standart kullanıcı (business_user) için kısıtlamalar: gösterim süresi min 30 sn, geçiş süresi max 5000 ms, geçiş efekti sadece slide-left
+  const isRegularUser = user.role !== 'super_admin' && user.role !== 'admin' && user.role !== 'tv_user';
+  if (isRegularUser) {
+    for (const t of templates) {
+      const dur = t.display_duration ?? 5;
+      if (dur < 30) return Response.json({ message: 'Gösterim süresi en az 30 saniye olmalıdır.' }, { status: 400 });
+      const transDur = t.transition_duration ?? 1400;
+      if (transDur > 5000) return Response.json({ message: 'Geçiş süresi en fazla 5000 ms olabilir.' }, { status: 400 });
+      const effect = t.transition_effect ?? 'fade';
+      if (effect !== 'slide-left') return Response.json({ message: 'Geçiş efekti sadece sağdan sola (slide-left) seçilebilir.' }, { status: 400 });
+    }
+  }
+
   const first = templates[0];
   const isFirstFullEditor = first.template_type === 'full_editor' || !!first.full_editor_template_id;
 

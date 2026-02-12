@@ -329,15 +329,17 @@ export async function recordViewerHeartbeat(token: string, request: NextRequest)
   if (!screenId) return Response.json({ ok: false, allowed: false });
 
   let allowMultiDevice = !!(screenRow as { allow_multi_device?: boolean })?.allow_multi_device;
-  // sistemtv@gmail.com kullanıcısı için tek cihaz kısıtlaması yok — sistemde bu kullanıcı varsa tüm ekranlarda çoklu cihaz
-  if (!allowMultiDevice) {
+  // sistemtv@gmail.com kullanıcısının işletmesine ait ekranlarda tek cihaz kısıtlaması yok — sadece bu kullanıcı için geçerli
+  if (!allowMultiDevice && screenRow?.business_id) {
     const { data: sistemTvUser } = await supabase
       .from('users')
-      .select('id')
+      .select('business_id')
       .ilike('email', 'sistemtv@gmail.com')
       .limit(1)
       .maybeSingle();
-    if (sistemTvUser) allowMultiDevice = true;
+    if (sistemTvUser && (sistemTvUser as { business_id?: string }).business_id === screenRow.business_id) {
+      allowMultiDevice = true;
+    }
   }
   if (allowMultiDevice) return Response.json({ ok: true, allowed: true });
 
@@ -387,11 +389,7 @@ export async function checkPlayerConfig(): Promise<Response> {
   }
 }
 
-/** ExoPlayer denemesi: bu kodu stick'te girince HLS test stream döner. */
-const EXO_TEST_CODE = 'EXOTEST';
-const EXO_TEST_HLS = 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8';
-
-/** POST /player/resolve – TV uygulaması: yayın kodu (12345) ile display URL döner. Body: { code, deviceId } */
+/** POST /player/resolve – TV uygulaması: yayın kodu ile display URL döner. Body: { code, deviceId } */
 export async function resolvePlayer(request: NextRequest): Promise<Response> {
   let body: { code?: string | number; deviceId?: string } = {};
   try {
@@ -402,15 +400,10 @@ export async function resolvePlayer(request: NextRequest): Promise<Response> {
   const code = String(body?.code ?? '').trim();
   if (!code) return Response.json({ error: 'CODE_REQUIRED' }, { status: 400 });
 
-  if (code.toUpperCase() === EXO_TEST_CODE) {
-    return Response.json({ streamUrl: EXO_TEST_HLS });
-  }
-
   const supabase = getServerSupabase();
-  // Önce koda göre ekranı bul (is_active kontrolü ayrı: pasifse net mesaj verelim)
   const { data: screen, error: sbError } = await supabase
     .from('screens')
-    .select('id, public_slug, public_token, is_active, stream_url')
+    .select('id, public_slug, public_token, is_active')
     .eq('broadcast_code', code)
     .limit(1)
     .maybeSingle();
@@ -418,7 +411,10 @@ export async function resolvePlayer(request: NextRequest): Promise<Response> {
   if (sbError) {
     console.error('[player/resolve] Supabase error:', sbError.message);
     return Response.json(
-      { error: 'CONFIG_ERROR', message: 'broadcast_code sütunu veya ekran tablosu eksik olabilir. Migration çalıştırıldı mı?' },
+      {
+        error: 'CONFIG_ERROR',
+        message: 'broadcast_code sütunu veya ekran tablosu eksik. Supabase SQL Editor\'da database/migration-tv-app-required.sql dosyasını çalıştırın.',
+      },
       { status: 503 }
     );
   }
@@ -428,16 +424,12 @@ export async function resolvePlayer(request: NextRequest): Promise<Response> {
       message: 'Bu kod ile eşleşen ekran yok. Admin panel → Ekranlar sayfasındaki 5 haneli kodu aynen girin.',
     });
   }
-  const scr = screen as { is_active?: boolean; public_slug?: string; public_token?: string; stream_url?: string | null };
+  const scr = screen as { is_active?: boolean; public_slug?: string; public_token?: string };
   if (scr.is_active === false) {
     return Response.json({
       error: 'CODE_INACTIVE',
       message: 'Bu ekran şu an pasif. Admin panel → Ekranlar\'da ilgili TV\'yi Aktif yapın.',
     });
-  }
-  const customStreamUrl = (scr.stream_url ?? '').trim();
-  if (customStreamUrl && (customStreamUrl.startsWith('http://') || customStreamUrl.startsWith('https://'))) {
-    return Response.json({ streamUrl: customStreamUrl });
   }
   const slugOrToken = scr.public_slug || scr.public_token;
   if (!slugOrToken) {
