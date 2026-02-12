@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { randomBytes } from 'crypto';
 import * as bcrypt from 'bcryptjs';
 import { getServerSupabase } from '@/lib/supabase-server';
+import { getDefaultStreamUrl } from '@/lib/stream-url';
 import type { JwtPayload } from '@/lib/auth-server';
 import { useLocalDb, insertLocal, updateLocal, deleteLocal, mirrorToSupabase, queryOne, runLocal, getLocalPg, isSupabaseConfigured } from '@/lib/api-backend/db-local';
 import { insertAdminActivityLog } from '@/lib/api-backend/admin-activity-log';
@@ -50,7 +51,7 @@ async function createScreensForBusiness(businessId: string, maxScreens: number):
       const name = `TV${currentCount + i + 1}`;
       const publicToken = randomBytes(32).toString('hex');
       const publicSlug = `${businessName}-${name}-${Date.now().toString(36)}`.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-');
-      const streamUrl = `https://cdn.menuslide.com/stream/${publicSlug}.m3u8`;
+      const streamUrl = getDefaultStreamUrl(publicSlug);
       await client.query(
         `INSERT INTO screens (business_id, name, public_token, public_slug, is_active, animation_type, animation_duration, stream_url)
          VALUES ($1, $2, $3, $4, true, 'fade', 500, $5)`,
@@ -69,7 +70,7 @@ async function createScreensForBusiness(businessId: string, maxScreens: number):
       const name = `TV${currentCount + i + 1}`;
       const publicToken = randomBytes(32).toString('hex');
       const publicSlug = `${businessName}-${name}-${Date.now().toString(36)}`.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-');
-      const streamUrl = `https://cdn.menuslide.com/stream/${publicSlug}.m3u8`;
+      const streamUrl = getDefaultStreamUrl(publicSlug);
       await supabase.from('screens').insert({ business_id: businessId, name, public_token: publicToken, public_slug: publicSlug, is_active: true, animation_type: 'fade', animation_duration: 500, stream_url: streamUrl });
     }
   }

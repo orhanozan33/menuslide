@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <component name="ContentGroup" extends="Group" focusable="true">
+  <script type="text/brightscript" uri="pkg:/components/ContentGroup.brs"/>
   <interface>
     <field name="exitRequested" type="boolean" value="false"/>
     <field name="registerresult" type="assocarray" alwaysNotify="true"/>

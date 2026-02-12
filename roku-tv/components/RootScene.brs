@@ -20,7 +20,7 @@ end sub
 
 function onKeyEvent(key as string, press as boolean) as boolean
     if not press then return false
-    if key = "back" then
+    if LCase(key) = "back" then
         if m.top.dialog <> invalid then
             kb = m.top.dialog
             if kb.textEditBox <> invalid and kb.textEditBox.text <> invalid then
@@ -32,6 +32,8 @@ function onKeyEvent(key as string, press as boolean) as boolean
                 end if
             end if
             m.top.dialog.close = true
+        else if m.main <> invalid then
+            m.main.requestShowCode = true
         else
             m.content.exitRequested = true
         end if
@@ -171,6 +173,9 @@ sub checkPendingRegisterResult()
     m.sec.write("deviceToken", token)
     m.sec.write("displayCode", m.code)
     layout = data.layout
+    if layout <> invalid and data.videoUrls <> invalid and data.videoUrls.count() > 0 then
+        layout.displayUrl = data.videoUrls[0]
+    end if
     if layout <> invalid then m.sec.write("layout", FormatJson(layout))
     lv = data.layoutVersion
     if lv = invalid then lv = data.layoutversion
@@ -179,9 +184,6 @@ sub checkPendingRegisterResult()
     if ri = invalid then ri = data.refreshintervalseconds
     if     ri <> invalid then m.sec.write("refreshInterval", Str(ri))
     m.sec.flush()
-    if layout <> invalid and data.videoUrls <> invalid and data.videoUrls.count() > 0 then
-        layout.displayUrl = data.videoUrls[0]
-    end if
     showMain(layout)
 end sub
 
@@ -204,6 +206,9 @@ sub onRegisterResult(msg as dynamic)
     m.sec.write("deviceToken", token)
     m.sec.write("displayCode", m.code)
     layout = data.layout
+    if layout <> invalid and data.videoUrls <> invalid and data.videoUrls.count() > 0 then
+        layout.displayUrl = data.videoUrls[0]
+    end if
     if layout <> invalid then m.sec.write("layout", FormatJson(layout))
     lv = data.layoutVersion
     if lv = invalid then lv = data.layoutversion
@@ -212,10 +217,7 @@ sub onRegisterResult(msg as dynamic)
     if ri = invalid then ri = data.refreshintervalseconds
     if     ri <> invalid then m.sec.write("refreshInterval", Str(ri))
     m.sec.flush()
-    if data.layout <> invalid and data.videoUrls <> invalid and data.videoUrls.count() > 0 then
-        data.layout.displayUrl = data.videoUrls[0]
-    end if
-    showMain(data.layout)
+    showMain(layout)
 end sub
 
 sub showMain(initialLayout = invalid as dynamic)
@@ -223,6 +225,20 @@ sub showMain(initialLayout = invalid as dynamic)
     m.content.visible = false
     m.main = m.top.createChild("MainScene")
     m.main.id = "main"
+    m.main.observeField("requestShowCode", "onMainRequestShowCode")
     if initialLayout <> invalid then m.main.layout = initialLayout
     m.main.setFocus(true)
+end sub
+
+sub onMainRequestShowCode(msg as dynamic)
+    if msg = invalid or msg.getData() <> true then return
+    m.main.unobserveField("requestShowCode")
+    m.sec.write("deviceToken", "")
+    m.sec.write("layout", "")
+    m.sec.write("layoutVersion", "")
+    m.sec.flush()
+    m.top.removeChild(m.main)
+    m.main = invalid
+    m.content.visible = true
+    m.content.setFocus(true)
 end sub

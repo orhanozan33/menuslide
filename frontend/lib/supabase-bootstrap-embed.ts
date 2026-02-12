@@ -3070,6 +3070,17 @@ CREATE TABLE IF NOT EXISTS home_channels (
 
 CREATE INDEX IF NOT EXISTS idx_home_channels_order ON home_channels(display_order);
 
+-- home_partners_config: ana sayfa hero İş Ortaklarımız & Partnerler (kayan yazı/logolar)
+CREATE TABLE IF NOT EXISTS home_partners_config (
+  id UUID PRIMARY KEY DEFAULT '00000000-0000-0000-0000-000000000002'::uuid,
+  business_partners JSONB NOT NULL DEFAULT '[]',
+  partners JSONB NOT NULL DEFAULT '[]',
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+INSERT INTO home_partners_config (id, business_partners, partners)
+VALUES ('00000000-0000-0000-0000-000000000002'::uuid, '[]', '[]')
+ON CONFLICT (id) DO NOTHING;
+
 -- === migration-ensure-password-hash.sql ===
 -- Backend login (password_hash) kullanıyorsa users tablosunda bu sütun olmalı.
 -- Supabase SQL Editor'de bir kez çalıştırın; sütun yoksa eklenir.

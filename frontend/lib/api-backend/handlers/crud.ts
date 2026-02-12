@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server';
 import { getServerSupabase } from '@/lib/supabase-server';
 import type { JwtPayload } from '@/lib/auth-server';
-import { useLocalDb, queryLocal, queryOne } from '@/lib/api-backend/db-local';
+import { useLocalDb, queryLocal, queryOne, runLocal } from '@/lib/api-backend/db-local';
+import { getDefaultStreamUrl } from '@/lib/stream-url';
 
 const TABLES_SCOPED_BY_BUSINESS = new Set(['menus', 'screens', 'templates', 'subscriptions']);
 const TABLES_SCOPED_BY_USER = new Set(['content-library']);
@@ -56,6 +57,15 @@ export async function handleGet(
         if (!u || u.business_id !== id) return Response.json({ message: 'Access denied' }, { status: 403 });
       }
       let data = await queryOne(`SELECT * FROM ${actualTable} WHERE id = $1`, [id]);
+      if (data && actualTable === 'screens') {
+        const slug = (data as { public_slug?: string }).public_slug;
+        const current = (data as { stream_url?: string }).stream_url;
+        if (slug && (!current || String(current).trim() === '')) {
+          const streamUrl = getDefaultStreamUrl(slug);
+          await runLocal('UPDATE screens SET stream_url = $1 WHERE id = $2', [streamUrl, id]);
+          data = { ...data, stream_url: streamUrl };
+        }
+      }
       if (data && actualTable === 'users' && (data as { role?: string }).role === 'admin') {
         const perms = await queryLocal<{ page_key: string; permission: string; actions?: Record<string, boolean> | null }>(
           'SELECT page_key, permission, actions FROM admin_permissions WHERE user_id = $1',
@@ -191,6 +201,15 @@ export async function handleGet(
     const { data, error } = await query.eq('id', id).maybeSingle();
     if (error) return Response.json({ message: error.message }, { status: 500 });
     let result = data ?? null;
+    if (result && actualTable === 'screens') {
+      const slug = (result as { public_slug?: string }).public_slug;
+      const current = (result as { stream_url?: string }).stream_url;
+      if (slug && (!current || String(current).trim() === '')) {
+        const streamUrl = getDefaultStreamUrl(slug);
+        await supabase.from('screens').update({ stream_url: streamUrl }).eq('id', id);
+        result = { ...result, stream_url: streamUrl };
+      }
+    }
     if (result && actualTable === 'users' && (result as { role?: string }).role === 'admin') {
       const { data: perms } = await supabase.from('admin_permissions').select('page_key, permission, actions').eq('user_id', id);
       const admin_permissions: Record<string, Record<string, boolean>> = {};

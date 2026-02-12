@@ -3,6 +3,7 @@ import Stripe from 'stripe';
 import { getServerSupabase } from '@/lib/supabase-server';
 import type { JwtPayload } from '@/lib/auth-server';
 import { randomBytes } from 'crypto';
+import { getDefaultStreamUrl } from '@/lib/stream-url';
 
 const stripeSecret = process.env.STRIPE_SECRET_KEY;
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -204,7 +205,7 @@ async function createScreensForBusiness(businessId: string, maxScreens: number):
     const name = `TV${currentCount + i + 1}`;
     const publicToken = generatePublicToken();
     const publicSlug = `${businessName}-${name}-${Date.now().toString(36)}`.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-');
-    const streamUrl = `https://cdn.menuslide.com/stream/${publicSlug}.m3u8`;
+    const streamUrl = getDefaultStreamUrl(publicSlug);
     await supabase.from('screens').insert({
       business_id: businessId,
       name,

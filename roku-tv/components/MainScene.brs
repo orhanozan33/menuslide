@@ -13,6 +13,8 @@ sub init()
     if r <> "" and r <> invalid then m.refreshInterval = Int(Val(r))
     if m.deviceToken = "" or m.deviceToken = invalid
         m.status.text = "Not activated. Restart channel."
+        m.status.visible = true
+        m.top.requestShowCode = true
         return
     end if
     m.top.observeField("layout", "onLayoutPassed")
@@ -39,6 +41,12 @@ sub loadLayout()
         startLayoutFetch()
         return
     end if
+    displayUrl = layout.displayUrl
+    if displayUrl = invalid then displayUrl = layout.displayurl
+    if displayUrl = invalid or (type(displayUrl) = "roString" and displayUrl.trim() = "") then
+        startLayoutFetch()
+        return
+    end if
     renderLayout(layout)
 end sub
 
@@ -52,13 +60,22 @@ end sub
 sub onLayoutResult(msg as dynamic)
     data = msg.getData()
     if data = invalid or data.error <> invalid then
-        m.status.text = "Cannot load layout. Check network."
+        if m.layoutFetchFailCount = invalid then m.layoutFetchFailCount = 0
+        m.layoutFetchFailCount = m.layoutFetchFailCount + 1
+        m.status.text = "Loading. Please Wait."
+        if m.layoutFetchFailCount >= 2 and (m.layoutStr = "" or m.layoutStr = invalid) then
+            m.top.requestShowCode = true
+        end if
         return
     end if
+    m.layoutFetchFailCount = 0
     layout = data.layout
     if layout = invalid then
-        m.status.text = "Cannot load layout. Check network."
+        m.status.text = "Loading. Please Wait."
         return
+    end if
+    if data.videoUrls <> invalid and data.videoUrls.count() > 0 then
+        layout.displayUrl = data.videoUrls[0]
     end if
     m.sec.write("layout", FormatJson(layout))
     if data.layoutVersion <> invalid and data.layoutVersion <> ""
@@ -70,9 +87,6 @@ sub onLayoutResult(msg as dynamic)
         m.sec.write("refreshInterval", Str(m.refreshInterval))
     end if
     m.sec.flush()
-    if data.videoUrls <> invalid and data.videoUrls.count() > 0 then
-        layout.displayUrl = data.videoUrls[0]
-    end if
     renderLayout(layout)
 end sub
 
@@ -82,6 +96,48 @@ function isVideoUrl(url as dynamic) as boolean
     n = Len(u)
     if n < 4 then return false
     return (n >= 5 and Mid(u, n - 4, 5) = ".m3u8") or (Mid(u, n - 3, 4) = ".mp4")
+end function
+
+function isHlsUrl(url as dynamic) as boolean
+    if url = invalid or type(url) <> "roString" then return false
+    u = url.trim()
+    n = Len(u)
+    return n >= 5 and Mid(u, n - 4, 5) = ".m3u8"
+end function
+
+sub setVideoContentAndPlay(url as string)
+    m.currentVideoUrl = url
+    m.status.visible = false
+    m.video.visible = true
+    videoContent = createObject("roSGNode", "ContentNode")
+    videoContent.url = url
+    if isHlsUrl(url) then
+        videoContent.streamFormat = "hls"
+        videoContent.live = true
+    else
+        videoContent.streamFormat = "mp4"
+    end if
+    m.video.content = videoContent
+    m.video.control = "play"
+    m.video.observeField("state", "onVideoState")
+end sub
+
+function isPlaceholderStreamUrl(url as dynamic) as boolean
+    if url = invalid or type(url) <> "roString" then return false
+    u = LCase(Trim(url))
+    return (Instr(1, u, "cdn.menuslide.com") > 0 and Instr(1, u, ".m3u8") > 0)
+end function
+
+function slugFromPlaceholderStreamUrl(url as string) as string
+    if url = invalid or type(url) <> "roString" then return ""
+    u = LCase(Trim(url))
+    prefix = "cdn.menuslide.com/stream/"
+    i = Instr(1, u, prefix)
+    if i < 1 then return ""
+    rest = Mid(u, i + Len(prefix), 999)
+    j = Instr(1, rest, ".m3u8")
+    if j < 1 then return rest
+    return Left(rest, j - 1)
 end function
 
 sub renderLayout(layout as object)
@@ -100,13 +156,7 @@ sub renderLayout(layout as object)
     if displayUrl = invalid then displayUrl = layout.displayurl
     if displayUrl <> invalid and displayUrl <> "" then
         if isVideoUrl(displayUrl) then
-            m.status.visible = false
-            m.video.visible = true
-            m.video.content = createObject("roSGNode", "ContentNode")
-            m.video.content.url = displayUrl
-            m.video.content.streamFormat = "hls"
-            m.video.control = "play"
-            m.video.observeField("state", "onVideoState")
+            setVideoContentAndPlay(displayUrl)
             startHeartbeat()
             return
         else
@@ -127,16 +177,10 @@ sub renderLayout(layout as object)
         videoUrl = layout.videoUrl
         if videoUrl = invalid then videoUrl = layout.videourl
         if videoUrl <> invalid and videoUrl <> ""
-            m.status.visible = false
-            m.video.visible = true
-            m.video.content = createObject("roSGNode", "ContentNode")
-            m.video.content.url = videoUrl
-            m.video.content.streamFormat = "hls"
-            m.video.control = "play"
-            m.video.observeField("state", "onVideoState")
+            setVideoContentAndPlay(videoUrl)
             hasVideo = true
         else
-            m.status.text = "No video URL in layout."
+            m.status.text = "Loading. Please Wait."
         end if
     else if layoutType = "components" and layoutComps <> invalid
         for each comp in layoutComps
@@ -145,13 +189,7 @@ sub renderLayout(layout as object)
             vurl = comp.videoUrl
             if vurl = invalid then vurl = comp.videourl
             if ctype = "video" and vurl <> invalid then
-                m.status.visible = false
-                m.video.visible = true
-                m.video.content = createObject("roSGNode", "ContentNode")
-                m.video.content.url = vurl
-                m.video.content.streamFormat = "hls"
-                m.video.control = "play"
-                m.video.observeField("state", "onVideoState")
+                setVideoContentAndPlay(vurl)
                 hasVideo = true
                 exit for
             end if
@@ -171,7 +209,7 @@ sub renderLayout(layout as object)
         startSlideTimer()
     else if not hasVideo and (layoutType <> "components" or layoutComps = invalid) then
         m.status.visible = true
-        m.status.text = "Connected. Set stream URL (HLS/MP4) in Admin for video."
+        m.status.text = "Set Stream URL In Admin For Video."
     end if
     startHeartbeat()
 end sub
@@ -275,8 +313,35 @@ end sub
 
 sub onVideoState()
     state = m.video.state
-    if state = "error"
-        m.status.text = "Playback error. Retrying..."
+    if state = "error" then
+        errCode = m.video.errorCode
+        errStr = m.video.errorStr
+        if errStr = invalid then errStr = m.video.errorMsg
+        print "[Video] Playback error. errorCode=" ; errCode ; " errorStr=" ; errStr
+        url = m.currentVideoUrl
+        print "[Video] currentVideoUrl=" ; url ; " isPlaceholder=" ; isPlaceholderStreamUrl(url)
+        if url <> invalid and (errCode = -1 or errCode = -3) and isPlaceholderStreamUrl(url) then
+            slug = slugFromPlaceholderStreamUrl(url)
+            print "[Video] slug extracted: " ; slug
+            if slug <> "" then
+                renderUrl = "https://menuslide.com/api/render/" + slug
+                print "[Video] Placeholder stream (404/yok), ekran goruntusune geciliyor: " ; renderUrl
+                m.video.control = "stop"
+                m.video.content = invalid
+                m.video.visible = false
+                m.mainImageDisplay.uri = renderUrl
+                m.mainImageDisplay.visible = true
+                m.status.visible = false
+                startHeartbeat()
+                return
+            end if
+        end if
+        if errCode = -3 or errCode = -5 then
+            print "[Video] SSL/sertifika hatasi olabilir (errorCode " ; errCode ; "). CDN sertifikasi gecerli olmali."
+        end if
+        if m.videoRetryCount = invalid then m.videoRetryCount = 0
+        m.videoRetryCount = m.videoRetryCount + 1
+        m.status.text = "Content Is Being Prepared. Please Wait."
         m.status.visible = true
         m.timer = CreateObject("roSGNode", "Timer")
         m.timer.duration = 5
@@ -287,6 +352,14 @@ sub onVideoState()
 end sub
 
 sub retryVideo()
+    if m.timer <> invalid then m.timer.unobserveField("fire")
+    m.timer = invalid
+    if m.videoRetryCount <> invalid and m.videoRetryCount >= 2 then
+        m.videoRetryCount = 0
+        m.status.text = "Loading. Please Wait."
+        startLayoutFetch()
+        return
+    end if
     m.video.control = "play"
     m.status.visible = false
 end sub
@@ -307,6 +380,15 @@ sub onHeartbeat()
     task.control = "RUN"
     startLayoutFetch()
 end sub
+
+function onKeyEvent(key as string, press as boolean) as boolean
+    if not press then return false
+    if LCase(key) = "back" then
+        m.top.requestShowCode = true
+        return true
+    end if
+    return false
+end function
 
 sub onHeartbeatResult(msg as dynamic)
     data = msg.getData()

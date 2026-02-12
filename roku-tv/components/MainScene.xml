@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8" ?>
-<component name="MainScene" extends="Group" xsdDialect="Roku-SceneGraph">
+<component name="MainScene" extends="Group" xsdDialect="Roku-SceneGraph" width="1920" height="1080" focusable="true">
   <script type="text/brightscript" uri="pkg:/components/MainScene.brs"/>
   <interface>
     <field id="layout" type="assocarray"/>
+    <field id="requestShowCode" type="boolean" value="false" alwaysNotify="true"/>
   </interface>
   <children>
     <Rectangle
@@ -32,7 +33,7 @@
       translation="[100, 100]"
       width="1720"
       height="60"
-      text="Yayın Yükleniyor..."
+      text="Loading. Please Wait."
       font="font:MediumBoldSystemFont"
       color="0xFFFFFFFF"
       visible="true"/>

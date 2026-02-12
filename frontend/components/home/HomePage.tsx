@@ -7,6 +7,8 @@ import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { HOME_CHANNELS } from '@/lib/home-channels';
 import { LoginModal } from './LoginModal';
 import { LegalModal } from './LegalModal';
+import { PartnersMarquee } from './PartnersMarquee';
+import type { PartnerItem } from '@/app/api/home-partners/route';
 
 interface HomeChannel {
   slug: string;
@@ -57,10 +59,10 @@ function TVFrame({
   return (
     <div
       ref={containerRef}
-      className="group flex flex-col items-center cursor-pointer touch-manipulation"
+      className="group flex flex-col items-center cursor-pointer touch-manipulation w-full min-w-0"
       onClick={onClick}
     >
-      <div className="relative w-full max-w-[520px] sm:max-w-[600px] md:max-w-[680px] lg:max-w-[780px] transition-transform duration-300 group-hover:scale-[1.01] group-active:scale-[0.99]">
+      <div className="relative w-full min-w-0 max-w-[520px] sm:max-w-[600px] md:max-w-[680px] lg:max-w-[780px] transition-transform duration-300 group-hover:scale-[1.01] group-active:scale-[0.99]">
         {/* TV kabini — ince metalik çerçeve 4 taraf, taşma yok */}
         <div
           className="relative overflow-hidden rounded-[4px]"
@@ -70,50 +72,36 @@ function TVFrame({
               '0 4px 16px rgba(0,0,0,0.35), 0 12px 32px -12px rgba(0,0,0,0.4)',
           }}
         >
-          {/* İnce metalik çerçeve — 4 taraf eşit, sağ kenar da dahil */}
+          {/* Çerçeve: 4 köşe aynı ince (4px), alt = üst */}
           <div
             className="absolute inset-0 rounded-[4px] overflow-hidden"
             style={{
-              background: 'linear-gradient(145deg, #6b6e74 0%, #5a5d63 25%, #4d5056 50%, #44474d 75%, #5c5f65 100%)',
-              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.25), inset 0 -1px 0 rgba(0,0,0,0.25)',
-              border: '6px solid #5a5d63',
-              borderTopColor: '#6b6e74',
-              borderRightColor: '#5a5d63',
-              borderBottomColor: '#44474d',
-              borderLeftColor: '#5a5d63',
+              background: '#5a5d63',
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.2), inset 0 -1px 0 rgba(0,0,0,0.2)',
+              border: '4px solid #5a5d63',
               boxSizing: 'border-box',
             }}
           />
           {/* Ekran alanı — gerçek TV’deki gibi içeri çekik */}
-          <div className="absolute inset-[8px] sm:inset-[10px] rounded-[2px] overflow-hidden bg-black relative">
+          <div className="absolute inset-[4px] rounded-[2px] overflow-hidden bg-black">
             {showIframe ? (
               <iframe
                 src={previewUrl}
                 title={title}
-                className="w-full h-full pointer-events-none"
+                className="absolute inset-0 w-full h-full border-0 pointer-events-none block"
                 loading="lazy"
                 onError={() => setLoadFailed(true)}
               />
             ) : (
-              <div className="w-full h-full bg-black">
+              <div className="absolute inset-0 w-full h-full bg-black">
                 {thumbnail ? (
-                  <img src={thumbnail} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" />
+                  <img src={thumbnail} alt="" className="w-full h-full object-contain" loading="lazy" decoding="async" />
                 ) : null}
               </div>
             )}
           </div>
           {/* Cam yansıması */}
-          <div className="absolute inset-[8px] sm:inset-[10px] rounded-[2px] pointer-events-none bg-gradient-to-b from-white/5 via-transparent to-transparent" />
-        </div>
-        {/* TV ayakları — metalik merkez taban */}
-        <div className="flex justify-center -mt-px">
-          <div
-            className="relative h-5 sm:h-6 w-[45%] min-w-[120px] rounded-b-md"
-            style={{
-              background: 'linear-gradient(180deg, #6b6e74 0%, #5a5d63 30%, #44474d 70%, #3d4046 100%)',
-              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.2), 0 4px 12px rgba(0,0,0,0.4)',
-            }}
-          />
+          <div className="absolute inset-[4px] rounded-[2px] pointer-events-none bg-gradient-to-b from-white/5 via-transparent to-transparent" />
         </div>
         {/* Channel label */}
         <div className="mt-3 text-center">
@@ -143,6 +131,10 @@ export function HomePage({ localePath }: HomePageProps) {
   const [contactInfo, setContactInfo] = useState({ email: '', phone: '', address: '', whatsapp: '' });
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [downloadUrl, setDownloadUrl] = useState('/downloads/Menuslide.apk');
+  const [partners, setPartners] = useState<{ business_partners: PartnerItem[]; partners: PartnerItem[] }>({
+    business_partners: [],
+    partners: [],
+  });
 
   useEffect(() => {
     fetch('/api/tv-app-config', { cache: 'no-store' })
@@ -179,6 +171,18 @@ export function HomePage({ localePath }: HomePageProps) {
           phone: data.phone || '',
           address: data.address || '',
           whatsapp: data.whatsapp || '',
+        })
+      )
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    fetch('/api/home-partners', { cache: 'no-store' })
+      .then((res) => res.json())
+      .then((data: { business_partners?: PartnerItem[]; partners?: PartnerItem[] }) =>
+        setPartners({
+          business_partners: Array.isArray(data.business_partners) ? data.business_partners : [],
+          partners: Array.isArray(data.partners) ? data.partners : [],
         })
       )
       .catch(() => {});
@@ -302,46 +306,37 @@ export function HomePage({ localePath }: HomePageProps) {
       </header>
 
       {/* Hero - Sistem tanıtımı */}
-      <section className="relative pt-20 sm:pt-28 md:pt-32 pb-12 sm:pb-20 md:pb-24 px-3 sm:px-6 md:px-12 overflow-hidden">
+      <section className="relative pt-20 sm:pt-28 md:pt-32 pb-6 sm:pb-10 md:pb-12 px-3 sm:px-6 md:px-12 overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(16,185,129,0.15),transparent)]" />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_40%_at_80%_50%,rgba(6,182,212,0.08),transparent)]" />
         <div className="max-w-4xl mx-auto text-center relative">
           <h1 className="text-2xl sm:text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-white mb-3 sm:mb-6 leading-[1.15] px-1">
             {t('home_hero_title')}
           </h1>
-          <p className="text-sm sm:text-lg md:text-xl text-white/60 max-w-2xl mx-auto mb-6 sm:mb-10 leading-relaxed px-1">
-            {t('home_hero_subtitle')}
-          </p>
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3 sm:gap-4">
-            <Link
-              href={localePath('/register')}
-              className="w-full sm:w-auto text-center font-semibold px-6 py-3.5 min-h-[48px] inline-flex items-center justify-center rounded-xl bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-white shadow-xl shadow-emerald-500/30 transition-all touch-manipulation"
-            >
-              {t('home_get_started')}
-            </Link>
-            <a
-              href="#channels"
-              className="w-full sm:w-auto text-center font-medium px-6 py-3.5 min-h-[48px] inline-flex items-center justify-center rounded-xl border border-white/20 text-white/90 hover:bg-white/5 active:bg-white/10 hover:border-white/30 transition-all touch-manipulation"
-            >
-              {t('home_watch_demos')}
-            </a>
-          </div>
+          {t('home_hero_subtitle') && (
+            <p className="text-sm sm:text-lg md:text-xl text-white/60 max-w-2xl mx-auto mb-6 sm:mb-10 leading-relaxed px-1">
+              {t('home_hero_subtitle')}
+            </p>
+          )}
+          <PartnersMarquee
+            titleBusinessPartners={t('home_partners_business')}
+            titlePartners={t('home_partners_partners')}
+            business_partners={partners.business_partners}
+            partners={partners.partners}
+          />
         </div>
       </section>
 
       {/* TV Kanalları - Önce gösteriliyor */}
-      <section id="channels" className="py-10 sm:py-16 md:py-20 px-3 sm:px-6 md:px-12 scroll-mt-20">
-        <div className="max-w-7xl mx-auto">
-          <h2 className="text-xl sm:text-3xl font-bold text-white text-center mb-2 sm:mb-4">
+      <section id="channels" className="pt-6 sm:pt-10 md:pt-12 pb-10 sm:pb-16 md:pb-20 px-3 sm:px-6 md:px-12 scroll-mt-20">
+        <div className="max-w-7xl mx-auto w-full min-w-0">
+          <h2 className="text-xl sm:text-3xl font-bold text-white text-center mb-6 sm:mb-12">
             {t('home_channels_title')}
           </h2>
-          <p className="text-white/50 text-center mb-6 sm:mb-12 max-w-2xl mx-auto text-sm sm:text-base px-1">
-            {t('home_channels_desc')}
-          </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-10 sm:gap-12 md:gap-16 place-items-center">
             {channels.map((ch) => (
-                <div key={ch.slug} className="flex justify-center w-full max-w-[520px] sm:max-w-[600px] md:max-w-[680px] lg:max-w-[780px]">
+                <div key={ch.slug} className="flex justify-center w-full min-w-0 max-w-[520px] sm:max-w-[600px] md:max-w-[680px] lg:max-w-[780px]">
                   <TVFrame
                     previewUrl={getPreviewUrl(ch, localePath)}
                     title={ch.title}
@@ -522,12 +517,16 @@ export function HomePage({ localePath }: HomePageProps) {
             download={downloadUrl.startsWith('/') ? 'Menuslide.apk' : undefined}
             target={downloadUrl.startsWith('http') ? '_blank' : undefined}
             rel={downloadUrl.startsWith('http') ? 'noopener noreferrer' : undefined}
-            className="inline-flex items-center justify-center gap-2 font-semibold px-8 py-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-white shadow-xl shadow-emerald-500/25 transition-all touch-manipulation min-h-[52px]"
+            className="inline-block rounded-xl overflow-hidden shadow-xl hover:opacity-95 active:opacity-90 transition-opacity touch-manipulation focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-[#06090f]"
+            aria-label={t('home_download_btn')}
           >
-            <svg className="w-6 h-6 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-            </svg>
-            {t('home_download_btn')}
+            <img
+              src="https://elcomercio.pe/resizer/99-qjsIGrIcKOQ3dy_LCUYGVvyI=/1200x672/smart/filters:format(jpeg):quality(75)/arc-anglerfish-arc2-prod-elcomercio.s3.amazonaws.com/public/FNG6RJHPD5EORHL227HF2CCB3U.jpg"
+              alt={t('home_download_btn')}
+              className="w-full max-w-[269px] h-auto block"
+              width={400}
+              height={224}
+            />
           </a>
         </div>
       </section>

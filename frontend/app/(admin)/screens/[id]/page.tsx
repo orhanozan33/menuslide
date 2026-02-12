@@ -8,6 +8,7 @@ import { useTranslation } from '@/lib/i18n/useTranslation';
 import { useToast } from '@/lib/ToastContext';
 import { FRAME_OPTIONS } from '@/components/display/DisplayFrame';
 import { TICKER_STYLES, TICKER_SYMBOLS } from '@/components/display/TickerTape';
+import { getDefaultStreamUrl } from '@/lib/stream-url';
 
 // QR Menu Section Component
 function QrMenuSection({ screenId, businessId }: { screenId: string; businessId: string }) {
@@ -118,7 +119,7 @@ export default function ScreenDetailPage() {
       setEditStreamUrl(existingStreamUrl || '');
       const slug = data?.public_slug || data?.public_token;
       if (!existingStreamUrl && slug) {
-        const defaultStreamUrl = `https://cdn.menuslide.com/stream/${slug}.m3u8`;
+        const defaultStreamUrl = getDefaultStreamUrl(slug);
         try {
           await apiClient(`/screens/${screenId}`, {
             method: 'PATCH',

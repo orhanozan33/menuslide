@@ -62,7 +62,14 @@ export async function GET(request: NextRequest) {
       };
       videoUrls = [streamUrl];
     } else {
-      const renderImageUrl = `${appUrl}/api/render/${encodeURIComponent(displaySlug ?? '')}`;
+      const cdnBase = process.env.NEXT_PUBLIC_CDN_BASE_URL?.replace(/\/$/, '') || '';
+      const slugEnc = encodeURIComponent(displaySlug ?? '');
+      const renderViaVercel = `${appUrl}/api/render/${slugEnc}`;
+      const cdnImageUrl = cdnBase ? `${cdnBase}/cdn/${slugEnc}.jpg` : '';
+      const renderImageUrl =
+        cdnBase && !cdnBase.toLowerCase().startsWith('http:')
+          ? cdnImageUrl
+          : renderViaVercel;
       layout = {
         version: 1,
         type: 'components',

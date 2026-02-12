@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 import { useToast } from '@/lib/ToastContext';
 import { HOME_CHANNELS } from '@/lib/home-channels';
+import type { PartnerItem } from '@/app/api/home-partners/route';
 
 interface Plan {
   id: string;
@@ -56,6 +57,13 @@ export default function SettingsPage() {
   const [stripeStatus, setStripeStatus] = useState<{ configured: boolean; hasPublishableKey: boolean; hasWebhookSecret: boolean } | null>(null);
   const [planModalId, setPlanModalId] = useState<string | null>(null);
   const [showChannelsModal, setShowChannelsModal] = useState(false);
+  const [showPartnersModal, setShowPartnersModal] = useState(false);
+  const [partnersData, setPartnersData] = useState<{ business_partners: PartnerItem[]; partners: PartnerItem[] }>({
+    business_partners: [],
+    partners: [],
+  });
+  const [partnersLoading, setPartnersLoading] = useState(false);
+  const [partnersSaving, setPartnersSaving] = useState(false);
   const [showStripeModal, setShowStripeModal] = useState(false);
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
   const [showInvoiceLayoutModal, setShowInvoiceLayoutModal] = useState(false);
@@ -92,6 +100,7 @@ export default function SettingsPage() {
     if (user?.role === 'super_admin' || user?.role === 'admin') {
       loadPlans();
       loadChannels();
+      loadPartners();
       loadContactInfo();
       loadStripeStatus();
       if (user?.role === 'super_admin' || user?.role === 'admin') loadTvAppConfig();
@@ -204,6 +213,47 @@ export default function SettingsPage() {
       next[index] = { ...next[index], [field]: value };
       return next;
     });
+  };
+
+  const loadPartners = async () => {
+    setPartnersLoading(true);
+    try {
+      const res = await fetch('/api/home-partners', { cache: 'no-store' });
+      const data = await res.json().catch(() => ({}));
+      setPartnersData({
+        business_partners: Array.isArray(data.business_partners) ? data.business_partners : [],
+        partners: Array.isArray(data.partners) ? data.partners : [],
+      });
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setPartnersLoading(false);
+    }
+  };
+
+  const savePartners = async () => {
+    setPartnersSaving(true);
+    try {
+      const token = sessionStorage.getItem('impersonation_token') || localStorage.getItem('auth_token');
+      const res = await fetch('/api/home-partners', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
+        body: JSON.stringify(partnersData),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.message || t('settings_save_failed'));
+      }
+      setShowPartnersModal(false);
+      toast.showSuccess(t('settings_contact_saved') || 'Kaydedildi');
+    } catch (e: any) {
+      toast.showError(e?.message || t('settings_save_failed'));
+    } finally {
+      setPartnersSaving(false);
+    }
   };
 
   const loadContactInfo = async () => {
@@ -320,6 +370,15 @@ export default function SettingsPage() {
     document.addEventListener('keydown', onEsc);
     return () => document.removeEventListener('keydown', onEsc);
   }, [showInvoiceLayoutModal, invoiceLayoutSaving]);
+
+  useEffect(() => {
+    if (!showPartnersModal) return;
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !partnersSaving) setShowPartnersModal(false);
+    };
+    document.addEventListener('keydown', onEsc);
+    return () => document.removeEventListener('keydown', onEsc);
+  }, [showPartnersModal, partnersSaving]);
 
   const loadStripeStatus = async () => {
     try {
@@ -521,6 +580,31 @@ export default function SettingsPage() {
             <div className="font-medium text-gray-900 mb-1">{t('settings_home_channels')}</div>
             <div className="text-sm text-gray-600">
               {channels.length === 0 ? t('settings_no_channels') : `${channels.length} ${t('settings_channel_title')}`}
+            </div>
+            <div className="mt-3 text-xs text-blue-600 font-medium">{t('btn_edit')} →</div>
+          </button>
+        )}
+      </section>
+      </>
+      )}
+
+      {canEditChannels && (
+      <>
+      {/* İş Ortakları & Partnerler — ana sayfa hero kayan alan */}
+      <section className="mb-10">
+        <h2 className="text-lg font-semibold text-gray-800 mb-4">İş Ortakları & Partnerler</h2>
+        <p className="text-sm text-gray-600 mb-4">Ana sayfa hero bölümünde &quot;Hemen Başla&quot; / &quot;Canlı Yayınlar&quot; butonları yerine gösterilen kayan yazı ve logolar. İş Ortaklarımız ve Partnerlerimiz listelerini buradan düzenleyin.</p>
+        {partnersLoading ? (
+          <div className="text-gray-500 py-8">{t('settings_loading')}</div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setShowPartnersModal(true)}
+            className="w-full text-left bg-white border-2 border-gray-200 rounded-xl p-5 hover:border-blue-400 hover:shadow-md transition-all"
+          >
+            <div className="font-medium text-gray-900 mb-1">İş Ortakları & Partnerler</div>
+            <div className="text-sm text-gray-600">
+              İş Ortaklarımız: {partnersData.business_partners.length} · Partnerlerimiz: {partnersData.partners.length}
             </div>
             <div className="mt-3 text-xs text-blue-600 font-medium">{t('btn_edit')} →</div>
           </button>
@@ -1149,6 +1233,129 @@ export default function SettingsPage() {
                 {channelsSaving ? t('common_saving') : t('btn_save')}
               </button>
               <button type="button" onClick={() => !channelsSaving && setShowChannelsModal(false)} className="px-4 py-2 text-sm bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">
+                {t('btn_cancel')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* İş Ortakları & Partnerler modali */}
+      {showPartnersModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => !partnersSaving && setShowPartnersModal(false)} role="dialog" aria-modal="true">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="p-4 border-b border-gray-200 flex justify-between items-center">
+              <h3 className="text-lg font-semibold text-gray-900">İş Ortakları & Partnerler</h3>
+              <button type="button" onClick={() => !partnersSaving && setShowPartnersModal(false)} className="text-gray-500 hover:text-gray-700 p-1">✕</button>
+            </div>
+            <div className="p-4 overflow-y-auto flex-1 space-y-8">
+              <div>
+                <h4 className="text-sm font-semibold text-gray-800 mb-2">İş Ortaklarımız</h4>
+                <p className="text-xs text-gray-500 mb-3">Ana sayfada kayan yazı/logo alanında gösterilir. Metin veya logo URL ekleyin.</p>
+                <div className="space-y-2">
+                  {partnersData.business_partners.map((item, idx) => (
+                    <div key={idx} className="flex gap-2 items-center border border-gray-200 rounded-lg p-2">
+                      <select
+                        value={item.kind}
+                        onChange={(e) => {
+                          const next = [...partnersData.business_partners];
+                          next[idx] = { ...next[idx], kind: e.target.value as 'text' | 'logo' };
+                          setPartnersData((p) => ({ ...p, business_partners: next }));
+                        }}
+                        className="border border-gray-300 rounded px-2 py-1.5 text-sm w-24"
+                      >
+                        <option value="text">Metin</option>
+                        <option value="logo">Logo URL</option>
+                      </select>
+                      <input
+                        type="text"
+                        value={item.value}
+                        onChange={(e) => {
+                          const next = [...partnersData.business_partners];
+                          next[idx] = { ...next[idx], value: e.target.value };
+                          setPartnersData((p) => ({ ...p, business_partners: next }));
+                        }}
+                        className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                        placeholder={item.kind === 'logo' ? 'https://... logo resim URL' : 'Firma adı'}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setPartnersData((p) => ({ ...p, business_partners: p.business_partners.filter((_, i) => i !== idx) }))}
+                        className="text-red-600 hover:text-red-700 p-1 text-sm"
+                        title="Sil"
+                      >
+                        Sil
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setPartnersData((p) => ({ ...p, business_partners: [...p.business_partners, { kind: 'text', value: '' }] }))}
+                    className="text-sm text-emerald-600 hover:text-emerald-700 font-medium"
+                  >
+                    + İş ortağı ekle
+                  </button>
+                </div>
+              </div>
+              <div>
+                <h4 className="text-sm font-semibold text-gray-800 mb-2">Partnerlerimiz</h4>
+                <p className="text-xs text-gray-500 mb-3">İkinci kayan satırda gösterilir.</p>
+                <div className="space-y-2">
+                  {partnersData.partners.map((item, idx) => (
+                    <div key={idx} className="flex gap-2 items-center border border-gray-200 rounded-lg p-2">
+                      <select
+                        value={item.kind}
+                        onChange={(e) => {
+                          const next = [...partnersData.partners];
+                          next[idx] = { ...next[idx], kind: e.target.value as 'text' | 'logo' };
+                          setPartnersData((p) => ({ ...p, partners: next }));
+                        }}
+                        className="border border-gray-300 rounded px-2 py-1.5 text-sm w-24"
+                      >
+                        <option value="text">Metin</option>
+                        <option value="logo">Logo URL</option>
+                      </select>
+                      <input
+                        type="text"
+                        value={item.value}
+                        onChange={(e) => {
+                          const next = [...partnersData.partners];
+                          next[idx] = { ...next[idx], value: e.target.value };
+                          setPartnersData((p) => ({ ...p, partners: next }));
+                        }}
+                        className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                        placeholder={item.kind === 'logo' ? 'https://... logo resim URL' : 'Partner adı'}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setPartnersData((p) => ({ ...p, partners: p.partners.filter((_, i) => i !== idx) }))}
+                        className="text-red-600 hover:text-red-700 p-1 text-sm"
+                        title="Sil"
+                      >
+                        Sil
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setPartnersData((p) => ({ ...p, partners: [...p.partners, { kind: 'text', value: '' }] }))}
+                    className="text-sm text-emerald-600 hover:text-emerald-700 font-medium"
+                  >
+                    + Partner ekle
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div className="p-4 border-t border-gray-200 flex gap-2">
+              <button
+                type="button"
+                onClick={savePartners}
+                disabled={partnersSaving}
+                className="flex-1 px-4 py-2 text-sm bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {partnersSaving ? t('common_saving') : t('btn_save')}
+              </button>
+              <button type="button" onClick={() => !partnersSaving && setShowPartnersModal(false)} className="px-4 py-2 text-sm bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">
                 {t('btn_cancel')}
               </button>
             </div>

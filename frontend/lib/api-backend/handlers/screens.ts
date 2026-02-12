@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { randomBytes } from 'crypto';
 import { getServerSupabase } from '@/lib/supabase-server';
+import { getDefaultStreamUrl } from '@/lib/stream-url';
 import type { JwtPayload } from '@/lib/auth-server';
 import { useLocalDb, queryOne, queryLocal, insertLocal, updateLocal, deleteLocal, runLocal, mirrorToSupabase } from '@/lib/api-backend/db-local';
 import { insertAdminActivityLog } from '@/lib/api-backend/admin-activity-log';
@@ -169,7 +170,7 @@ export async function create(request: NextRequest, user: JwtPayload): Promise<Re
       if (!exists) break;
       broadcastCode = generateBroadcastCode();
     }
-    const defaultStreamUrl = `https://cdn.menuslide.com/stream/${publicSlug}.m3u8`;
+    const defaultStreamUrl = getDefaultStreamUrl(publicSlug);
     const data = await insertLocal('screens', {
       business_id: businessId,
       name,
@@ -206,7 +207,7 @@ export async function create(request: NextRequest, user: JwtPayload): Promise<Re
     if (!existing) break;
     broadcastCode = generateBroadcastCode();
   }
-  const defaultStreamUrl = `https://cdn.menuslide.com/stream/${publicSlug}.m3u8`;
+  const defaultStreamUrl = getDefaultStreamUrl(publicSlug);
   const { data, error } = await supabase.from('screens').insert({
     business_id: businessId,
     name,
@@ -246,6 +247,7 @@ export async function update(id: string, request: NextRequest, user: JwtPayload)
       if (scr) {
         const biz = await queryOne<{ name?: string }>('SELECT name FROM businesses WHERE id = $1', [scr.business_id]);
         updates.public_slug = await uniqueSlugLocal(slugify(`${biz?.name || 'business'} ${body.name}`));
+        if (updates.public_slug) updates.stream_url = getDefaultStreamUrl(updates.public_slug as string);
       }
     }
     if (Object.keys(updates).length === 0) {
@@ -268,6 +270,7 @@ export async function update(id: string, request: NextRequest, user: JwtPayload)
       const { data: biz } = await supabase.from('businesses').select('name').eq('id', (scr as { business_id: string }).business_id).single();
       const businessName = (biz as { name?: string } | null)?.name || 'business';
       updates.public_slug = await uniqueSlug(supabase, slugify(`${businessName} ${body.name}`));
+      if (updates.public_slug) updates.stream_url = getDefaultStreamUrl(updates.public_slug as string);
     }
   }
   if (Object.keys(updates).length === 0) {

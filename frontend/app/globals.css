@@ -291,3 +291,25 @@ textarea::placeholder {
   justify-content: flex-start;
   padding-left: 8px;
 }
+
+/* Ana sayfa hero: kayan iş ortakları / partnerler */
+@keyframes partners-marquee-left {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+@keyframes partners-marquee-right {
+  0% { transform: translateX(-50%); }
+  100% { transform: translateX(0); }
+}
+.partners-marquee-left {
+  animation: partners-marquee-left 50s linear infinite;
+}
+.partners-marquee-right {
+  animation: partners-marquee-right 50s linear infinite;
+}
+.partners-marquee-left-gap {
+  animation: partners-marquee-left 50s linear infinite;
+}
+.partners-marquee-right-gap {
+  animation: partners-marquee-right 50s linear infinite;
+}
