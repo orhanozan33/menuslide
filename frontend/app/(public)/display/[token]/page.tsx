@@ -652,8 +652,9 @@ export default function DisplayPage() {
     const hideBottomFrame = !!tickerText;
     return (
       <EmbedFitWrapper ref={displayContainerRef}>
-        <div className="fixed inset-0 flex flex-col overflow-hidden" style={{ backgroundColor: '#0f172a' }}>
-          <div className="flex-1 min-h-0 relative overflow-hidden" style={{ backgroundColor: '#0f172a' }}>
+        <div className="fixed inset-0 flex flex-col overflow-hidden bg-black">
+          <div className="flex-1 min-h-0 relative overflow-hidden">
+            {/* Ustteki overlay arka plansiz; gecis sırasında altta onceki template gorunur, yeni onun uzerine biner */}
             {/* Base layer - aynı tip şablonlar arasında remount yok (key=displayTypeKey) */}
             {displayData?.digitalMenuData ? (
               <DisplayFrame frameType={frameType} hideBottomFrame={hideBottomFrame} className="absolute inset-0 w-full h-full">
@@ -716,7 +717,7 @@ export default function DisplayPage() {
             ) : null}
             {/* Geçiş overlay: animasyon bitene kadar üstte kalır, base layer onReady verince kaldırılır */}
             {showTransitionOverlay && (
-              <div className="absolute inset-0 z-[100] pointer-events-none" style={{ backgroundColor: '#0f172a' }}>
+              <div className="absolute inset-0 z-[100] pointer-events-none">
                 <TemplateTransition
                   inline
                   nextOnly

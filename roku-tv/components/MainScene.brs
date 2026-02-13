@@ -313,6 +313,10 @@ end sub
 
 sub onVideoState()
     state = m.video.state
+    if state = "finished" then
+        m.video.control = "play"
+        return
+    end if
     if state = "error" then
         errCode = m.video.errorCode
         errStr = m.video.errorStr
