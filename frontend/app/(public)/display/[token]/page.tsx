@@ -532,8 +532,7 @@ export default function DisplayPage() {
     const durationMs = durationSec * 1000;
     const nextIndex = (currentTemplateIndex + 1) % screenData.templateRotations!.length;
     const nextRot = screenData.templateRotations![nextIndex] as { transition_duration?: number } | undefined;
-    const rawTransition = nextRot?.transition_duration ?? 800;
-    const transitionDuration = Math.min(1000, Math.max(400, rawTransition));
+    const transitionDuration = nextRot?.transition_duration ?? 1400;
     const N = screenData.templateRotations!.length;
     const timer = setTimeout(() => {
       if (!mountedRef.current) return;
@@ -587,12 +586,13 @@ export default function DisplayPage() {
     displayReadyRef.current = () => {};
   }, []);
 
-  // Full editor dışı tiplerde (canvas, block) overlay'ı kaldır; base layer tam çizilsin diye yeterli gecikme (son template kararmasın)
+  // Full editor dışı tiplerde (canvas, block) overlay'ı kısa gecikmeyle kaldır; sadece geçiş bittikten sonra (current=next)
+  // Gecikme yeterli olsun ki base layer yeniden çizilsin, ekran kararmasın
   useEffect(() => {
     if (!nextTemplateData || currentTemplateIndex !== nextTemplateIndex) return;
     const isFullEditor = currentTemplateData?.template?.template_type === 'full_editor' && currentTemplateData?.template?.canvas_json;
     if (isFullEditor) return;
-    const t = setTimeout(handleDisplayReady, 600);
+    const t = setTimeout(handleDisplayReady, 280);
     return () => clearTimeout(t);
   }, [currentTemplateIndex, nextTemplateIndex, currentTemplateData?.template?.id, nextTemplateData, handleDisplayReady]);
 
@@ -640,9 +640,7 @@ export default function DisplayPage() {
   const nextRotation = screenData.templateRotations?.[nextTemplateIndex];
   const rotationEffect = nextRotation?.transition_effect;
   const transitionEffect = isLiteMode ? 'slide-left' : (rotationEffect || (screenData.screen as any).template_transition_effect || 'fade');
-  // Kisa gecis = daha akici, son template'te kararma azalir (varsayilan 800ms, max 1000ms)
-  const rawDuration = nextRotation?.transition_duration ?? 800;
-  const transitionDurationMs = isLowDeviceMode ? 300 : (isLiteMode ? 5000 : Math.min(1000, Math.max(400, rawDuration)));
+  const transitionDurationMs = isLowDeviceMode ? 300 : (isLiteMode ? 5000 : (nextRotation?.transition_duration ?? 1400));
 
   const tickerText = (screenData.screen as any)?.ticker_text || '';
   const tickerStyle = (screenData.screen as any)?.ticker_style || 'default';
