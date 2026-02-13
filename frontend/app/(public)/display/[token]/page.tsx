@@ -260,10 +260,10 @@ export default function DisplayPage() {
     return () => { mountedRef.current = false; };
   }, []);
 
-  // Lite/low/ultralow mod: periyodik sayfa yenile — bellek birikimi ve donma/kapanma önlenir
-  const LITE_RELOAD_MS = 5.5 * 60 * 1000;
-  const LOW_DEVICE_RELOAD_MS = 90 * 1000; // Stick: 1.5 dk
-  const ULTRALOW_RELOAD_MS = 60 * 1000; // Çok zayıf stick: 1 dk
+  // Lite/low/ultralow mod: periyodik sayfa yenile — bellek birikimi ve donma önlenir (cok kisa olursa yayin "duruyor" hissi verir)
+  const LITE_RELOAD_MS = 10 * 60 * 1000;   // 10 dk
+  const LOW_DEVICE_RELOAD_MS = 5 * 60 * 1000;  // 5 dk (önceden 1.5 dk – 3 template 3’er kez sonra reload oluyordu)
+  const ULTRALOW_RELOAD_MS = 3 * 60 * 1000;    // 3 dk (önceden 1 dk)
   const reloadMs = isUltralowMode ? ULTRALOW_RELOAD_MS : (isLowDeviceMode ? LOW_DEVICE_RELOAD_MS : LITE_RELOAD_MS);
   useEffect(() => {
     if (!isLiteMode || typeof window === 'undefined') return;
@@ -587,7 +587,6 @@ export default function DisplayPage() {
   }, []);
 
   // Full editor dışı tiplerde (canvas, block) overlay'ı kısa gecikmeyle kaldır; sadece geçiş bittikten sonra (current=next)
-  // Gecikme yeterli olsun ki base layer yeniden çizilsin, ekran kararmasın
   useEffect(() => {
     if (!nextTemplateData || currentTemplateIndex !== nextTemplateIndex) return;
     const isFullEditor = currentTemplateData?.template?.template_type === 'full_editor' && currentTemplateData?.template?.canvas_json;
