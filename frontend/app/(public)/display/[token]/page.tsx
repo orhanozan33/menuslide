@@ -587,11 +587,12 @@ export default function DisplayPage() {
   }, []);
 
   // Full editor dışı tiplerde (canvas, block) overlay'ı kısa gecikmeyle kaldır; sadece geçiş bittikten sonra (current=next)
+  // Gecikme yeterli olsun ki base layer yeniden çizilsin, ekran kararmasın
   useEffect(() => {
     if (!nextTemplateData || currentTemplateIndex !== nextTemplateIndex) return;
     const isFullEditor = currentTemplateData?.template?.template_type === 'full_editor' && currentTemplateData?.template?.canvas_json;
     if (isFullEditor) return;
-    const t = setTimeout(handleDisplayReady, 100);
+    const t = setTimeout(handleDisplayReady, 280);
     return () => clearTimeout(t);
   }, [currentTemplateIndex, nextTemplateIndex, currentTemplateData?.template?.id, nextTemplateData, handleDisplayReady]);
 
@@ -652,8 +653,8 @@ export default function DisplayPage() {
     const hideBottomFrame = !!tickerText;
     return (
       <EmbedFitWrapper ref={displayContainerRef}>
-        <div className="fixed inset-0 flex flex-col bg-black overflow-hidden">
-          <div className="flex-1 min-h-0 relative overflow-hidden">
+        <div className="fixed inset-0 flex flex-col overflow-hidden" style={{ backgroundColor: '#0f172a' }}>
+          <div className="flex-1 min-h-0 relative overflow-hidden" style={{ backgroundColor: '#0f172a' }}>
             {/* Base layer - aynı tip şablonlar arasında remount yok (key=displayTypeKey) */}
             {displayData?.digitalMenuData ? (
               <DisplayFrame frameType={frameType} hideBottomFrame={hideBottomFrame} className="absolute inset-0 w-full h-full">
@@ -716,7 +717,7 @@ export default function DisplayPage() {
             ) : null}
             {/* Geçiş overlay: animasyon bitene kadar üstte kalır, base layer onReady verince kaldırılır */}
             {showTransitionOverlay && (
-              <div className="absolute inset-0 z-[100] pointer-events-none">
+              <div className="absolute inset-0 z-[100] pointer-events-none" style={{ backgroundColor: '#0f172a' }}>
                 <TemplateTransition
                   inline
                   nextOnly
