@@ -524,11 +524,11 @@ export default function ScreensPage() {
         const effect = (r as { transition_effect?: string }).transition_effect ?? 'fade';
         return {
           template_id: r.template_id || (r as { full_editor_template_id?: string }).full_editor_template_id || '',
-          display_duration: isRegularUser ? Math.max(30, dur) : dur,
+          display_duration: dur,
           template_type: (r as { full_editor_template_id?: string }).full_editor_template_id ? ('full_editor' as const) : ('block' as const),
           full_editor_template_id: (r as { full_editor_template_id?: string }).full_editor_template_id ?? undefined,
-          transition_effect: isRegularUser ? 'slide-left' : effect,
-          transition_duration: isRegularUser ? Math.min(5000, transDur) : transDur,
+          transition_effect: effect,
+          transition_duration: transDur,
         };
       }) ?? [];
     setSelectedTemplates(current);
@@ -554,21 +554,22 @@ export default function ScreensPage() {
     }
   };
 
-  const displayDurationMin = isRegularUser ? 30 : 1;
-  const displayDurationMax = isRegularUser ? 300 : 300;
+  // JSON slides: video/HLS yok, süre/şablon limiti yok. İstediğin kadar şablon, istediğin süre.
+  const displayDurationMin = 1;
+  const displayDurationMax = 300;
   const transitionDurationMax = 5000;
-  const transitionEffectOptions = isRegularUser ? TRANSITION_OPTIONS.filter((o) => o.value === 'slide-left') : TRANSITION_OPTIONS;
-  const defaultDisplayDuration = isRegularUser ? 30 : 5;
-  const defaultTransitionEffect = isRegularUser ? 'slide-left' : 'fade';
-  const defaultTransitionDuration = isRegularUser ? 5000 : 1400;
+  const transitionEffectOptions = TRANSITION_OPTIONS;
+  const defaultDisplayDuration = 5;
+  const defaultTransitionEffect = 'fade';
+  const defaultTransitionDuration = 1400;
 
   const handleTemplateToggle = (templateId: string, isFullEditor?: boolean) => {
     setSelectedTemplates((prev) => {
       const exists = prev.find((t) => t.template_id === templateId);
       if (exists) {
         return prev.filter((t) => t.template_id !== templateId);
-      } else {
-        return [...prev, {
+      }
+      return [...prev, {
           template_id: templateId,
           display_duration: defaultDisplayDuration,
           template_type: isFullEditor ? 'full_editor' : 'block',
@@ -576,7 +577,6 @@ export default function ScreensPage() {
           transition_effect: defaultTransitionEffect,
           transition_duration: defaultTransitionDuration,
         }];
-      }
     });
   };
 
@@ -590,10 +590,9 @@ export default function ScreensPage() {
   };
 
   const handleTransitionEffectChange = (templateId: string, value: string) => {
-    const allowed = isRegularUser && value !== 'slide-left' ? 'slide-left' : value;
     setSelectedTemplates((prev) =>
       prev.map((t) =>
-        t.template_id === templateId ? { ...t, transition_effect: allowed } : t
+        t.template_id === templateId ? { ...t, transition_effect: value } : t
       )
     );
   };
@@ -612,7 +611,6 @@ export default function ScreensPage() {
       toast.showWarning(t('screens_select_template'));
       return;
     }
-
     if (!selectedScreenId) return;
 
     try {

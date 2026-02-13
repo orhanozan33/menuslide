@@ -1,9 +1,14 @@
+' Roku Digital Signage - JSON layout only. No video/HLS. SceneGraph slides (Poster + Label + Timer).
+
 sub init()
-    m.video = m.top.findNode("video")
     m.bg = m.top.findNode("bg")
     m.status = m.top.findNode("status")
     m.layoutGroup = m.top.findNode("layoutGroup")
-    m.mainImageDisplay = m.top.findNode("mainImageDisplay")
+    m.currentSlidePoster = m.top.findNode("currentSlidePoster")
+    m.nextSlidePoster = m.top.findNode("nextSlidePoster")
+    m.fadeIn = m.top.findNode("fadeIn")
+    m.slideLeftAnim = m.top.findNode("slideLeft")
+    if m.slideLeftAnim <> invalid then m.slideLeftAnim.observeField("state", "onSlideLeftDone")
     m.sec = CreateObject("roRegistrySection", "menuslide")
     m.deviceToken = m.sec.read("deviceToken")
     m.layoutStr = m.sec.read("layout")
@@ -11,7 +16,7 @@ sub init()
     m.refreshInterval = 300
     r = m.sec.read("refreshInterval")
     if r <> "" and r <> invalid then m.refreshInterval = Int(Val(r))
-    if m.deviceToken = "" or m.deviceToken = invalid
+    if m.deviceToken = "" or m.deviceToken = invalid then
         m.status.text = "Not activated. Restart channel."
         m.status.visible = true
         m.top.requestShowCode = true
@@ -41,9 +46,9 @@ sub loadLayout()
         startLayoutFetch()
         return
     end if
-    displayUrl = layout.displayUrl
-    if displayUrl = invalid then displayUrl = layout.displayurl
-    if displayUrl = invalid or (type(displayUrl) = "roString" and displayUrl.trim() = "") then
+    slides = layout.slides
+    if slides = invalid then slides = layout.Slides
+    if slides = invalid or slides.count() = 0 then
         startLayoutFetch()
         return
     end if
@@ -74,155 +79,145 @@ sub onLayoutResult(msg as dynamic)
         m.status.text = "Loading. Please Wait."
         return
     end if
-    if data.videoUrls <> invalid and data.videoUrls.count() > 0 then
-        layout.displayUrl = data.videoUrls[0]
-    end if
     m.sec.write("layout", FormatJson(layout))
-    if data.layoutVersion <> invalid and data.layoutVersion <> ""
+    versionChanged = (data.layoutVersion <> invalid and data.layoutVersion <> "" and data.layoutVersion <> m.layoutVersion)
+    if data.layoutVersion <> invalid and data.layoutVersion <> "" then
         m.layoutVersion = data.layoutVersion
         m.sec.write("layoutVersion", m.layoutVersion)
     end if
-    if data.refreshIntervalSeconds <> invalid and data.refreshIntervalSeconds > 0
+    if data.refreshIntervalSeconds <> invalid and data.refreshIntervalSeconds > 0 then
         m.refreshInterval = data.refreshIntervalSeconds
         m.sec.write("refreshInterval", Str(m.refreshInterval))
     end if
     m.sec.flush()
-    renderLayout(layout)
-end sub
-
-function isVideoUrl(url as dynamic) as boolean
-    if url = invalid or type(url) <> "roString" then return false
-    u = url.trim()
-    n = Len(u)
-    if n < 4 then return false
-    return (n >= 5 and Mid(u, n - 4, 5) = ".m3u8") or (Mid(u, n - 3, 4) = ".mp4")
-end function
-
-function isHlsUrl(url as dynamic) as boolean
-    if url = invalid or type(url) <> "roString" then return false
-    u = url.trim()
-    n = Len(u)
-    return n >= 5 and Mid(u, n - 4, 5) = ".m3u8"
-end function
-
-sub setVideoContentAndPlay(url as string)
-    m.currentVideoUrl = url
-    m.status.visible = false
-    m.video.visible = true
-    videoContent = createObject("roSGNode", "ContentNode")
-    videoContent.url = url
-    if isHlsUrl(url) then
-        videoContent.streamFormat = "hls"
-        videoContent.live = true
-    else
-        videoContent.streamFormat = "mp4"
+    ' Only re-render when version changed so we don't reset to slide 0 every poll
+    if versionChanged then
+        renderLayout(layout)
     end if
-    m.video.content = videoContent
-    m.video.control = "play"
-    m.video.observeField("state", "onVideoState")
 end sub
-
-function isPlaceholderStreamUrl(url as dynamic) as boolean
-    if url = invalid or type(url) <> "roString" then return false
-    u = LCase(Trim(url))
-    return (Instr(1, u, "cdn.menuslide.com") > 0 and Instr(1, u, ".m3u8") > 0)
-end function
-
-function slugFromPlaceholderStreamUrl(url as string) as string
-    if url = invalid or type(url) <> "roString" then return ""
-    u = LCase(Trim(url))
-    prefix = "cdn.menuslide.com/stream/"
-    i = Instr(1, u, prefix)
-    if i < 1 then return ""
-    rest = Mid(u, i + Len(prefix), 999)
-    j = Instr(1, rest, ".m3u8")
-    if j < 1 then return rest
-    return Left(rest, j - 1)
-end function
 
 sub renderLayout(layout as object)
     if layout = invalid then return
     m.slides = invalid
     if m.slideTimer <> invalid then m.slideTimer.control = "stop"
     m.slideTimer = invalid
-    m.video.control = "stop"
-    m.video.content = invalid
-    if m.mainImageDisplay <> invalid then m.mainImageDisplay.visible = false
+    m.currentSlidePoster.visible = false
+    m.currentSlidePoster.uri = ""
+    m.nextSlidePoster.visible = false
+    m.nextSlidePoster.uri = ""
     clearLayoutGroup()
     if layout.backgroundColor <> invalid and layout.backgroundColor <> "" then
         m.bg.color = hexToRokuColor(layout.backgroundColor)
     end if
-    displayUrl = layout.displayUrl
-    if displayUrl = invalid then displayUrl = layout.displayurl
-    if displayUrl <> invalid and displayUrl <> "" then
-        if isVideoUrl(displayUrl) then
-            setVideoContentAndPlay(displayUrl)
-            startHeartbeat()
-            return
-        else
-            m.mainImageDisplay.uri = displayUrl
-            m.mainImageDisplay.visible = true
-            m.video.visible = false
-            m.status.visible = false
-            startHeartbeat()
-            return
-        end if
-    end if
-    layoutType = layout.type
-    if layoutType = invalid then layoutType = layout.Type
-    layoutComps = layout.components
-    if layoutComps = invalid then layoutComps = layout.Components
-    hasVideo = false
-    if layoutType = "video"
-        videoUrl = layout.videoUrl
-        if videoUrl = invalid then videoUrl = layout.videourl
-        if videoUrl <> invalid and videoUrl <> ""
-            setVideoContentAndPlay(videoUrl)
-            hasVideo = true
-        else
-            m.status.text = "Loading. Please Wait."
-        end if
-    else if layoutType = "components" and layoutComps <> invalid
-        for each comp in layoutComps
-            ctype = comp.type
-            if ctype = invalid then ctype = comp.Type
-            vurl = comp.videoUrl
-            if vurl = invalid then vurl = comp.videourl
-            if ctype = "video" and vurl <> invalid then
-                setVideoContentAndPlay(vurl)
-                hasVideo = true
-                exit for
-            end if
-        end for
-        if not hasVideo then
-            renderComponents(layoutComps)
-            m.status.visible = false
-        end if
-    end if
     slides = layout.slides
     if slides = invalid then slides = layout.Slides
-    if not hasVideo and slides <> invalid and slides.count() > 0 then
+    if slides <> invalid and slides.count() > 0 then
         m.slides = slides
         m.slideIndex = 0
         showSlide(0)
-        m.status.visible = false
+        preloadNextImage()
         startSlideTimer()
-    else if not hasVideo and (layoutType <> "components" or layoutComps = invalid) then
+        m.status.visible = false
+    else
+        m.status.text = "No content. Add templates in Admin."
         m.status.visible = true
-        m.status.text = "Set Stream URL In Admin For Video."
     end if
     startHeartbeat()
 end sub
+
+function getTransitionSec(slide as object) as float
+    td = slide.transition_duration
+    if td = invalid then td = slide.transition_duration
+    if td = invalid or td < 100 then return 0.3
+    return td / 1000.0
+end function
+
+function getTransitionEffect(slide as object) as string
+    te = slide.transition_effect
+    if te = invalid then te = slide.transition_effect
+    if te = invalid then return "fade"
+    return te
+end function
 
 sub showSlide(index as integer)
     if m.slides = invalid or m.slides.count() = 0 then return
     if index < 0 or index >= m.slides.count() then index = 0
     m.slideIndex = index
     slide = m.slides[index]
-    comps = slide.components
-    if comps = invalid then comps = slide.Components
     clearLayoutGroup()
-    if comps <> invalid then renderComponents(comps)
+    m.currentSlidePoster.visible = false
+    m.currentSlidePoster.uri = ""
+    m.currentSlidePoster.translation = [0, 0]
+    m.nextSlidePoster.visible = false
+    m.nextSlidePoster.translation = [1920, 0]
+    slideType = slide.type
+    if slideType = invalid then slideType = slide.Type
+    if slideType = "image" then
+        url = slide.url
+        if url = invalid then url = slide.Url
+        if url <> invalid and url <> "" then
+            m.currentSlidePoster.uri = url
+            m.currentSlidePoster.visible = true
+            m.currentSlidePoster.opacity = 1
+            transitionEffect = getTransitionEffect(slide)
+            transitionSec = getTransitionSec(slide)
+            if m.fadeIn <> invalid and transitionEffect = "fade" and transitionSec > 0 then
+                m.currentSlidePoster.opacity = 0
+                m.fadeIn.duration = transitionSec
+                m.fadeIn.control = "start"
+            end if
+        else
+            m.status.text = "No image URL."
+            m.status.visible = true
+        end if
+    else
+        ' text slide
+        title = slide.title
+        if title = invalid then title = slide.Title
+        if title = invalid then title = ""
+        desc = slide.description
+        if desc = invalid then desc = slide.Description
+        if desc = invalid then desc = ""
+        m.currentSlidePoster.visible = false
+        if title <> "" then
+            lab = m.layoutGroup.createChild("Label")
+            lab.translation = [80, 200]
+            lab.width = 1760
+            lab.height = 120
+            lab.text = title
+            lab.color = &hFFFFFFFF
+            fontNode = CreateObject("roSGNode", "Font")
+            fontNode.size = 56
+            lab.font = fontNode
+        end if
+        if desc <> "" then
+            lab2 = m.layoutGroup.createChild("Label")
+            lab2.translation = [80, 340]
+            lab2.width = 1760
+            lab2.height = 400
+            lab2.text = desc
+            lab2.color = &hCCCCCCFF
+            fontNode2 = CreateObject("roSGNode", "Font")
+            fontNode2.size = 36
+            lab2.font = fontNode2
+        end if
+    end if
+end sub
+
+sub preloadNextImage()
+    if m.slides = invalid or m.slides.count() = 0 then return
+    nextIndex = m.slideIndex + 1
+    if nextIndex >= m.slides.count() then nextIndex = 0
+    nextSlide = m.slides[nextIndex]
+    nextType = nextSlide.type
+    if nextType = invalid then nextType = nextSlide.Type
+    if nextType = "image" then
+        url = nextSlide.url
+        if url = invalid then url = nextSlide.Url
+        if url <> invalid and url <> "" then
+            m.nextSlidePoster.uri = url
+        end if
+    end if
 end sub
 
 sub startSlideTimer()
@@ -242,7 +237,37 @@ end sub
 sub onSlideTimerFire()
     nextIndex = m.slideIndex + 1
     if nextIndex >= m.slides.count() then nextIndex = 0
-    showSlide(nextIndex)
+    nextSlide = m.slides[nextIndex]
+    nextType = nextSlide.type
+    if nextType = invalid then nextType = nextSlide.Type
+    if nextType = "image" and getTransitionEffect(nextSlide) = "slide-left" and m.slideLeftAnim <> invalid then
+        m.slideTimer.control = "stop"
+        clearLayoutGroup()
+        m.pendingNextIndex = nextIndex
+        m.nextSlidePoster.uri = nextSlide.url
+        if m.nextSlidePoster.uri = invalid then m.nextSlidePoster.uri = nextSlide.Url
+        m.nextSlidePoster.visible = true
+        m.nextSlidePoster.translation = [1920, 0]
+        m.slideLeftAnim.duration = getTransitionSec(nextSlide)
+        m.slideLeftAnim.control = "start"
+    else
+        showSlide(nextIndex)
+        preloadNextImage()
+        startSlideTimer()
+    end if
+end sub
+
+sub onSlideLeftDone()
+    if m.slideLeftAnim = invalid or m.slideLeftAnim.state <> "stopped" then return
+    if m.pendingNextIndex = invalid then return
+    nextIndex = m.pendingNextIndex
+    m.pendingNextIndex = invalid
+    m.slideIndex = nextIndex
+    m.currentSlidePoster.uri = m.nextSlidePoster.uri
+    m.currentSlidePoster.translation = [0, 0]
+    m.nextSlidePoster.visible = false
+    m.nextSlidePoster.translation = [1920, 0]
+    preloadNextImage()
     startSlideTimer()
 end sub
 
@@ -260,113 +285,6 @@ function hexToRokuColor(hex as string) as integer
     if Len(s) <> 8 then return &h000000FF
     return Val("&h" + s)
 end function
-
-sub renderComponents(components as object)
-    if m.layoutGroup = invalid or components = invalid then return
-    for each comp in components
-        compType = comp.type
-        if compType = invalid then compType = comp.Type
-        x = 0
-        if comp.x <> invalid then x = comp.x
-        y = 0
-        if comp.y <> invalid then y = comp.y
-        w = 800
-        if comp.width <> invalid then w = comp.width
-        h = 80
-        if comp.height <> invalid then h = comp.height
-        if compType = "text" then
-            node = m.layoutGroup.createChild("Label")
-            node.translation = [x, y]
-            node.width = w
-            node.height = h
-            txt = comp.text
-            if txt = invalid then txt = comp.Text
-            if txt <> invalid then node.text = txt
-            clr = comp.textColor
-            if clr = invalid then clr = comp.textcolor
-            if clr = invalid then clr = comp.color
-            if clr = invalid then clr = comp.Color
-            if clr <> invalid then node.color = hexToRokuColor(clr) else node.color = &hFFFFFFFF
-            fontSize = comp.fontSize
-            if fontSize = invalid then fontSize = comp.fontsize
-            if fontSize = invalid then fontSize = comp.textSize
-            if fontSize = invalid then fontSize = comp.textsize
-            if fontSize <> invalid and fontSize > 0 then
-                fontNode = CreateObject("roSGNode", "Font")
-                fontNode.size = fontSize
-                node.font = fontNode
-            end if
-        else if compType = "image" then
-            url = comp.url
-            if url = invalid then url = comp.Url
-            if url <> invalid and url <> "" then
-                node = m.layoutGroup.createChild("Poster")
-                node.translation = [x, y]
-                node.width = w
-                node.height = h
-                node.uri = url
-                node.loadDisplayMode = "scaleToFit"
-            end if
-        end if
-    end for
-end sub
-
-sub onVideoState()
-    state = m.video.state
-    if state = "finished" then
-        m.video.control = "play"
-        return
-    end if
-    if state = "error" then
-        errCode = m.video.errorCode
-        errStr = m.video.errorStr
-        if errStr = invalid then errStr = m.video.errorMsg
-        print "[Video] Playback error. errorCode=" ; errCode ; " errorStr=" ; errStr
-        url = m.currentVideoUrl
-        print "[Video] currentVideoUrl=" ; url ; " isPlaceholder=" ; isPlaceholderStreamUrl(url)
-        if url <> invalid and (errCode = -1 or errCode = -3) and isPlaceholderStreamUrl(url) then
-            slug = slugFromPlaceholderStreamUrl(url)
-            print "[Video] slug extracted: " ; slug
-            if slug <> "" then
-                renderUrl = "https://menuslide.com/api/render/" + slug
-                print "[Video] Placeholder stream (404/yok), ekran goruntusune geciliyor: " ; renderUrl
-                m.video.control = "stop"
-                m.video.content = invalid
-                m.video.visible = false
-                m.mainImageDisplay.uri = renderUrl
-                m.mainImageDisplay.visible = true
-                m.status.visible = false
-                startHeartbeat()
-                return
-            end if
-        end if
-        if errCode = -3 or errCode = -5 then
-            print "[Video] SSL/sertifika hatasi olabilir (errorCode " ; errCode ; "). CDN sertifikasi gecerli olmali."
-        end if
-        if m.videoRetryCount = invalid then m.videoRetryCount = 0
-        m.videoRetryCount = m.videoRetryCount + 1
-        m.status.text = "Content Is Being Prepared. Please Wait."
-        m.status.visible = true
-        m.timer = CreateObject("roSGNode", "Timer")
-        m.timer.duration = 5
-        m.timer.repeat = false
-        m.timer.observeField("fire", "retryVideo")
-        m.timer.control = "start"
-    end if
-end sub
-
-sub retryVideo()
-    if m.timer <> invalid then m.timer.unobserveField("fire")
-    m.timer = invalid
-    if m.videoRetryCount <> invalid and m.videoRetryCount >= 2 then
-        m.videoRetryCount = 0
-        m.status.text = "Loading. Please Wait."
-        startLayoutFetch()
-        return
-    end if
-    m.video.control = "play"
-    m.status.visible = false
-end sub
 
 sub startHeartbeat()
     if m.heartbeatTimer <> invalid then return

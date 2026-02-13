@@ -129,9 +129,11 @@ async function recordOne(browser, slug) {
     const framesDir = path.join(tmpDir, 'frames');
     ensureDir(framesDir);
 
-    const useRecorder = recordSeconds <= 60;
+    // Birlestirme yok: sadece tek parca (max 180 sn) veya kare kare. Kullanici limiti: max 6 template x 30 sn = 180 sn.
+    const MAX_SINGLE_RECORD_SEC = 180;
     let mp4Done = false;
-    if (useRecorder) {
+
+    if (recordSeconds <= MAX_SINGLE_RECORD_SEC) {
       try {
         const PuppeteerScreenRecorder = require('puppeteer-screen-recorder').PuppeteerScreenRecorder;
         const recorder = new PuppeteerScreenRecorder(page, {
@@ -143,14 +145,17 @@ async function recordOne(browser, slug) {
         await new Promise((r) => setTimeout(r, (recordSeconds + 2) * 1000));
         await recorder.stop();
         mp4Done = fs.existsSync(mp4Path) && fs.statSync(mp4Path).size > 1000;
+        if (mp4Done) console.log('[vps-video-worker] Tek parca kayit:', recordSeconds, 'sn');
       } catch (e) {
         console.warn('[vps-video-worker] puppeteer-screen-recorder kullanilamadi, kare yakalama kullaniliyor:', e.message);
       }
-    } else {
-      console.log('[vps-video-worker] Uzun dongu (', recordSeconds, 'sn), kare yakalama kullaniliyor');
     }
 
     if (!mp4Done) {
+      if (recordSeconds > MAX_SINGLE_RECORD_SEC) {
+        console.warn('[vps-video-worker] Dongu', recordSeconds, 'sn >', MAX_SINGLE_RECORD_SEC, 'sn; tek parca limit asildi, kare yakalama kullaniliyor. Oneri: max 6 template x 30 sn = 180 sn.');
+      }
+      console.log('[vps-video-worker] Kare yakalama ile kayit (', recordSeconds, 'sn)');
       const FPS = 2;
       const totalFrames = recordSeconds * FPS;
       for (let i = 0; i < totalFrames; i++) {

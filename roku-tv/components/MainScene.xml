@@ -11,23 +11,32 @@
       width="1920"
       height="1080"
       color="0x000000FF"/>
-    <Video
-      id="video"
-      width="1920"
-      height="1080"
-      translation="[0, 0]"
-      visible="false"
-      loop="true"
-      enableUI="false"
-      mute="true"/>
+    <!-- Current slide: image (Poster) or text (Labels in layoutGroup) -->
     <Poster
-      id="mainImageDisplay"
+      id="currentSlidePoster"
       width="1920"
       height="1080"
       translation="[0, 0]"
       visible="false"
       loadDisplayMode="scaleToFit"/>
     <Group id="layoutGroup"/>
+    <!-- Preload next image for smooth transition -->
+    <Poster
+      id="nextSlidePoster"
+      width="1920"
+      height="1080"
+      translation="[0, 0]"
+      visible="false"
+      loadDisplayMode="scaleToFit"/>
+    <!-- Fade in: opacity 0 -> 1 -->
+    <Animation id="fadeIn" duration="0.3" easeFunction="linear">
+      <FloatFieldInterpolator id="fadeInterp" fieldToInterp="currentSlidePoster.opacity" key="[0.0, 1.0]" keyValue="[0.0, 1.0]"/>
+    </Animation>
+    <!-- Slide left: current -> left, next -> center -->
+    <Animation id="slideLeft" duration="0.3" easeFunction="linear">
+      <Vector2DFieldInterpolator id="slideCurrent" fieldToInterp="currentSlidePoster.translation" key="[0.0, 1.0]" keyValue="[[0, 0], [-1920, 0]]"/>
+      <Vector2DFieldInterpolator id="slideNext" fieldToInterp="nextSlidePoster.translation" key="[0.0, 1.0]" keyValue="[[1920, 0], [0, 0]]"/>
+    </Animation>
     <Label
       id="status"
       translation="[100, 100]"

@@ -539,19 +539,28 @@ export default function DisplayPage() {
       const cached = rotationCacheRef.current.length === N ? rotationCacheRef.current[nextIndex] : null;
       const applyNextTemplate = (nextData: ScreenData) => {
         if (!mountedRef.current) return;
-        setNextTemplateData(nextData);
-        setNextTemplateIndex(nextIndex);
-        setIsTransitioning(true);
+        requestAnimationFrame(() => {
+          if (!mountedRef.current) return;
+          setNextTemplateData(nextData);
+          setNextTemplateIndex(nextIndex);
+          setIsTransitioning(true);
+        });
         setTimeout(() => {
           if (!mountedRef.current) return;
-          setCurrentTemplateData(nextData);
-          setCurrentTemplateIndex(nextIndex);
-          currentTemplateIndexRef.current = nextIndex;
-          displayReadyRef.current = () => {
-            setNextTemplateData(null);
-            setIsTransitioning(false);
-            setJustFinishedTransition(true);
-          };
+          requestAnimationFrame(() => {
+            if (!mountedRef.current) return;
+            setCurrentTemplateData(nextData);
+            setCurrentTemplateIndex(nextIndex);
+            currentTemplateIndexRef.current = nextIndex;
+            displayReadyRef.current = () => {
+              requestAnimationFrame(() => {
+                if (!mountedRef.current) return;
+                setNextTemplateData(null);
+                setIsTransitioning(false);
+                setJustFinishedTransition(true);
+              });
+            };
+          });
         }, transitionDuration);
       };
       if (cached) {
@@ -717,7 +726,7 @@ export default function DisplayPage() {
             ) : null}
             {/* Geçiş overlay: animasyon bitene kadar üstte kalır, base layer onReady verince kaldırılır */}
             {showTransitionOverlay && (
-              <div className="absolute inset-0 z-[100] pointer-events-none">
+              <div className="absolute inset-0 z-[100] pointer-events-none" style={{ background: 'transparent' }}>
                 <TemplateTransition
                   inline
                   nextOnly
@@ -941,9 +950,9 @@ function TemplateTransition({
   return (
     <>
       <style jsx global>{`
-        .transition-wrap { --dur: ${duration}ms; contain: layout style paint; }
-        .transition-current { position: absolute; inset: 0; z-index: 10; will-change: transform, opacity; transform: translateZ(0); backface-visibility: hidden; }
-        .transition-next { position: absolute; inset: 0; z-index: 20; will-change: transform, opacity; transform: translateZ(0); backface-visibility: hidden; }
+        .transition-wrap { --dur: ${duration}ms; contain: layout style paint; background: transparent !important; }
+        .transition-current { position: absolute; inset: 0; z-index: 10; will-change: transform, opacity; transform: translateZ(0); backface-visibility: hidden; background: transparent !important; }
+        .transition-next { position: absolute; inset: 0; z-index: 20; will-change: transform, opacity; transform: translateZ(0); backface-visibility: hidden; background: transparent !important; }
         .transition-car { position: absolute; inset: 0; z-index: 30; pointer-events: none; display: flex; align-items: center; justify-content: flex-start; }
         .transition-car-inner { font-size: min(12vw, 120px); filter: drop-shadow(0 4px 20px rgba(0,0,0,0.5)); animation: carDrive var(--dur) ease-in-out forwards; }
         @keyframes carDrive { 0% { transform: translateX(-20%); } 100% { transform: translateX(120%); } }

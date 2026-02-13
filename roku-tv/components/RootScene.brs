@@ -173,16 +173,13 @@ sub checkPendingRegisterResult()
     m.sec.write("deviceToken", token)
     m.sec.write("displayCode", m.code)
     layout = data.layout
-    if layout <> invalid and data.videoUrls <> invalid and data.videoUrls.count() > 0 then
-        layout.displayUrl = data.videoUrls[0]
-    end if
     if layout <> invalid then m.sec.write("layout", FormatJson(layout))
     lv = data.layoutVersion
     if lv = invalid then lv = data.layoutversion
     if lv <> invalid and lv <> "" then m.sec.write("layoutVersion", lv)
     ri = data.refreshIntervalSeconds
     if ri = invalid then ri = data.refreshintervalseconds
-    if     ri <> invalid then m.sec.write("refreshInterval", Str(ri))
+    if ri <> invalid then m.sec.write("refreshInterval", Str(ri))
     m.sec.flush()
     showMain(layout)
 end sub
@@ -206,16 +203,13 @@ sub onRegisterResult(msg as dynamic)
     m.sec.write("deviceToken", token)
     m.sec.write("displayCode", m.code)
     layout = data.layout
-    if layout <> invalid and data.videoUrls <> invalid and data.videoUrls.count() > 0 then
-        layout.displayUrl = data.videoUrls[0]
-    end if
     if layout <> invalid then m.sec.write("layout", FormatJson(layout))
     lv = data.layoutVersion
     if lv = invalid then lv = data.layoutversion
     if lv <> invalid and lv <> "" then m.sec.write("layoutVersion", lv)
     ri = data.refreshIntervalSeconds
     if ri = invalid then ri = data.refreshintervalseconds
-    if     ri <> invalid then m.sec.write("refreshInterval", Str(ri))
+    if ri <> invalid then m.sec.write("refreshInterval", Str(ri))
     m.sec.flush()
     showMain(layout)
 end sub

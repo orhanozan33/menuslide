@@ -13,6 +13,7 @@
     "bootstrap:build": "cd .. && ./scripts/build-supabase-bootstrap.sh"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.990.0",
     "@grapesjs/react": "^2.0.0",
     "@imgly/background-removal": "^1.7.0",
     "@supabase/supabase-js": "^2.38.4",

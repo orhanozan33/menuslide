@@ -3,11 +3,15 @@ import { getServerSupabase } from '@/lib/supabase-server';
 
 export const dynamic = 'force-dynamic';
 
+/** Slide image base: static CDN only. No server encoding. e.g. https://cdn.domain.com/slides */
+const SLIDE_IMAGE_BASE =
+  process.env.NEXT_PUBLIC_SLIDE_IMAGE_BASE_URL?.replace(/\/$/, '') ||
+  process.env.NEXT_PUBLIC_CDN_BASE_URL?.replace(/\/$/, '');
+
 /**
- * GET /api/device/layout — Fetch layout by deviceToken.
- * Headers: Authorization: Bearer {deviceToken} or X-Device-Token: {deviceToken}
- * Query: ?deviceToken=xxx
- * Returns same layout format as POST /device/register.
+ * GET /api/device/layout — JSON layout for Roku Digital Signage (slides only, no video).
+ * Returns: { layout: { version, backgroundColor, slides }, layoutVersion, refreshIntervalSeconds }
+ * Images are static URLs only (no server processing).
  */
 export async function GET(request: NextRequest) {
   try {
@@ -15,7 +19,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'SERVER_NOT_CONFIGURED' }, { status: 503 });
     }
 
-    let deviceToken =
+    const deviceToken =
       request.headers.get('x-device-token')?.trim() ||
       request.headers.get('authorization')?.replace(/^Bearer\s+/i, '').trim() ||
       request.nextUrl.searchParams.get('deviceToken')?.trim();
@@ -24,7 +28,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'deviceToken required' }, { status: 401 });
     }
 
-    // Parse dt_{screenId}_{deviceId}_{ts} format
     const match = /^dt_([a-f0-9-]+)_/.exec(deviceToken);
     const screenId = match?.[1];
     if (!screenId) {
@@ -32,85 +35,69 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = getServerSupabase();
-    const { data: screen, error } = await supabase
+    const { data: screen, error: screenError } = await supabase
       .from('screens')
-      .select('id, public_slug, public_token, broadcast_code, stream_url, updated_at')
+      .select('id, updated_at')
       .eq('id', screenId)
       .eq('is_active', true)
       .limit(1)
       .maybeSingle();
 
-    if (error || !screen) {
+    if (screenError || !screen) {
       return NextResponse.json({ error: 'invalid token' }, { status: 404 });
     }
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://menuslide.com';
-    const displaySlug =
-      (screen as { public_slug?: string }).public_slug ||
-      (screen as { public_token?: string }).public_token ||
-      (screen as { broadcast_code?: string }).broadcast_code;
-    const streamUrl = (screen as { stream_url?: string | null }).stream_url?.trim();
+    const { data: rotations } = await supabase
+      .from('screen_template_rotations')
+      .select('template_id, full_editor_template_id, display_duration, display_order, transition_effect, transition_duration')
+      .eq('screen_id', screenId)
+      .eq('is_active', true)
+      .order('display_order', { ascending: true });
 
-    let layout: object;
-    let videoUrls: string[];
+    const ordered = rotations ?? [];
+    const slides: Array<{ type: string; url?: string; title?: string; description?: string; duration: number; transition_effect?: string; transition_duration?: number }> = [];
 
-    if (streamUrl && (streamUrl.endsWith('.m3u8') || streamUrl.endsWith('.mp4'))) {
-      layout = {
-        type: 'video',
-        videoUrl: streamUrl,
-        backgroundColor: '#000000',
-      };
-      videoUrls = [streamUrl];
-    } else {
-      const cdnBase = process.env.NEXT_PUBLIC_CDN_BASE_URL?.replace(/\/$/, '') || '';
-      const slugEnc = encodeURIComponent(displaySlug ?? '');
-      const renderViaVercel = `${appUrl}/api/render/${slugEnc}`;
-      const cdnImageUrl = cdnBase ? `${cdnBase}/cdn/${slugEnc}.jpg` : '';
-      const renderImageUrl =
-        cdnBase && !cdnBase.toLowerCase().startsWith('http:')
-          ? cdnImageUrl
-          : renderViaVercel;
-      layout = {
-        version: 1,
-        type: 'components',
-        backgroundColor: '#000000',
-        components: [
-          {
-            id: 'text1',
-            type: 'text',
-            x: 24,
-            y: 24,
-            width: 600,
-            height: 48,
-            zIndex: 1,
-            text: 'MenuSlide - Native Player',
-            textColor: '#FFFFFF',
-            textSize: 28,
-          },
-          {
-            id: 'text2',
-            type: 'text',
-            x: 24,
-            y: 80,
-            width: 800,
-            height: 32,
-            zIndex: 1,
-            text: `Display: ${displaySlug}. Set stream_url (HLS/MP4) in Admin for video.`,
-            textColor: '#AAAAAA',
-            textSize: 16,
-          },
-        ],
-      };
-      videoUrls = [renderImageUrl];
+    for (const r of ordered) {
+      const templateId =
+        (r as { full_editor_template_id?: string | null }).full_editor_template_id ||
+        (r as { template_id?: string }).template_id;
+      const duration = Math.max(1, (r as { display_duration?: number }).display_duration ?? 8);
+      const transitionEffect = (r as { transition_effect?: string }).transition_effect ?? 'fade';
+      const transitionDuration = (r as { transition_duration?: number }).transition_duration ?? 300;
+
+      const baseSlide = { duration, transition_effect: transitionEffect, transition_duration: Math.min(2000, Math.max(100, transitionDuration)) };
+      if (SLIDE_IMAGE_BASE && templateId) {
+        const url = `${SLIDE_IMAGE_BASE}/slides/${screenId}/${templateId}.jpg`;
+        slides.push({ ...baseSlide, type: 'image', url });
+      } else {
+        slides.push({ ...baseSlide, type: 'text', title: 'Slide', description: '' });
+      }
     }
 
-    const layoutVersion = (screen as { updated_at?: string }).updated_at ?? new Date().toISOString();
+    // No slides: one placeholder text slide so app has something to show
+    if (slides.length === 0) {
+      slides.push({
+        type: 'text',
+        title: 'No content',
+        description: 'Add templates in Admin and set SLIDE_IMAGE_BASE_URL for images.',
+        duration: 10,
+        transition_effect: 'fade',
+        transition_duration: 300,
+      });
+    }
+
+    const version =
+      (screen as { updated_at?: string }).updated_at ?? new Date().toISOString();
+    const layout = {
+      version,
+      backgroundColor: '#000000',
+      slides,
+    };
 
     return NextResponse.json({
       deviceToken,
       layout,
-      layoutVersion,
-      videoUrls,
+      layoutVersion: version,
       refreshIntervalSeconds: 300,
     });
   } catch (e) {
