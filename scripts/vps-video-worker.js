@@ -28,6 +28,26 @@ const STREAM_OUTPUT_DIR = process.env.STREAM_OUTPUT_DIR || '/var/www/menuslide/s
 const RECORD_SECONDS = Math.max(5, parseInt(process.env.RECORD_SECONDS || '30', 10) || 30);
 const CONCURRENCY = Math.max(1, parseInt(process.env.CONCURRENCY || '1', 10) || 1);
 
+/** API'den döngü süresini al (templateRotations display_duration toplamı). Kesilme olmasın. */
+async function getCycleDurationSeconds(slug) {
+  const base = DISPLAY_BASE_URL.replace(/\/$/, '');
+  const url = `${base}/api/public-screen/${encodeURIComponent(slug)}`;
+  try {
+    const res = await fetch(url, { headers: { Accept: 'application/json' } });
+    if (!res.ok) return RECORD_SECONDS;
+    const data = await res.json();
+    const rotations = data.templateRotations;
+    if (!Array.isArray(rotations) || rotations.length === 0) return RECORD_SECONDS;
+    const total = rotations.reduce((s, r) => s + Math.max(1, Number(r.display_duration) || 30), 0);
+    const sec = Math.max(30, Math.min(600, Math.max(RECORD_SECONDS, total)));
+    console.log('[vps-video-worker] Dongu suresi:', total, 'sn, kayit:', sec, 'sn (slug:', slug, ')');
+    return sec;
+  } catch (e) {
+    console.warn('[vps-video-worker] Dongu suresi alinamadi, varsayilan', RECORD_SECONDS, 'sn:', e.message);
+    return RECORD_SECONDS;
+  }
+}
+
 let SLUGS = (process.env.SCREEN_SLUGS || '')
   .split(',')
   .map((s) => s.trim())
@@ -61,7 +81,35 @@ function runFfmpeg(args, description) {
   }
 }
 
+/** Overlap ile loop.mp4: ilk N sn sona eklenir */
+/** Son overlapSec saniyeyi videonun ilk overlapSec saniyesiyle degistirir; toplam sure ayni, kararma yok, sonsuz dongu. */
+function fallbackLoopMp4(mp4Path, dur, loopMp4, overlapSec) {
+  const tail = Math.max(0.5, dur - overlapSec);
+  const filter = `[0:v]split=2[main][dup];[main]trim=0:${tail.toFixed(2)},setpts=PTS-STARTPTS[main2];[dup]trim=0:${Math.min(overlapSec, dur).toFixed(2)},setpts=PTS-STARTPTS[first];[main2][first]concat=n=2:v=1[out]`;
+  runFfmpeg(
+    [
+      '-y',
+      '-i', mp4Path,
+      '-filter_complex', filter,
+      '-map', '[out]',
+      '-c:v', 'libx264',
+      '-profile:v', 'baseline',
+      '-level', '3.0',
+      '-pix_fmt', 'yuv420p',
+      '-g', '30',
+      '-keyint_min', '30',
+      '-movflags', '+faststart',
+      loopMp4,
+    ],
+    'MP4 -> loop.mp4 (kesintisiz dongu)'
+  );
+  if (fs.existsSync(loopMp4)) {
+    console.log('[vps-video-worker] Roku loop.mp4 hazir:', loopMp4, '| sure:', dur.toFixed(1), 'sn');
+  }
+}
+
 async function recordOne(browser, slug) {
+  const recordSeconds = await getCycleDurationSeconds(slug);
   const url = `${DISPLAY_BASE_URL.replace(/\/$/, '')}/display/${encodeURIComponent(slug)}?lite=1`;
   const outDir = path.join(STREAM_OUTPUT_DIR, slug);
   const tmpDir = path.join(os.tmpdir(), `menuslide-video-${slug}-${Date.now()}`);
@@ -81,33 +129,37 @@ async function recordOne(browser, slug) {
     const framesDir = path.join(tmpDir, 'frames');
     ensureDir(framesDir);
 
+    const useRecorder = recordSeconds <= 60;
     let mp4Done = false;
-    try {
-      const PuppeteerScreenRecorder = require('puppeteer-screen-recorder').PuppeteerScreenRecorder;
-      const recorder = new PuppeteerScreenRecorder(page, {
-        followNewTab: false,
-        videoFrame: { width: 1920, height: 1080 },
-        recordDurationLimit: RECORD_SECONDS,
-      });
-      await recorder.start(mp4Path);
-      await new Promise((r) => setTimeout(r, (RECORD_SECONDS + 2) * 1000));
-      await recorder.stop();
-      mp4Done = fs.existsSync(mp4Path) && fs.statSync(mp4Path).size > 1000;
-    } catch (e) {
-      console.warn('[vps-video-worker] puppeteer-screen-recorder kullanilamadi, kare yakalama kullaniliyor:', e.message);
+    if (useRecorder) {
+      try {
+        const PuppeteerScreenRecorder = require('puppeteer-screen-recorder').PuppeteerScreenRecorder;
+        const recorder = new PuppeteerScreenRecorder(page, {
+          followNewTab: false,
+          videoFrame: { width: 1920, height: 1080 },
+          recordDurationLimit: recordSeconds,
+        });
+        await recorder.start(mp4Path);
+        await new Promise((r) => setTimeout(r, (recordSeconds + 2) * 1000));
+        await recorder.stop();
+        mp4Done = fs.existsSync(mp4Path) && fs.statSync(mp4Path).size > 1000;
+      } catch (e) {
+        console.warn('[vps-video-worker] puppeteer-screen-recorder kullanilamadi, kare yakalama kullaniliyor:', e.message);
+      }
+    } else {
+      console.log('[vps-video-worker] Uzun dongu (', recordSeconds, 'sn), kare yakalama kullaniliyor');
     }
 
     if (!mp4Done) {
-      // Fallback: saniyede 2 kare screenshot, FFmpeg ile MP4
       const FPS = 2;
-      const totalFrames = RECORD_SECONDS * FPS;
+      const totalFrames = recordSeconds * FPS;
       for (let i = 0; i < totalFrames; i++) {
         const framePath = path.join(framesDir, `frame${String(i + 1).padStart(4, '0')}.jpg`);
         await page.screenshot({ path: framePath, type: 'jpeg', quality: 85 });
         await new Promise((r) => setTimeout(r, 1000 / FPS));
       }
       runFfmpeg(
-        ['-y', '-framerate', String(FPS), '-i', path.join(framesDir, 'frame%04d.jpg'), '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-t', String(RECORD_SECONDS), mp4Path],
+        ['-y', '-framerate', String(FPS), '-i', path.join(framesDir, 'frame%04d.jpg'), '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-g', String(Math.max(2, FPS)), '-t', String(recordSeconds), mp4Path],
         'Frames -> MP4'
       );
     }
@@ -150,6 +202,19 @@ async function recordOne(browser, slug) {
     const hlsFiles = fs.readdirSync(hlsDir);
     for (const f of hlsFiles) {
       fs.copyFileSync(path.join(hlsDir, f), path.join(outDir, f));
+    }
+
+    // Roku icin loop.mp4: reklam yok; son 5 sn = ilk 5 sn (uzatma), kararma yok, sonsuz dongu
+    const loopMp4 = path.join(outDir, 'loop.mp4');
+    try {
+      const durOut = execSync(
+        `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${mp4Path}"`,
+        { encoding: 'utf8', maxBuffer: 4096 }
+      );
+      const dur = parseFloat(durOut.trim());
+      fallbackLoopMp4(mp4Path, dur, loopMp4, 5.0);
+    } catch (e) {
+      console.warn('[vps-video-worker] loop.mp4 olusturulamadi:', e.message);
     }
 
     console.log('[vps-video-worker] OK', slug, '->', path.join(outDir, 'playlist.m3u8'));
@@ -196,9 +261,9 @@ async function main() {
   console.log(
     '[vps-video-worker] Basladi, slug sayisi:',
     SLUGS.length,
-    'kayit suresi:',
+    'kayit suresi: API dongu suresi (min',
     RECORD_SECONDS,
-    'sn, paralel:',
+    'sn), paralel:',
     CONCURRENCY
   );
 
