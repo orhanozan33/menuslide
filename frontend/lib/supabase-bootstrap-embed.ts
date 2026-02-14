@@ -1146,6 +1146,15 @@ SELECT setval(
   ), 0) + 1
 );
 
+-- RPC: yeni admin oluşturulurken referans numarası (createUser API)
+CREATE OR REPLACE FUNCTION get_next_admin_reference()
+RETURNS TEXT
+LANGUAGE sql
+SECURITY DEFINER
+AS $$
+  SELECT 'ADM-' || LPAD(nextval('admin_reference_seq')::text, 5, '0');
+$$;
+
 -- === migration-add-alcoholic-drinks-glasses.sql ===
 -- İçecek kategorisine alkollü içkiler ekle: kokteyl, viski, votka, tekila, vb. (bardakta)
 INSERT INTO content_library (name, category, type, url, display_order) VALUES

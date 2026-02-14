@@ -49,12 +49,18 @@ export async function GET(request: NextRequest) {
 
     const { data: rotations } = await supabase
       .from('screen_template_rotations')
-      .select('template_id, full_editor_template_id, display_duration, display_order, transition_effect, transition_duration')
+      .select('template_id, full_editor_template_id, display_duration, display_order, transition_effect, transition_duration, updated_at')
       .eq('screen_id', screenId)
       .eq('is_active', true)
       .order('display_order', { ascending: true });
 
     const ordered = rotations ?? [];
+    const rotationMaxUpdated = ordered.length
+      ? ordered.reduce((max, r) => {
+          const u = (r as { updated_at?: string }).updated_at;
+          return u && (!max || u > max) ? u : max;
+        }, '' as string)
+      : '';
     const slides: Array<{ type: string; url?: string; title?: string; description?: string; duration: number; transition_effect?: string; transition_duration?: number }> = [];
 
     for (const r of ordered) {
@@ -86,8 +92,9 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    const screenUpdated = (screen as { updated_at?: string }).updated_at ?? new Date().toISOString();
     const version =
-      (screen as { updated_at?: string }).updated_at ?? new Date().toISOString();
+      rotationMaxUpdated && rotationMaxUpdated > screenUpdated ? rotationMaxUpdated : screenUpdated;
     const layout = {
       version,
       backgroundColor: '#000000',

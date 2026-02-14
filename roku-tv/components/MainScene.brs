@@ -35,6 +35,14 @@ sub onLayoutPassed()
     end if
 end sub
 
+function getSlidesFromLayout(layout as object) as dynamic
+    if layout = invalid then return invalid
+    slides = layout.slides
+    if slides = invalid then slides = layout.Slides
+    if slides = invalid then slides = layout.Lookup("slides")
+    return slides
+end function
+
 sub loadLayout()
     layout = invalid
     if m.top.layout <> invalid then
@@ -46,8 +54,7 @@ sub loadLayout()
         startLayoutFetch()
         return
     end if
-    slides = layout.slides
-    if slides = invalid then slides = layout.Slides
+    slides = getSlidesFromLayout(layout)
     if slides = invalid or slides.count() = 0 then
         startLayoutFetch()
         return
@@ -75,6 +82,8 @@ sub onLayoutResult(msg as dynamic)
     end if
     m.layoutFetchFailCount = 0
     layout = data.layout
+    if layout = invalid then layout = data.Layout
+    if layout = invalid then layout = data.Lookup("layout")
     if layout = invalid then
         m.status.text = "Loading. Please Wait."
         return
@@ -98,7 +107,16 @@ end sub
 
 sub renderLayout(layout as object)
     if layout = invalid then return
-    m.slides = invalid
+    slides = getSlidesFromLayout(layout)
+    if slides = invalid or slides.count() = 0 then
+        m.slides = invalid
+        if m.slideTimer <> invalid then m.slideTimer.control = "stop"
+        m.slideTimer = invalid
+        m.status.text = "No content. Add templates in Admin."
+        m.status.visible = true
+        startHeartbeat()
+        return
+    end if
     if m.slideTimer <> invalid then m.slideTimer.control = "stop"
     m.slideTimer = invalid
     m.currentSlidePoster.visible = false
@@ -109,19 +127,21 @@ sub renderLayout(layout as object)
     if layout.backgroundColor <> invalid and layout.backgroundColor <> "" then
         m.bg.color = hexToRokuColor(layout.backgroundColor)
     end if
-    slides = layout.slides
-    if slides = invalid then slides = layout.Slides
-    if slides <> invalid and slides.count() > 0 then
-        m.slides = slides
-        m.slideIndex = 0
-        showSlide(0)
-        preloadNextImage()
-        startSlideTimer()
-        m.status.visible = false
-    else
-        m.status.text = "No content. Add templates in Admin."
-        m.status.visible = true
+    m.slides = slides
+    ' Re-render (version change): keep current position so all slides keep rotating; don't jump back to 0
+    startIndex = 0
+    if m.slideIndex <> invalid and m.slideIndex >= 0 then
+        if m.slideIndex < slides.count() then
+            startIndex = m.slideIndex
+        else
+            startIndex = 0
+        end if
     end if
+    m.slideIndex = startIndex
+    showSlide(startIndex)
+    preloadNextImage()
+    startSlideTimer()
+    m.status.visible = false
     startHeartbeat()
 end sub
 
@@ -159,13 +179,6 @@ sub showSlide(index as integer)
             m.currentSlidePoster.uri = url
             m.currentSlidePoster.visible = true
             m.currentSlidePoster.opacity = 1
-            transitionEffect = getTransitionEffect(slide)
-            transitionSec = getTransitionSec(slide)
-            if m.fadeIn <> invalid and transitionEffect = "fade" and transitionSec > 0 then
-                m.currentSlidePoster.opacity = 0
-                m.fadeIn.duration = transitionSec
-                m.fadeIn.control = "start"
-            end if
         else
             m.status.text = "No image URL."
             m.status.visible = true

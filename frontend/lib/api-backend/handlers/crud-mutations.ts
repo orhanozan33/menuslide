@@ -153,6 +153,24 @@ export async function createUser(request: NextRequest, user: JwtPayload): Promis
     (bodyWithoutPlan as Record<string, unknown>).password_hash = passwordHash;
   }
 
+  const role = (body.role ?? bodyWithoutPlan.role) as string | undefined;
+  if (role === 'admin' || role === 'super_admin') {
+    if (useLocalDb()) {
+      const refRow = await queryOne<{ ref: string }>(
+        "SELECT 'ADM-' || LPAD(nextval('admin_reference_seq')::text, 5, '0') as ref"
+      );
+      if (refRow?.ref) (bodyWithoutPlan as Record<string, unknown>).reference_number = refRow.ref;
+    } else {
+      try {
+        const supabase = getServerSupabase();
+        const { data: ref, error: rpcError } = await supabase.rpc('get_next_admin_reference');
+        if (!rpcError && typeof ref === 'string') (bodyWithoutPlan as Record<string, unknown>).reference_number = ref;
+      } catch {
+        // RPC yoksa (eski migration) kullanıcı yine oluşturulur; migration-add-admin-reference-number.sql ile backfill yapılabilir
+      }
+    }
+  }
+
   if (useLocalDb()) {
     const data = await insertLocal('users', bodyWithoutPlan);
     await mirrorToSupabase('users', 'insert', { row: data });

@@ -43,7 +43,18 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'invalid token' }, { status: 404 });
     }
 
-    const layoutVersion = (screen as { updated_at?: string }).updated_at ?? new Date().toISOString();
+    const { data: rotations } = await supabase
+      .from('screen_template_rotations')
+      .select('updated_at')
+      .eq('screen_id', screenId)
+      .eq('is_active', true);
+    const rotationMaxUpdated = (rotations ?? []).reduce((max, r) => {
+      const u = (r as { updated_at?: string }).updated_at;
+      return u && (!max || u > max) ? u : max;
+    }, '' as string);
+    const screenUpdated = (screen as { updated_at?: string }).updated_at ?? new Date().toISOString();
+    const layoutVersion =
+      rotationMaxUpdated && rotationMaxUpdated > screenUpdated ? rotationMaxUpdated : screenUpdated;
 
     return NextResponse.json({
       layoutVersion,

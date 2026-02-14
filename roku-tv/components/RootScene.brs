@@ -181,7 +181,7 @@ sub checkPendingRegisterResult()
     if ri = invalid then ri = data.refreshintervalseconds
     if ri <> invalid then m.sec.write("refreshInterval", Str(ri))
     m.sec.flush()
-    showMain(layout)
+    showMain()
 end sub
 
 sub onRegisterResult(msg as dynamic)
@@ -211,16 +211,16 @@ sub onRegisterResult(msg as dynamic)
     if ri = invalid then ri = data.refreshintervalseconds
     if ri <> invalid then m.sec.write("refreshInterval", Str(ri))
     m.sec.flush()
-    showMain(layout)
+    showMain()
 end sub
 
-sub showMain(initialLayout = invalid as dynamic)
+sub showMain()
     if m.main <> invalid then return
     m.content.visible = false
     m.main = m.top.createChild("MainScene")
     m.main.id = "main"
     m.main.observeField("requestShowCode", "onMainRequestShowCode")
-    if initialLayout <> invalid then m.main.layout = initialLayout
+    ' Layout registry'e yazildi; MainScene loadLayout() ile oradan okuyacak (buyuk payload node field ile kesilebilir)
     m.main.setFocus(true)
 end sub
 

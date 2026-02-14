@@ -81,12 +81,16 @@ export async function POST(request: Request) {
 
     const { data: rotations } = await supabase
       .from('screen_template_rotations')
-      .select('template_id, full_editor_template_id, display_duration, display_order')
+      .select('template_id, full_editor_template_id, display_duration, display_order, updated_at')
       .eq('screen_id', screenId)
       .eq('is_active', true)
       .order('display_order', { ascending: true });
 
     const ordered = rotations ?? [];
+    const rotationMaxUpdated = ordered.reduce((max, r) => {
+      const u = (r as { updated_at?: string }).updated_at;
+      return u && (!max || u > max) ? u : max;
+    }, '' as string);
     const slides: Array<{ type: string; url?: string; title?: string; description?: string; duration: number }> = [];
 
     for (const r of ordered) {
@@ -106,7 +110,9 @@ export async function POST(request: Request) {
       slides.push({ type: 'text', title: 'No content', description: 'Add templates in Admin.', duration: 10 });
     }
 
-    const version = (screen as { updated_at?: string }).updated_at ?? new Date().toISOString();
+    const screenUpdated = (screen as { updated_at?: string }).updated_at ?? new Date().toISOString();
+    const version =
+      rotationMaxUpdated && rotationMaxUpdated > screenUpdated ? rotationMaxUpdated : screenUpdated;
     const layout = {
       version,
       backgroundColor: '#000000',
