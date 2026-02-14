@@ -452,12 +452,12 @@ export async function publishTemplates(screenId: string, request: NextRequest, u
   const templates = (body.templates ?? []) as PublishTemplate[];
   if (templates.length === 0) return Response.json({ message: 'At least one template required' }, { status: 400 });
 
-  // Standart kullanıcı (business_user) için kısıtlamalar: gösterim süresi min 30 sn, geçiş süresi max 5000 ms (geçiş efekti serbest)
+  // Standart kullanıcı (business_user) için kısıtlamalar: gösterim süresi min 1 sn, geçiş süresi max 5000 ms
   const isRegularUser = user.role !== 'super_admin' && user.role !== 'admin' && user.role !== 'tv_user';
   if (isRegularUser) {
     for (const t of templates) {
       const dur = t.display_duration ?? 5;
-      if (dur < 30) return Response.json({ message: 'Gösterim süresi en az 30 saniye olmalıdır.' }, { status: 400 });
+      if (dur < 1) return Response.json({ message: 'Gösterim süresi en az 1 saniye olmalıdır.' }, { status: 400 });
       const transDur = t.transition_duration ?? 1400;
       if (transDur > 5000) return Response.json({ message: 'Geçiş süresi en fazla 5000 ms olabilir.' }, { status: 400 });
     }
