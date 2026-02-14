@@ -185,6 +185,8 @@ export default function DisplayPage() {
   const { t, localePath } = useTranslation();
   const previewIndexParam = searchParams?.get('previewIndex');
   const previewIndex = previewIndexParam != null && /^\d+$/.test(previewIndexParam) ? parseInt(previewIndexParam, 10) : null;
+  const rotationIndexParam = searchParams?.get('rotationIndex');
+  const rotationIndexFromUrl = rotationIndexParam != null && /^\d+$/.test(rotationIndexParam) ? parseInt(rotationIndexParam, 10) : null;
   const liteParam = searchParams?.get('lite');
   const lowParam = searchParams?.get('low');
   const ultralowParam = searchParams?.get('ultralow');
@@ -274,7 +276,12 @@ export default function DisplayPage() {
   }, [isLiteMode, isLowDeviceMode, isUltralowMode, reloadMs]);
 
   useEffect(() => {
-    const initialRotation = previewIndex != null && previewIndex >= 0 ? previewIndex : undefined;
+    const initialRotation =
+      previewIndex != null && previewIndex >= 0
+        ? previewIndex
+        : rotationIndexFromUrl != null && rotationIndexFromUrl >= 0
+          ? rotationIndexFromUrl
+          : undefined;
     loadScreenData(initialRotation);
     if (previewIndex != null) return;
     const pollInterval = setInterval(() => {
@@ -290,7 +297,7 @@ export default function DisplayPage() {
       clearInterval(pollInterval);
       if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
     };
-  }, [token, previewIndex, preloadRotationCache]);
+  }, [token, previewIndex, rotationIndexFromUrl, preloadRotationCache]);
 
   // Heartbeat: ilk yayınlayan izinli, diğer cihazlar blok (allowed: false)
   useEffect(() => {
@@ -495,9 +502,10 @@ export default function DisplayPage() {
     return () => clearInterval(timer);
   }, [screenData, currentMenuIndex, currentItemIndex]);
 
-  // Template rotation: tek şablon ise display_duration sonunda yenile; 2+ şablon ise süreyle dönüş (önizleme modunda dönme)
+  // Template rotation: tek şablon ise display_duration sonunda yenile; 2+ şablon ise süreyle dönüş (önizleme/screenshot modunda dönme)
   useEffect(() => {
     if (previewIndex != null) return;
+    if (rotationIndexFromUrl != null) return;
     if (!screenData?.templateRotations || screenData.templateRotations.length === 0) {
       if (screenData && !currentTemplateData) {
         setCurrentTemplateData(screenData);
@@ -580,7 +588,7 @@ export default function DisplayPage() {
       })();
     }, durationMs);
     return () => clearTimeout(timer);
-  }, [currentTemplateIndex, currentTemplateData, screenData, token, previewIndex]);
+  }, [currentTemplateIndex, currentTemplateData, screenData, token, previewIndex, rotationIndexFromUrl]);
 
   // Geçiş sonrası kısa fade-in süresi bitince bayrağı kaldır
   useEffect(() => {
