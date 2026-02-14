@@ -57,6 +57,7 @@ export async function generateSlidesForScreen(screenId: string): Promise<Generat
   const keys: string[] = [];
   const keysToKeep: string[] = [];
   const errors: string[] = [];
+  console.log('[generate-slides-internal] screen=', screenId, 'slug=', slug, 'rotations=', rotations.length, 'baseUrl=', baseUrl);
 
   for (let i = 0; i < rotations.length; i++) {
     const r = rotations[i] as { template_id?: string | null; full_editor_template_id?: string | null };
@@ -67,9 +68,11 @@ export async function generateSlidesForScreen(screenId: string): Promise<Generat
 
     const url = `${baseUrl}/display/${encodeURIComponent(String(slug))}?lite=1&rotationIndex=${i}`;
     try {
+      console.log('[generate-slides-internal] slide', i, 'capturing url=', url.slice(0, 80), '...');
       const buffer = await captureDisplayScreenshot(url);
       if (!buffer) {
         errors.push(`Slide ${i}: screenshot alınamadı`);
+        console.error('[generate-slides-internal] slide', i, 'screenshot alınamadı (buffer null)');
         continue;
       }
       const key = await uploadSlideToSpaces(screenId, templateId, i, buffer);
@@ -89,6 +92,13 @@ export async function generateSlidesForScreen(screenId: string): Promise<Generat
 
   if (keys.length > 0) {
     console.log(`[generate-slides-internal] screen=${screenId} generated=${keys.length} deleted=${deletedCount}`);
+    // Layout version = max(screen.updated_at, rotations.updated_at). Bump screen so Roku heartbeat
+    // sees version change and refetches layout (same slides, but ensures devices get fresh data).
+    try {
+      await supabase.from('screens').update({ updated_at: new Date().toISOString() }).eq('id', screenId);
+    } catch (e) {
+      console.error('[generate-slides-internal] bump screen updated_at failed', e);
+    }
   }
 
   return {

@@ -42,6 +42,10 @@
       <FloatFieldInterpolator fieldToInterp="currentSlidePoster.opacity" key="[0.0, 1.0]" keyValue="[1.0, 0.0]"/>
       <FloatFieldInterpolator fieldToInterp="nextSlidePoster.opacity" key="[0.0, 1.0]" keyValue="[0.0, 1.0]"/>
     </Animation>
+    <Timer
+      id="slideTimer"
+      repeat="false"
+      duration="8"/>
     <Label
       id="status"
       translation="[100, 100]"

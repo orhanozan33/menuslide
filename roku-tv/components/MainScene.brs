@@ -9,6 +9,8 @@ sub init()
     m.fadeIn = m.top.findNode("fadeIn")
     m.slideLeftAnim = m.top.findNode("slideLeft")
     m.fadeTransition = m.top.findNode("fadeTransition")
+    m.slideTimer = m.top.findNode("slideTimer")
+    if m.slideTimer <> invalid then m.slideTimer.observeField("fire", "onSlideTimerFire")
     if m.slideLeftAnim <> invalid then m.slideLeftAnim.observeField("state", "onSlideLeftDone")
     if m.fadeTransition <> invalid then m.fadeTransition.observeField("state", "onFadeTransitionDone")
     m.sec = CreateObject("roRegistrySection", "menuslide")
@@ -75,7 +77,7 @@ sub loadLayout()
     else
         layout = loadLayoutFromChunkedRegistry()
         slidesFromChunked = getSlidesFromLayout(layout)
-        if layout = invalid or slidesFromChunked = invalid or slidesFromChunked.count() < 2 then
+        if layout = invalid or slidesFromChunked = invalid or slidesFromChunked.count() < 1 then
             if m.layoutStr <> "" and m.layoutStr <> invalid then
                 layout = ParseJson(m.layoutStr)
             end if
@@ -94,7 +96,7 @@ sub loadLayout()
         startLayoutFetch()
         return
     end if
-    if slides.count() < 2 then
+    if slides.count() < 1 then
         m.status.text = "Loading. Please Wait."
         m.status.visible = true
         startLayoutFetch()
@@ -184,14 +186,12 @@ sub renderLayout(layout as object)
     if slides = invalid or slides.count() = 0 then
         m.slides = invalid
         if m.slideTimer <> invalid then m.slideTimer.control = "stop"
-        m.slideTimer = invalid
         m.status.text = "No content. Add templates in Admin."
         m.status.visible = true
         startHeartbeat()
         return
     end if
     if m.slideTimer <> invalid then m.slideTimer.control = "stop"
-    m.slideTimer = invalid
     m.currentSlidePoster.visible = false
     m.currentSlidePoster.uri = ""
     m.nextSlidePoster.visible = false
@@ -308,15 +308,16 @@ end sub
 
 sub startSlideTimer()
     if m.slides = invalid or m.slides.count() = 0 then return
+    if m.slideTimer = invalid then return
     slide = m.slides[m.slideIndex]
     dur = slide.duration
     if dur = invalid then dur = slide.Duration
-    if dur = invalid or dur < 1 then dur = 8
-    if m.slideTimer <> invalid then m.slideTimer.control = "stop"
-    m.slideTimer = CreateObject("roSGNode", "Timer")
+    if dur = invalid then dur = 8
+    dur = Int(Val(Str(dur)))
+    if dur < 1 then dur = 8
+    m.slideTimer.control = "stop"
     m.slideTimer.duration = dur
     m.slideTimer.repeat = false
-    m.slideTimer.observeField("fire", "onSlideTimerFire")
     m.slideTimer.control = "start"
 end sub
 
@@ -400,7 +401,7 @@ end function
 
 sub startHeartbeat()
     if m.heartbeatTimer <> invalid then return
-    m.heartbeatTimer = CreateObject("roSGNode", "Timer")
+    m.heartbeatTimer = m.top.createChild("Timer")
     m.heartbeatTimer.duration = m.refreshInterval
     m.heartbeatTimer.repeat = true
     m.heartbeatTimer.observeField("fire", "onHeartbeat")
