@@ -130,18 +130,25 @@ export async function POST(request: Request) {
     };
 
     // Roku/Android aktivasyonunda slide görselleri otomatik oluştur (Vercel after = waitUntil)
-    const willGenerateSlides = ordered.length > 0 && isSpacesConfigured() && SLIDE_IMAGE_BASE;
-    console.log('[device/register] willGenerateSlides=', willGenerateSlides, 'spaces=', isSpacesConfigured(), 'base=', !!SLIDE_IMAGE_BASE);
+    const screenshotServiceUrl = process.env.SCREENSHOT_SERVICE_URL?.trim();
+    const screenshotOneKey = process.env.SCREENSHOTONE_ACCESS_KEY?.trim();
+    const hasScreenshotMethod = !!(screenshotServiceUrl || screenshotOneKey);
+    const willGenerateSlides = ordered.length > 0 && isSpacesConfigured() && SLIDE_IMAGE_BASE && hasScreenshotMethod;
+    console.log('[device/register] willGenerateSlides=', willGenerateSlides, 'SCREENSHOT_SERVICE_URL=', screenshotServiceUrl ? 'SET' : 'NOT_SET', 'SCREENSHOTONE=', !!screenshotOneKey, 'spaces=', isSpacesConfigured(), 'base=', !!SLIDE_IMAGE_BASE);
     if (willGenerateSlides) {
       after(async () => {
+        console.log('[device/register] after() started, calling generateSlidesForScreen screenId=', screenId);
         try {
           const r = await generateSlidesForScreen(screenId);
-          if (r.generated > 0) console.log('[device/register] generate-slides OK screen=', screenId, 'generated=', r.generated);
-          else if (r.errors?.length) console.error('[device/register] generate-slides errors:', r.errors);
+          console.log('[device/register] generate-slides done screen=', screenId, 'generated=', r.generated, 'errors=', r.errors?.length ?? 0);
+          if (r.generated > 0) console.log('[device/register] generate-slides OK generated=', r.generated);
+          if (r.errors?.length) r.errors.forEach((err) => console.error('[device/register] generate-slides error:', err));
         } catch (e) {
           console.error('[device/register] generate-slides failed:', e);
         }
       });
+    } else {
+      console.log('[device/register] willGenerateSlides=false skip (rotations=', ordered.length, 'spaces=', isSpacesConfigured(), 'base=', !!SLIDE_IMAGE_BASE, ')');
     }
 
     return NextResponse.json(

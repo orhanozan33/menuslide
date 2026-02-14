@@ -3,10 +3,49 @@
  * Used by generate-slides and GET /api/render/[displayId].
  *
  * Priority:
- * 1. SCREENSHOTONE_ACCESS_KEY → ScreenshotOne API (Vercel uyumlu)
- * 2. Puppeteer (yerel / VPS)
+ * 1. SCREENSHOT_SERVICE_URL → Kendi Puppeteer servisimiz (ücretsiz)
+ * 2. SCREENSHOTONE_ACCESS_KEY → ScreenshotOne API (ücretli)
+ * 3. Puppeteer (yerel / VPS - sadece Chrome yüklü sunucularda)
  */
 export async function captureDisplayScreenshot(displayPageUrl: string): Promise<Buffer | null> {
+  const serviceUrl = process.env.SCREENSHOT_SERVICE_URL?.trim();
+  if (process.env.VERCEL) {
+    console.log('[render-screenshot] Vercel env: SCREENSHOT_SERVICE_URL=', serviceUrl ? 'set' : 'NOT SET');
+  }
+  if (serviceUrl) {
+    try {
+      const base = serviceUrl.replace(/\/$/, '');
+      const authToken = process.env.SCREENSHOT_SERVICE_AUTH_TOKEN?.trim();
+      const protectionBypass = process.env.VERCEL_AUTOMATION_BYPASS_SECRET?.trim();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (authToken) headers['X-Auth-Token'] = authToken;
+      const body: Record<string, unknown> = {
+        url: displayPageUrl,
+        width: 1920,
+        height: 1080,
+        quality: 90,
+        waitMs: 2000,
+      };
+      if (protectionBypass) body.protectionBypass = protectionBypass;
+      const res = await fetch(`${base}/screenshot`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(60000),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        console.error('[render-screenshot] Screenshot service error:', res.status, text);
+        return null;
+      }
+      const arr = new Uint8Array(await res.arrayBuffer());
+      return Buffer.from(arr);
+    } catch (e) {
+      console.error('[render-screenshot] Screenshot service fetch failed:', e);
+      return null;
+    }
+  }
+
   const key = process.env.SCREENSHOTONE_ACCESS_KEY?.trim();
   if (key) {
     try {
@@ -30,6 +69,12 @@ export async function captureDisplayScreenshot(displayPageUrl: string): Promise<
       console.error('[render-screenshot] ScreenshotOne fetch failed:', e);
       return null;
     }
+  }
+
+  // Vercel'de Chrome yok; kendi servis veya ScreenshotOne zorunlu
+  if (process.env.VERCEL) {
+    console.error('[render-screenshot] Vercel ortaminda SCREENSHOT_SERVICE_URL veya SCREENSHOTONE_ACCESS_KEY gerekli. Puppeteer atlanıyor.');
+    return null;
   }
 
   const puppeteer = await import('puppeteer').catch(() => null);
