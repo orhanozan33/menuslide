@@ -43,11 +43,59 @@ function getSlidesFromLayout(layout as object) as dynamic
     return slides
 end function
 
+' Registry'de slide bazinda saklanan layout'u oku (kesilme olmasin)
+function loadLayoutFromChunkedRegistry() as dynamic
+    cntStr = m.sec.read("layout_slide_count")
+    if cntStr = "" or cntStr = invalid then return invalid
+    cnt = Int(Val(cntStr))
+    if cnt < 1 then return invalid
+    slides = CreateObject("roArray", cnt, true)
+    for i = 0 to cnt - 1
+        s = m.sec.read("layout_slide_" + Stri(i))
+        if s <> "" and s <> invalid then
+            slide = ParseJson(s)
+            if slide <> invalid then slides.push(slide)
+        end if
+    end for
+    if slides.count() <> cnt then return invalid
+    layout = CreateObject("roAssociativeArray")
+    layout.slides = slides
+    layout.backgroundColor = m.sec.read("layout_bg")
+    if layout.backgroundColor = invalid or layout.backgroundColor = "" then layout.backgroundColor = "#000000"
+    layout.version = m.sec.read("layout_ver")
+    return layout
+end function
+
 sub loadLayout()
-    ' Her baslangicta once API'den taze cek (registry truncate riski icin)
-    m.status.text = "Loading. Please Wait."
-    m.status.visible = true
-    startLayoutFetch()
+    layout = invalid
+    if m.top.layout <> invalid then
+        layout = m.top.layout
+    else
+        layout = loadLayoutFromChunkedRegistry()
+        if layout = invalid and m.layoutStr <> "" and m.layoutStr <> invalid then
+            layout = ParseJson(m.layoutStr)
+        end if
+    end if
+    if layout = invalid then
+        m.status.text = "Loading. Please Wait."
+        m.status.visible = true
+        startLayoutFetch()
+        return
+    end if
+    slides = getSlidesFromLayout(layout)
+    if slides = invalid or slides.count() = 0 then
+        m.status.text = "Loading. Please Wait."
+        m.status.visible = true
+        startLayoutFetch()
+        return
+    end if
+    if slides.count() < 2 then
+        m.status.text = "Loading. Please Wait."
+        m.status.visible = true
+        startLayoutFetch()
+        return
+    end if
+    renderLayout(layout)
 end sub
 
 sub startLayoutFetch()
@@ -64,14 +112,13 @@ sub onLayoutResult(msg as dynamic)
         m.layoutFetchFailCount = m.layoutFetchFailCount + 1
         m.status.text = "Loading. Please Wait."
         if m.slides = invalid or m.slides.count() = 0 then m.status.visible = true
-        ' Ag hatasi: registry cache varsa onu kullan
-        if m.layoutStr <> "" and m.layoutStr <> invalid then
-            layout = ParseJson(m.layoutStr)
-            slides = getSlidesFromLayout(layout)
-            if slides <> invalid and slides.count() > 0 then
-                renderLayout(layout)
-                return
-            end if
+        ' Ag hatasi: once chunked cache, yoksa layout string
+        layout = loadLayoutFromChunkedRegistry()
+        if layout = invalid and m.layoutStr <> "" and m.layoutStr <> invalid then layout = ParseJson(m.layoutStr)
+        slides = getSlidesFromLayout(layout)
+        if layout <> invalid and slides <> invalid and slides.count() > 0 then
+            renderLayout(layout)
+            return
         end if
         if m.layoutFetchFailCount >= 2 and (m.layoutStr = "" or m.layoutStr = invalid) then
             m.top.requestShowCode = true
@@ -79,14 +126,20 @@ sub onLayoutResult(msg as dynamic)
         return
     end if
     m.layoutFetchFailCount = 0
-    ' rawJson ile gelirse (LayoutTask) buradan parse et
-    if data.rawJson <> invalid and data.rawJson <> "" then
-        data = ParseJson(data.rawJson)
-        if data = invalid or data.error <> invalid then
+    ' Task layout'u registry'ye slide bazinda yazdi; buradan oku (node field kesmesin)
+    if data.ok = true then
+        layout = loadLayoutFromChunkedRegistry()
+        if layout <> invalid then
+            m.layoutVersion = m.sec.read("layoutVersion")
+            if m.layoutVersion = invalid then m.layoutVersion = ""
+            r = m.sec.read("refreshInterval")
+            if r <> "" and r <> invalid then m.refreshInterval = Int(Val(r))
+            renderLayout(layout)
+        else
             m.status.text = "Loading. Please Wait."
             m.status.visible = true
-            return
         end if
+        return
     end if
     layout = data.layout
     if layout = invalid then layout = data.Layout
@@ -107,7 +160,6 @@ sub onLayoutResult(msg as dynamic)
         m.sec.write("refreshInterval", Str(m.refreshInterval))
     end if
     m.sec.flush()
-    ' Ilk yukleme veya icerik yoksa mutlaka render et; version degistiyse de render et
     needRender = (m.slides = invalid or m.slides.count() = 0) or versionChanged
     if needRender then
         renderLayout(layout)
@@ -137,13 +189,6 @@ sub renderLayout(layout as object)
         m.bg.color = hexToRokuColor(layout.backgroundColor)
     end if
     m.slides = slides
-    m.status.text = "Slides: " + Stri(slides.count())
-    m.status.visible = true
-    m.debugHideTimer = CreateObject("roSGNode", "Timer")
-    m.debugHideTimer.duration = 2
-    m.debugHideTimer.repeat = false
-    m.debugHideTimer.observeField("fire", "onDebugHide")
-    m.debugHideTimer.control = "start"
     ' Re-render (version change): keep current position so all slides keep rotating; don't jump back to 0
     startIndex = 0
     if m.slideIndex <> invalid and m.slideIndex >= 0 then
@@ -157,13 +202,8 @@ sub renderLayout(layout as object)
     showSlide(startIndex)
     preloadNextImage()
     startSlideTimer()
-    startHeartbeat()
-end sub
-
-sub onDebugHide()
-    if m.debugHideTimer <> invalid then m.debugHideTimer.unobserveField("fire")
-    m.debugHideTimer = invalid
     m.status.visible = false
+    startHeartbeat()
 end sub
 
 function getTransitionSec(slide as object) as float

@@ -31,7 +31,29 @@ sub Main()
                     result = DoRegister(code, id)
                     print "[Main] DoRegister returned, has error: " ; (result <> invalid and result.error <> invalid)
                     sec = CreateObject("roRegistrySection", "menuslide")
-                    sec.write("pendingRegisterResult", FormatJson(result))
+                    if result <> invalid and result.error = invalid then
+                        sec.write("deviceToken", result.deviceToken)
+                        if result.layoutVersion <> invalid and result.layoutVersion <> "" then sec.write("layoutVersion", result.layoutVersion)
+                        if result.refreshIntervalSeconds <> invalid and result.refreshIntervalSeconds > 0 then sec.write("refreshInterval", Str(result.refreshIntervalSeconds))
+                        layout = result.layout
+                        if layout = invalid then layout = result.Lookup("layout")
+                        slides = invalid
+                        if layout <> invalid then
+                            slides = layout.slides
+                            if slides = invalid then slides = layout.Lookup("slides")
+                        end if
+                        if slides <> invalid and slides.count() > 0 then
+                            sec.write("layout_slide_count", Stri(slides.count()))
+                            if layout.backgroundColor <> invalid then sec.write("layout_bg", layout.backgroundColor)
+                            if layout.version <> invalid then sec.write("layout_ver", layout.version)
+                            for i = 0 to slides.count() - 1
+                                sec.write("layout_slide_" + Stri(i), FormatJson(slides[i]))
+                            end for
+                        end if
+                        sec.write("pendingRegisterResult", FormatJson({ ok: true }))
+                    else
+                        sec.write("pendingRegisterResult", FormatJson(result))
+                    end if
                     sec.flush()
                 else
                     print "[Main] requestregister missing displayCode or deviceId"

@@ -85,6 +85,19 @@ sub setHint(t as string)
     if m.hintLabel <> invalid then m.hintLabel.text = t
 end sub
 
+sub writeChunkedLayout(layout as object)
+    if layout = invalid then return
+    slides = layout.slides
+    if slides = invalid then slides = layout.Lookup("slides")
+    if slides = invalid or slides.count() = 0 then return
+    m.sec.write("layout_slide_count", Stri(slides.count()))
+    if layout.backgroundColor <> invalid then m.sec.write("layout_bg", layout.backgroundColor)
+    if layout.version <> invalid then m.sec.write("layout_ver", layout.version)
+    for i = 0 to slides.count() - 1
+        m.sec.write("layout_slide_" + Stri(i), FormatJson(slides[i]))
+    end for
+end sub
+
 sub showKeyboard()
     setHint(m.hintDefault)
     kb = CreateObject("roSGNode", "StandardKeyboardDialog")
@@ -163,6 +176,20 @@ sub checkPendingRegisterResult()
         setHint(errMsg)
         return
     end if
+    ' Yeni format: main.brs layout'u chunked yazdi, sadece { ok: true } gonderdi
+    if data.ok = true then
+        token = m.sec.read("deviceToken")
+        if token = "" or token = invalid then
+            setHint("Invalid code or no connection.")
+            return
+        end if
+        setHint(m.hintDefault)
+        m.sec.write("displayCode", m.code)
+        m.sec.flush()
+        m.pendingLayout = invalid
+        showMain()
+        return
+    end if
     token = data.deviceToken
     if token = invalid then token = data.devicetoken
     if token = invalid or token = "" then
@@ -173,7 +200,10 @@ sub checkPendingRegisterResult()
     m.sec.write("deviceToken", token)
     m.sec.write("displayCode", m.code)
     layout = data.layout
-    if layout <> invalid then m.sec.write("layout", FormatJson(layout))
+    if layout <> invalid then
+        m.sec.write("layout", FormatJson(layout))
+        writeChunkedLayout(layout)
+    end if
     lv = data.layoutVersion
     if lv = invalid then lv = data.layoutversion
     if lv <> invalid and lv <> "" then m.sec.write("layoutVersion", lv)
@@ -181,6 +211,7 @@ sub checkPendingRegisterResult()
     if ri = invalid then ri = data.refreshintervalseconds
     if ri <> invalid then m.sec.write("refreshInterval", Str(ri))
     m.sec.flush()
+    m.pendingLayout = layout
     showMain()
 end sub
 
@@ -211,6 +242,7 @@ sub onRegisterResult(msg as dynamic)
     if ri = invalid then ri = data.refreshintervalseconds
     if ri <> invalid then m.sec.write("refreshInterval", Str(ri))
     m.sec.flush()
+    m.pendingLayout = layout
     showMain()
 end sub
 
@@ -220,7 +252,11 @@ sub showMain()
     m.main = m.top.createChild("MainScene")
     m.main.id = "main"
     m.main.observeField("requestShowCode", "onMainRequestShowCode")
-    ' Layout registry'e yazildi; MainScene loadLayout() ile oradan okuyacak (buyuk payload node field ile kesilebilir)
+    ' Register sonrasi: layout'u dogrudan ver, registry kesmesin
+    if m.pendingLayout <> invalid then
+        m.main.layout = m.pendingLayout
+        m.pendingLayout = invalid
+    end if
     m.main.setFocus(true)
 end sub
 

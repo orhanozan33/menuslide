@@ -27,19 +27,34 @@ sub Run()
         if ok
             msg = wait(15000, port)
             if type(msg) = "roUrlEvent" and msg.getResponseCode() = 200
-                rawJson = msg.getString()
-                if rawJson <> invalid and Len(rawJson) > 10 then
-                    json = ParseJson(rawJson)
-                    if json <> invalid and json.error = invalid then
-                        ' Ham string gecir - node field objesi kesebilir
-                        m.top.result = { rawJson: rawJson }
-                        return
-                    end if
-                end if
+                json = ParseJson(msg.getString())
                 exit for
             end if
         end if
         sleep(2000 + i * 3000)
     end for
-    m.top.result = { error: true }
+    if json <> invalid and json.error = invalid then
+        layout = json.layout
+        if layout = invalid then layout = json.Lookup("layout")
+        slides = invalid
+        if layout <> invalid then
+            slides = layout.slides
+            if slides = invalid then slides = layout.Lookup("slides")
+        end if
+        if slides <> invalid and slides.count() > 0 then
+            sec = CreateObject("roRegistrySection", "menuslide")
+            if json.layoutVersion <> invalid and json.layoutVersion <> "" then sec.write("layoutVersion", json.layoutVersion)
+            if json.refreshIntervalSeconds <> invalid and json.refreshIntervalSeconds > 0 then sec.write("refreshInterval", Str(json.refreshIntervalSeconds))
+            sec.write("layout_slide_count", Stri(slides.count()))
+            if layout.backgroundColor <> invalid then sec.write("layout_bg", layout.backgroundColor)
+            if layout.version <> invalid then sec.write("layout_ver", layout.version)
+            for i = 0 to slides.count() - 1
+                sec.write("layout_slide_" + Stri(i), FormatJson(slides[i]))
+            end for
+            sec.flush()
+        end if
+        m.top.result = { ok: true }
+    else
+        m.top.result = { error: true }
+    end if
 end sub

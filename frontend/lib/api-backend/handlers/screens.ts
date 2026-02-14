@@ -450,7 +450,7 @@ export async function publishTemplates(screenId: string, request: NextRequest, u
   const templates = (body.templates ?? []) as PublishTemplate[];
   if (templates.length === 0) return Response.json({ message: 'At least one template required' }, { status: 400 });
 
-  // Standart kullanıcı (business_user) için kısıtlamalar: gösterim süresi min 30 sn, geçiş süresi max 5000 ms, geçiş efekti sadece slide-left
+  // Standart kullanıcı (business_user) için kısıtlamalar: gösterim süresi min 30 sn, geçiş süresi max 5000 ms (geçiş efekti serbest)
   const isRegularUser = user.role !== 'super_admin' && user.role !== 'admin' && user.role !== 'tv_user';
   if (isRegularUser) {
     for (const t of templates) {
@@ -458,8 +458,6 @@ export async function publishTemplates(screenId: string, request: NextRequest, u
       if (dur < 30) return Response.json({ message: 'Gösterim süresi en az 30 saniye olmalıdır.' }, { status: 400 });
       const transDur = t.transition_duration ?? 1400;
       if (transDur > 5000) return Response.json({ message: 'Geçiş süresi en fazla 5000 ms olabilir.' }, { status: 400 });
-      const effect = t.transition_effect ?? 'fade';
-      if (effect !== 'slide-left') return Response.json({ message: 'Geçiş efekti sadece sağdan sola (slide-left) seçilebilir.' }, { status: 400 });
     }
   }
 

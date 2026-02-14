@@ -4,6 +4,8 @@ import { useTranslation } from '@/lib/i18n/useTranslation';
 import { addCanadaHST } from '@/lib/canada-tax';
 
 const localeMap: Record<string, string> = { en: 'en-US', tr: 'tr-TR', fr: 'fr-FR' };
+/** Cache-busting: logo degistiginde artir; fatura modal eski logoyu gostermesin */
+const LOGO_VERSION = '2';
 
 export interface InvoiceModalData {
   invoice_number?: string;
@@ -51,7 +53,7 @@ export function InvoiceModal({ data, loading, onClose }: InvoiceModalProps) {
     const curSym = curVal === 'CAD' || curVal === 'CA$' ? 'CA$' : curVal + ' ';
     const company = data.company as Record<string, string> | undefined;
     const dateStr = formatDateShort(data.payment_date as string, locale);
-    const logoUrl = typeof window !== 'undefined' ? window.location.origin + '/menuslide-logo.png' : '';
+    const logoUrl = typeof window !== 'undefined' ? window.location.origin + '/menuslide-logo.png?v=' + LOGO_VERSION : '';
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${t('invoice_title')}</title><style>
 body{font-family:system-ui,sans-serif;max-width:700px;margin:0 auto;padding:32px;color:#111;background:#fff}
 .top-line{height:2px;background:#374151;margin-bottom:24px}
@@ -157,7 +159,7 @@ th:nth-child(2),th:nth-child(3),th:nth-child(4),td:nth-child(2),td:nth-child(3),
                     <div className="font-medium text-slate-800">{data.company.company_name || 'MenuSlide'}</div>
                     {data.company.company_address ? <div className="text-slate-600 text-xs mt-0.5">{data.company.company_address}</div> : null}
                   </div>
-                  <img src="/menuslide-logo.png" alt="MenuSlide" className="h-14 w-auto object-contain flex-shrink-0" />
+                  <img src={`/menuslide-logo.png?v=${LOGO_VERSION}`} alt="MenuSlide" className="h-14 w-auto object-contain flex-shrink-0" />
                 </div>
               ) : (
                 <div className="p-3 bg-slate-50 rounded-lg flex justify-between items-start gap-3">
@@ -165,7 +167,7 @@ th:nth-child(2),th:nth-child(3),th:nth-child(4),td:nth-child(2),td:nth-child(3),
                     <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">{t('invoice_from')}</div>
                     <div className="font-medium text-slate-800">MenuSlide</div>
                   </div>
-                  <img src="/menuslide-logo.png" alt="MenuSlide" className="h-14 w-auto object-contain flex-shrink-0" />
+                  <img src={`/menuslide-logo.png?v=${LOGO_VERSION}`} alt="MenuSlide" className="h-14 w-auto object-contain flex-shrink-0" />
                 </div>
               )}
               <div className="p-3 bg-slate-50 rounded-lg">
