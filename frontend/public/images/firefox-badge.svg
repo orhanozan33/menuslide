@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 162 60" width="162" height="60">
+  <rect width="162" height="60" rx="8" fill="white"/>
+  <text x="81" y="35" font-family="Arial, sans-serif" font-size="20" font-weight="bold" fill="#FF7139" text-anchor="middle">Firefox</text>
+  <text x="81" y="48" font-family="Arial, sans-serif" font-size="10" fill="#333" text-anchor="middle">Web Browser</text>
+</svg>

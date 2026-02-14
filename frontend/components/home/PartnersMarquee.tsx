@@ -1,23 +1,29 @@
 'use client';
 
+import { useState } from 'react';
 import type { PartnerItem } from '@/app/api/home-partners/route';
 
 function ItemBlock({ item }: { item: PartnerItem }) {
   const isLogo = item.kind === 'logo';
+  const [imgError, setImgError] = useState(false);
   return (
     <div
       className={`flex-shrink-0 flex items-center justify-center px-2 py-1.5 ${isLogo ? 'min-w-[140px] md:min-w-[160px]' : 'min-w-[80px] md:min-w-[100px]'}`}
     >
       {isLogo ? (
-        <img
-          src={item.value}
-          alt=""
-          className="max-h-14 md:max-h-20 w-auto max-w-full object-contain object-center opacity-80 hover:opacity-100 transition-opacity"
-          loading="lazy"
-          onError={(e) => {
-            (e.target as HTMLImageElement).style.display = 'none';
-          }}
-        />
+        imgError ? (
+          <span className="text-white/70 text-sm font-medium truncate max-w-full">
+            {/supabase/i.test(item.value) ? 'Supabase' : /roku/i.test(item.value) ? 'Roku' : 'Partner'}
+          </span>
+        ) : (
+          <img
+            src={item.value}
+            alt=""
+            className="max-h-14 md:max-h-20 w-auto max-w-full object-contain object-center opacity-80 hover:opacity-100 transition-opacity"
+            loading="lazy"
+            onError={() => setImgError(true)}
+          />
+        )
       ) : (
         <span className="text-white/70 text-sm md:text-base font-medium whitespace-nowrap">
           {item.value}

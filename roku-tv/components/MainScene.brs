@@ -59,6 +59,13 @@ sub loadLayout()
         startLayoutFetch()
         return
     end if
+    ' Cache'de 1 veya daha az slide varsa API'den taze cek (truncate olabilir)
+    if slides.count() < 2 then
+        m.status.text = "Loading. Please Wait."
+        m.status.visible = true
+        startLayoutFetch()
+        return
+    end if
     renderLayout(layout)
 end sub
 
@@ -75,6 +82,7 @@ sub onLayoutResult(msg as dynamic)
         if m.layoutFetchFailCount = invalid then m.layoutFetchFailCount = 0
         m.layoutFetchFailCount = m.layoutFetchFailCount + 1
         m.status.text = "Loading. Please Wait."
+        if m.slides = invalid or m.slides.count() = 0 then m.status.visible = true
         if m.layoutFetchFailCount >= 2 and (m.layoutStr = "" or m.layoutStr = invalid) then
             m.top.requestShowCode = true
         end if
@@ -86,6 +94,7 @@ sub onLayoutResult(msg as dynamic)
     if layout = invalid then layout = data.Lookup("layout")
     if layout = invalid then
         m.status.text = "Loading. Please Wait."
+        m.status.visible = true
         return
     end if
     m.sec.write("layout", FormatJson(layout))

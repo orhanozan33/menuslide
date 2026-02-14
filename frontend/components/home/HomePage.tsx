@@ -503,31 +503,93 @@ export function HomePage({ localePath }: HomePageProps) {
         </div>
       </section>
 
-      {/* İndirme - Android TV / Fire Stick uygulaması */}
-      <section id="download" className="py-10 sm:py-16 md:py-20 px-3 sm:px-6 md:px-12 bg-white/[0.02] border-y border-white/5 scroll-mt-20">
-        <div className="max-w-2xl mx-auto text-center">
-          <h2 className="text-xl sm:text-3xl font-bold text-white mb-2 sm:mb-4">
+      {/* İndirme - Android TV / Fire Stick uygulaması (%40 küçültülmüş) */}
+      <section id="download" className="py-6 sm:py-10 md:py-12 px-3 sm:px-6 md:px-12 bg-white/[0.02] border-y border-white/5 scroll-mt-20">
+        <div className="max-w-4xl mx-auto text-center">
+          <h2 className="text-lg sm:text-xl font-bold text-white mb-1.5 sm:mb-2.5">
             {t('home_download_title')}
           </h2>
-          <p className="text-white/50 text-sm sm:text-base mb-8 px-1">
+          <p className="text-white/50 text-xs sm:text-sm mb-5 px-1">
             {t('home_download_desc')}
           </p>
-          <a
-            href={downloadUrl}
-            download={downloadUrl.startsWith('/') ? 'Menuslide.apk' : undefined}
-            target={downloadUrl.startsWith('http') ? '_blank' : undefined}
-            rel={downloadUrl.startsWith('http') ? 'noopener noreferrer' : undefined}
-            className="inline-block rounded-xl overflow-hidden shadow-xl hover:opacity-95 active:opacity-90 transition-opacity touch-manipulation focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-[#06090f]"
-            aria-label={t('home_download_btn')}
-          >
-            <img
-              src="https://elcomercio.pe/resizer/99-qjsIGrIcKOQ3dy_LCUYGVvyI=/1200x672/smart/filters:format(jpeg):quality(75)/arc-anglerfish-arc2-prod-elcomercio.s3.amazonaws.com/public/FNG6RJHPD5EORHL227HF2CCB3U.jpg"
-              alt={t('home_download_btn')}
-              className="w-full max-w-[269px] h-auto block"
-              width={400}
-              height={224}
-            />
-          </a>
+          <div className="flex flex-nowrap items-center justify-center gap-3 sm:gap-4 overflow-x-auto">
+            <a
+              href="https://www.videolan.org/vlc/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block rounded-lg overflow-hidden shadow-lg hover:opacity-95 active:opacity-90 transition-opacity touch-manipulation focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-[#06090f]"
+              aria-label="VLC Media Player"
+            >
+              <img
+                src="/images/vlc-badge.svg"
+                alt="VLC Media Player"
+                className="w-[110px] sm:w-[140px] md:w-[162px] h-auto flex-shrink-0 block"
+                width={162}
+                height={60}
+              />
+            </a>
+            <a
+              href="https://channelstore.roku.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block rounded-lg overflow-hidden shadow-lg hover:opacity-95 active:opacity-90 transition-opacity touch-manipulation focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-[#06090f]"
+              aria-label="Roku Channel Store"
+            >
+              <img
+                src="/images/roku-badge.svg"
+                alt="Available on Roku"
+                className="w-[110px] sm:w-[140px] md:w-[162px] h-auto flex-shrink-0 block"
+                width={162}
+                height={60}
+              />
+            </a>
+            <a
+              href={downloadUrl}
+              download={downloadUrl.startsWith('/') ? 'Menuslide.apk' : undefined}
+              target={downloadUrl.startsWith('http') ? '_blank' : undefined}
+              rel={downloadUrl.startsWith('http') ? 'noopener noreferrer' : undefined}
+              className="inline-block rounded-lg overflow-hidden shadow-lg hover:opacity-95 active:opacity-90 transition-opacity touch-manipulation focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-[#06090f]"
+              aria-label={t('home_download_btn')}
+            >
+              <img
+                src="/images/google-play-badge.svg"
+                alt={t('home_download_btn')}
+                className="w-[110px] sm:w-[140px] md:w-[162px] h-auto flex-shrink-0 block"
+                width={162}
+                height={60}
+              />
+            </a>
+            <a
+              href="https://www.google.com/chrome/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block rounded-lg overflow-hidden shadow-lg hover:opacity-95 active:opacity-90 transition-opacity touch-manipulation focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-[#06090f]"
+              aria-label="Google Chrome"
+            >
+              <img
+                src="/images/chrome-badge.svg"
+                alt="Google Chrome"
+                className="w-[110px] sm:w-[140px] md:w-[162px] h-auto flex-shrink-0 block"
+                width={162}
+                height={60}
+              />
+            </a>
+            <a
+              href="https://www.mozilla.org/firefox/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block rounded-lg overflow-hidden shadow-lg hover:opacity-95 active:opacity-90 transition-opacity touch-manipulation focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-[#06090f]"
+              aria-label="Mozilla Firefox"
+            >
+              <img
+                src="/images/firefox-badge.svg"
+                alt="Mozilla Firefox"
+                className="w-[110px] sm:w-[140px] md:w-[162px] h-auto flex-shrink-0 block"
+                width={162}
+                height={60}
+              />
+            </a>
+          </div>
         </div>
       </section>
 
