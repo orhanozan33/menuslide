@@ -72,8 +72,11 @@ sub loadLayout()
         layout = m.top.layout
     else
         layout = loadLayoutFromChunkedRegistry()
-        if layout = invalid and m.layoutStr <> "" and m.layoutStr <> invalid then
-            layout = ParseJson(m.layoutStr)
+        slidesFromChunked = getSlidesFromLayout(layout)
+        if layout = invalid or slidesFromChunked = invalid or slidesFromChunked.count() < 2 then
+            if m.layoutStr <> "" and m.layoutStr <> invalid then
+                layout = ParseJson(m.layoutStr)
+            end if
         end if
     end if
     if layout = invalid then
@@ -95,7 +98,9 @@ sub loadLayout()
         startLayoutFetch()
         return
     end if
+    ' Always fetch on startup to get latest layout - prevent stale template
     renderLayout(layout)
+    startLayoutFetch()
 end sub
 
 sub startLayoutFetch()
@@ -126,12 +131,12 @@ sub onLayoutResult(msg as dynamic)
         return
     end if
     m.layoutFetchFailCount = 0
-    ' Task layout'u registry'ye slide bazinda yazdi; buradan oku (node field kesmesin)
     if data.ok = true then
         layout = loadLayoutFromChunkedRegistry()
         if layout <> invalid then
             m.layoutVersion = m.sec.read("layoutVersion")
             if m.layoutVersion = invalid then m.layoutVersion = ""
+            print "[MainScene] layout from registry version="; m.layoutVersion
             r = m.sec.read("refreshInterval")
             if r <> "" and r <> invalid then m.refreshInterval = Int(Val(r))
             renderLayout(layout)
@@ -150,7 +155,12 @@ sub onLayoutResult(msg as dynamic)
         return
     end if
     m.sec.write("layout", FormatJson(layout))
-    versionChanged = (data.layoutVersion <> invalid and data.layoutVersion <> "" and data.layoutVersion <> m.layoutVersion)
+    newVer = ""
+    if data.layoutVersion <> invalid and data.layoutVersion <> "" then newVer = data.layoutVersion
+    curVer = m.layoutVersion
+    if curVer = invalid then curVer = ""
+    versionChanged = (newVer <> "" and newVer <> curVer)
+    print "[MainScene] layoutVersion cur="; curVer; " new="; newVer; " changed="; versionChanged
     if data.layoutVersion <> invalid and data.layoutVersion <> "" then
         m.layoutVersion = data.layoutVersion
         m.sec.write("layoutVersion", m.layoutVersion)
@@ -374,7 +384,6 @@ sub onHeartbeat()
     task.input = { deviceToken: m.deviceToken }
     task.observeField("result", "onHeartbeatResult")
     task.control = "RUN"
-    startLayoutFetch()
 end sub
 
 function onKeyEvent(key as string, press as boolean) as boolean
@@ -389,7 +398,11 @@ end function
 sub onHeartbeatResult(msg as dynamic)
     data = msg.getData()
     if data = invalid or data.error <> invalid then return
-    if data.layoutVersion <> invalid and data.layoutVersion <> "" and data.layoutVersion <> m.layoutVersion then
+    newVer = ""
+    if data.layoutVersion <> invalid and data.layoutVersion <> "" then newVer = data.layoutVersion
+    curVer = m.layoutVersion
+    if curVer = invalid then curVer = ""
+    if newVer <> "" and newVer <> curVer then
         startLayoutFetch()
     end if
 end sub

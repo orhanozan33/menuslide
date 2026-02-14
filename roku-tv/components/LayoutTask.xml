@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <component name="LayoutTask" extends="Task">
   <interface>
-    <field name="input" type="assocarray"/>
-    <field name="result" type="assocarray" alwaysNotify="true"/>
+    <field id="input" name="input" type="assocarray"/>
+    <field id="result" name="result" type="assocarray" alwaysNotify="true"/>
   </interface>
   <script type="text/brightscript" uri="pkg:/components/LayoutTask.brs"/>
 </component>

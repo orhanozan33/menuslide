@@ -61,6 +61,10 @@ export async function GET(request: NextRequest) {
           return u && (!max || u > max) ? u : max;
         }, '' as string)
       : '';
+    const screenUpdated = (screen as { updated_at?: string }).updated_at ?? new Date().toISOString();
+    const version =
+      rotationMaxUpdated && rotationMaxUpdated > screenUpdated ? rotationMaxUpdated : screenUpdated;
+    const versionParam = version.replace(/[:.]/g, '-');
     const slides: Array<{ type: string; url?: string; title?: string; description?: string; duration: number; transition_effect?: string; transition_duration?: number }> = [];
 
     for (const r of ordered) {
@@ -73,7 +77,7 @@ export async function GET(request: NextRequest) {
 
       const baseSlide = { duration, transition_effect: transitionEffect, transition_duration: Math.min(2000, Math.max(100, transitionDuration)) };
       if (SLIDE_IMAGE_BASE && templateId) {
-        const url = `${SLIDE_IMAGE_BASE}/slides/${screenId}/${templateId}.jpg`;
+        const url = `${SLIDE_IMAGE_BASE}/slides/${screenId}/${templateId}.jpg?v=${encodeURIComponent(versionParam)}`;
         slides.push({ ...baseSlide, type: 'image', url });
       } else {
         slides.push({ ...baseSlide, type: 'text', title: 'Slide', description: '' });
@@ -92,21 +96,26 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const screenUpdated = (screen as { updated_at?: string }).updated_at ?? new Date().toISOString();
-    const version =
-      rotationMaxUpdated && rotationMaxUpdated > screenUpdated ? rotationMaxUpdated : screenUpdated;
     const layout = {
       version,
       backgroundColor: '#000000',
       slides,
     };
 
-    return NextResponse.json({
-      deviceToken,
-      layout,
-      layoutVersion: version,
-      refreshIntervalSeconds: 300,
-    });
+    return NextResponse.json(
+      {
+        deviceToken,
+        layout,
+        layoutVersion: version,
+        refreshIntervalSeconds: 300,
+      },
+      {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+          Pragma: 'no-cache',
+        },
+      }
+    );
   } catch (e) {
     console.error('[device/layout]', e);
     return NextResponse.json({ error: 'SERVER_ERROR' }, { status: 500 });

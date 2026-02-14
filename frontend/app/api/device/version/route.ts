@@ -56,10 +56,18 @@ export async function GET(request: NextRequest) {
     const layoutVersion =
       rotationMaxUpdated && rotationMaxUpdated > screenUpdated ? rotationMaxUpdated : screenUpdated;
 
-    return NextResponse.json({
-      layoutVersion,
-      refreshIntervalSeconds: 300,
-    });
+    return NextResponse.json(
+      {
+        layoutVersion,
+        refreshIntervalSeconds: 300,
+      },
+      {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+          Pragma: 'no-cache',
+        },
+      }
+    );
   } catch (e) {
     console.error('[device/version]', e);
     return NextResponse.json({ error: 'SERVER_ERROR' }, { status: 500 });

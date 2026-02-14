@@ -42,6 +42,9 @@ sub Main()
                             slides = layout.slides
                             if slides = invalid then slides = layout.Lookup("slides")
                         end if
+                        if layout <> invalid then
+                            sec.write("layout", FormatJson(layout))
+                        end if
                         if slides <> invalid and slides.count() > 0 then
                             sec.write("layout_slide_count", Stri(slides.count()))
                             if layout.backgroundColor <> invalid then sec.write("layout_bg", layout.backgroundColor)

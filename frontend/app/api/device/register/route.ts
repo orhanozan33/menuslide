@@ -113,18 +113,29 @@ export async function POST(request: Request) {
     const screenUpdated = (screen as { updated_at?: string }).updated_at ?? new Date().toISOString();
     const version =
       rotationMaxUpdated && rotationMaxUpdated > screenUpdated ? rotationMaxUpdated : screenUpdated;
+    const versionParam = version.replace(/[:.]/g, '-');
     const layout = {
       version,
       backgroundColor: '#000000',
-      slides,
+      slides: slides.map((s) =>
+        s.url ? { ...s, url: `${s.url}?v=${encodeURIComponent(versionParam)}` } : s
+      ),
     };
 
-    return NextResponse.json({
-      deviceToken,
-      layout,
-      layoutVersion: version,
-      refreshIntervalSeconds: 300,
-    });
+    return NextResponse.json(
+      {
+        deviceToken,
+        layout,
+        layoutVersion: version,
+        refreshIntervalSeconds: 300,
+      },
+      {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+          Pragma: 'no-cache',
+        },
+      }
+    );
   } catch (e) {
     console.error('[device/register]', e);
     return NextResponse.json({ error: 'SERVER_ERROR' }, { status: 500 });

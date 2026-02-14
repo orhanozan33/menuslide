@@ -34,6 +34,9 @@ sub Run()
         sleep(2000 + i * 3000)
     end for
     if json <> invalid and json.error = invalid then
+        lv = json.layoutVersion
+        if lv = invalid then lv = ""
+        print "[LayoutTask] layoutVersion="; lv
         layout = json.layout
         if layout = invalid then layout = json.Lookup("layout")
         slides = invalid
@@ -43,7 +46,23 @@ sub Run()
         end if
         if slides <> invalid and slides.count() > 0 then
             sec = CreateObject("roRegistrySection", "menuslide")
-            if json.layoutVersion <> invalid and json.layoutVersion <> "" then sec.write("layoutVersion", json.layoutVersion)
+            newVer = ""
+            if json.layoutVersion <> invalid and json.layoutVersion <> "" then newVer = json.layoutVersion
+            curVer = sec.read("layoutVersion")
+            if curVer = invalid then curVer = ""
+            ' Version changed: clear old cache to prevent stale layout
+            if newVer <> "" and newVer <> curVer then
+                print "[LayoutTask] version changed, clearing old cache"
+                sec.delete("layout")
+                cntStr = sec.read("layout_slide_count")
+                if cntStr <> "" and cntStr <> invalid then
+                    cnt = Int(Val(cntStr))
+                    for i = 0 to cnt - 1
+                        sec.delete("layout_slide_" + Stri(i))
+                    end for
+                end if
+            end if
+            if newVer <> "" then sec.write("layoutVersion", newVer)
             if json.refreshIntervalSeconds <> invalid and json.refreshIntervalSeconds > 0 then sec.write("refreshInterval", Str(json.refreshIntervalSeconds))
             sec.write("layout_slide_count", Stri(slides.count()))
             if layout.backgroundColor <> invalid then sec.write("layout_bg", layout.backgroundColor)

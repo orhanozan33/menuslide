@@ -5,6 +5,8 @@ import { getDefaultStreamUrl } from '@/lib/stream-url';
 import type { JwtPayload } from '@/lib/auth-server';
 import { useLocalDb, queryOne, queryLocal, insertLocal, updateLocal, deleteLocal, runLocal, mirrorToSupabase } from '@/lib/api-backend/db-local';
 import { insertAdminActivityLog } from '@/lib/api-backend/admin-activity-log';
+import { captureDisplayScreenshot } from '@/lib/render-screenshot';
+import { uploadSlideToSpaces, isSpacesConfigured } from '@/lib/spaces-slides';
 
 function generatePublicToken(): string {
   return randomBytes(32).toString('hex');
@@ -471,7 +473,7 @@ export async function publishTemplates(screenId: string, request: NextRequest, u
     if (!skipSubCheck && !(await isSubscriptionActiveLocal(screen.business_id))) return Response.json({ message: 'Subscription expired or payment failed. Renew your subscription to broadcast.' }, { status: 403 });
     await runLocal('DELETE FROM screen_template_rotations WHERE screen_id = $1', [screenId]);
     await runLocal('DELETE FROM screen_blocks WHERE screen_id = $1', [screenId]);
-    await updateLocal('screens', screenId, { template_id: isFirstFullEditor ? null : first.template_id ?? null, is_active: true });
+    await updateLocal('screens', screenId, { template_id: isFirstFullEditor ? null : first.template_id ?? null, is_active: true, updated_at: new Date().toISOString() });
     if (!isFirstFullEditor && first.template_id) {
       const tBlocks = await queryLocal<{ id: string; block_index: number; position_x?: number; position_y?: number; width?: number; height?: number }>('SELECT id, block_index, position_x, position_y, width, height FROM template_blocks WHERE template_id = $1 ORDER BY block_index', [first.template_id]);
       for (const tb of tBlocks) {
@@ -515,7 +517,7 @@ export async function publishTemplates(screenId: string, request: NextRequest, u
     if (sbRes.error) return Response.json({ message: sbRes.error.message || 'Failed to clear rotations' }, { status: 500 });
     sbRes = await sb.from('screen_blocks').delete().eq('screen_id', screenId);
     if (sbRes.error) return Response.json({ message: sbRes.error.message || 'Failed to clear blocks' }, { status: 500 });
-    sbRes = await sb.from('screens').update({ template_id: isFirstFullEditor ? null : first.template_id ?? null, is_active: true }).eq('id', screenId);
+    sbRes = await sb.from('screens').update({ template_id: isFirstFullEditor ? null : first.template_id ?? null, is_active: true, updated_at: new Date().toISOString() }).eq('id', screenId);
     if (sbRes.error) return Response.json({ message: sbRes.error.message || 'Failed to update screen' }, { status: 500 });
     if (!isFirstFullEditor && first.template_id) {
       const tBlocks = await queryLocal<{ id: string; block_index: number; position_x?: number; position_y?: number; width?: number; height?: number }>('SELECT id, block_index, position_x, position_y, width, height FROM template_blocks WHERE template_id = $1 ORDER BY block_index', [first.template_id]);
@@ -562,7 +564,7 @@ export async function publishTemplates(screenId: string, request: NextRequest, u
   if (res.error) return Response.json({ message: res.error.message || 'Failed to clear rotations' }, { status: 500 });
   res = await supabase.from('screen_blocks').delete().eq('screen_id', screenId);
   if (res.error) return Response.json({ message: res.error.message || 'Failed to clear blocks' }, { status: 500 });
-  res = await supabase.from('screens').update({ template_id: isFirstFullEditor ? null : first.template_id ?? null, is_active: true }).eq('id', screenId);
+  res = await supabase.from('screens').update({ template_id: isFirstFullEditor ? null : first.template_id ?? null, is_active: true, updated_at: new Date().toISOString() }).eq('id', screenId);
   if (res.error) return Response.json({ message: res.error.message || 'Failed to update screen' }, { status: 500 });
   if (!isFirstFullEditor && first.template_id) {
     const { data: tBlocks } = await supabase.from('template_blocks').select('id, block_index, position_x, position_y, width, height').eq('template_id', first.template_id).order('block_index', { ascending: true });
@@ -776,4 +778,78 @@ export async function fixNames(request: NextRequest, user: JwtPayload): Promise<
     results.push({ business_id: bid, updated });
   }
   return Response.json(results);
+}
+
+/** POST /screens/:id/generate-slides — Yayındaki template'ler için slide görsellerini oluşturup Spaces'e yükler. */
+export async function generateSlides(screenId: string, _request: NextRequest, user: JwtPayload): Promise<Response> {
+  if (!isSpacesConfigured()) {
+    return Response.json(
+      { message: 'Slide görselleri için DigitalOcean Spaces yapılandırılmamış (DO_SPACES_KEY, DO_SPACES_SECRET).' },
+      { status: 503 }
+    );
+  }
+
+  const supabase = getServerSupabase();
+  const screen = await checkScreenAccess(supabase, screenId, user);
+  if (!screen) return Response.json({ message: 'Not found or access denied' }, { status: 404 });
+
+  const { data: screenRow, error: screenError } = await supabase
+    .from('screens')
+    .select('id, public_slug, public_token, broadcast_code')
+    .eq('id', screenId)
+    .single();
+
+  if (screenError || !screenRow) {
+    return Response.json({ message: 'Screen not found' }, { status: 404 });
+  }
+
+  const slug =
+    (screenRow as { public_slug?: string }).public_slug ||
+    (screenRow as { public_token?: string }).public_token ||
+    (screenRow as { broadcast_code?: string }).broadcast_code;
+  if (!slug) {
+    return Response.json({ message: 'Ekran için public slug/token/broadcast_code yok.' }, { status: 400 });
+  }
+
+  const { data: rotations, error: rotError } = await supabase
+    .from('screen_template_rotations')
+    .select('template_id, full_editor_template_id, display_order')
+    .eq('screen_id', screenId)
+    .eq('is_active', true)
+    .order('display_order', { ascending: true });
+
+  if (rotError || !rotations?.length) {
+    return Response.json({ message: 'Bu ekran için yayında template yok.' }, { status: 400 });
+  }
+
+  const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://menuslide.com').replace(/\/$/, '');
+  const keys: string[] = [];
+  const errors: string[] = [];
+
+  for (let i = 0; i < rotations.length; i++) {
+    const r = rotations[i] as { template_id?: string | null; full_editor_template_id?: string | null };
+    const templateId = r.full_editor_template_id || r.template_id;
+    if (!templateId) continue;
+
+    const url = `${baseUrl}/display/${encodeURIComponent(String(slug))}?lite=1&rotationIndex=${i}`;
+    try {
+      const buffer = await captureDisplayScreenshot(url);
+      if (!buffer) {
+        errors.push(`Slide ${i}: screenshot alınamadı`);
+        continue;
+      }
+      const key = await uploadSlideToSpaces(screenId, templateId, buffer);
+      keys.push(key);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      errors.push(`Slide ${i} (${templateId}): ${msg}`);
+    }
+  }
+
+  return Response.json({
+    message: keys.length > 0 ? `${keys.length} slide görseli Spaces'e yüklendi.` : 'Hiçbir görsel yüklenemedi.',
+    generated: keys.length,
+    keys,
+    errors: errors.length > 0 ? errors : undefined,
+  });
 }

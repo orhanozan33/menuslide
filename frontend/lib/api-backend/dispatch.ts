@@ -254,6 +254,7 @@ export async function handleLocal(
     if (method === 'DELETE' && screenId && id === 'menus' && sub2) return screensHandlers.removeMenu(screenId, sub2, user);
     if (method === 'GET' && screenId && id === 'template-rotations') return screensHandlers.getTemplateRotations(screenId, user);
     if (method === 'POST' && screenId && id === 'publish-templates') return screensHandlers.publishTemplates(screenId, request, user);
+    if (method === 'POST' && screenId && id === 'generate-slides') return screensHandlers.generateSlides(screenId, request, user);
     if (method === 'POST' && screenId && id === 'stop-publishing') return screensHandlers.stopPublishing(screenId, user);
   }
 

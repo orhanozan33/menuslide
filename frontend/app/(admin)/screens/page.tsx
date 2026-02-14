@@ -627,8 +627,12 @@ export default function ScreensPage() {
       toast.showSuccess(t('screens_published_success'));
       setShowPublishModal(false);
       setSelectedTemplates([]);
+      const publishedScreenId = selectedScreenId;
       setSelectedScreenId(null);
       await loadScreens();
+      if (publishedScreenId) {
+        apiClient(`/screens/${publishedScreenId}/generate-slides`, { method: 'POST' }).catch(() => {});
+      }
     } catch (error: any) {
       console.error('Error publishing templates:', error);
       toast.showError(t('screens_publish_failed') + ': ' + (error.message || ''));
