@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
     const versionParam = version.replace(/[:.]/g, '-');
     const slides: Array<{ type: string; url?: string; title?: string; description?: string; duration: number; transition_effect?: string; transition_duration?: number }> = [];
 
-    for (const r of ordered) {
+    ordered.forEach((r, index) => {
       const templateId =
         (r as { full_editor_template_id?: string | null }).full_editor_template_id ||
         (r as { template_id?: string }).template_id;
@@ -77,12 +77,12 @@ export async function GET(request: NextRequest) {
 
       const baseSlide = { duration, transition_effect: transitionEffect, transition_duration: Math.min(2000, Math.max(100, transitionDuration)) };
       if (SLIDE_IMAGE_BASE && templateId) {
-        const url = `${SLIDE_IMAGE_BASE}/slides/${screenId}/${templateId}.jpg?v=${encodeURIComponent(versionParam)}`;
+        const url = `${SLIDE_IMAGE_BASE}/slides/${screenId}/${templateId}-${index}.jpg?v=${encodeURIComponent(versionParam)}`;
         slides.push({ ...baseSlide, type: 'image', url });
       } else {
         slides.push({ ...baseSlide, type: 'text', title: 'Slide', description: '' });
       }
-    }
+    });
 
     // No slides: one placeholder text slide so app has something to show
     if (slides.length === 0) {

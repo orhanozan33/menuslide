@@ -53,22 +53,17 @@ export async function generateSlidesForScreen(screenId: string): Promise<Generat
     return { generated: 0, deleted: 0, errors: ['Yayında template yok'] };
   }
 
-  const currentTemplateIds = new Set<string>();
-  for (const r of rotations) {
-    const tid =
-      (r as { full_editor_template_id?: string | null }).full_editor_template_id ||
-      (r as { template_id?: string | null }).template_id;
-    if (tid) currentTemplateIds.add(tid);
-  }
-
   const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://menuslide.com').replace(/\/$/, '');
   const keys: string[] = [];
+  const keysToKeep: string[] = [];
   const errors: string[] = [];
 
   for (let i = 0; i < rotations.length; i++) {
     const r = rotations[i] as { template_id?: string | null; full_editor_template_id?: string | null };
     const templateId = r.full_editor_template_id || r.template_id;
     if (!templateId) continue;
+
+    keysToKeep.push(`${templateId}-${i}`);
 
     const url = `${baseUrl}/display/${encodeURIComponent(String(slug))}?lite=1&rotationIndex=${i}`;
     try {
@@ -77,7 +72,7 @@ export async function generateSlidesForScreen(screenId: string): Promise<Generat
         errors.push(`Slide ${i}: screenshot alınamadı`);
         continue;
       }
-      const key = await uploadSlideToSpaces(screenId, templateId, buffer);
+      const key = await uploadSlideToSpaces(screenId, templateId, i, buffer);
       keys.push(key);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -87,7 +82,7 @@ export async function generateSlidesForScreen(screenId: string): Promise<Generat
 
   let deletedCount = 0;
   try {
-    deletedCount = await deleteSlidesNotInSet(screenId, currentTemplateIds);
+    deletedCount = await deleteSlidesNotInSet(screenId, keysToKeep);
   } catch (e) {
     console.error('[generate-slides-internal] cleanup failed', e);
   }

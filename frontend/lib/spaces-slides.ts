@@ -35,6 +35,7 @@ function getSpacesClient(): S3Client | null {
 export async function uploadSlideToSpaces(
   screenId: string,
   templateId: string,
+  rotationIndex: number,
   buffer: Buffer
 ): Promise<string> {
   const client = getSpacesClient();
@@ -43,7 +44,7 @@ export async function uploadSlideToSpaces(
   if (!client) {
     throw new Error('Spaces not configured: DO_SPACES_KEY and DO_SPACES_SECRET required');
   }
-  const key = `slides/${screenId}/${templateId}.jpg`;
+  const key = `slides/${screenId}/${templateId}-${rotationIndex}.jpg`;
   await client.send(
     new PutObjectCommand({
       Bucket: bucket,
@@ -62,17 +63,18 @@ export function isSpacesConfigured(): boolean {
 
 /**
  * Ekrandaki yayında olmayan (rotation'da artık kullanılmayan) slide görsellerini siler.
- * Sadece currentTemplateIds içinde olanlar kalır; diğer .jpg dosyaları silinir.
+ * keysToKeep: "templateId-0", "templateId-1" gibi dosya adları (prefix ve .jpg hariç).
  */
 export async function deleteSlidesNotInSet(
   screenId: string,
-  currentTemplateIds: Set<string>
+  keysToKeep: string[]
 ): Promise<number> {
   const client = getSpacesClient();
   let bucket = process.env.DO_SPACES_BUCKET?.trim() || 'menuslide-signage';
   bucket = bucket.replace(/^https?:\/\//, '').split('/')[0].split('.')[0];
   if (!client) return 0;
 
+  const keepSet = new Set(keysToKeep);
   const prefix = `slides/${screenId}/`;
   let deleted = 0;
   let continuationToken: string | undefined;
@@ -91,7 +93,7 @@ export async function deleteSlidesNotInSet(
       const key = obj.Key ?? '';
       if (!key.endsWith('.jpg')) continue;
       const name = key.slice(prefix.length, -4);
-      if (!currentTemplateIds.has(name)) toDelete.push({ Key: key });
+      if (!keepSet.has(name)) toDelete.push({ Key: key });
     }
     if (toDelete.length > 0) {
       await client.send(

@@ -100,18 +100,18 @@ export async function POST(request: Request) {
     }, '' as string);
     const slides: Array<{ type: string; url?: string; title?: string; description?: string; duration: number }> = [];
 
-    for (const r of ordered) {
+    ordered.forEach((r, index) => {
       const templateId =
         (r as { full_editor_template_id?: string | null }).full_editor_template_id ||
         (r as { template_id?: string }).template_id;
       const duration = Math.max(1, (r as { display_duration?: number }).display_duration ?? 8);
 
       if (SLIDE_IMAGE_BASE && templateId) {
-        slides.push({ type: 'image', url: `${SLIDE_IMAGE_BASE}/slides/${screenId}/${templateId}.jpg`, duration });
+        slides.push({ type: 'image', url: `${SLIDE_IMAGE_BASE}/slides/${screenId}/${templateId}-${index}.jpg`, duration });
       } else {
         slides.push({ type: 'text', title: 'Slide', description: '', duration });
       }
-    }
+    });
 
     if (slides.length === 0) {
       slides.push({ type: 'text', title: 'No content', description: 'Add templates in Admin.', duration: 10 });
