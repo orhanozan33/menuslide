@@ -8,7 +8,9 @@ sub init()
     m.nextSlidePoster = m.top.findNode("nextSlidePoster")
     m.fadeIn = m.top.findNode("fadeIn")
     m.slideLeftAnim = m.top.findNode("slideLeft")
+    m.fadeTransition = m.top.findNode("fadeTransition")
     if m.slideLeftAnim <> invalid then m.slideLeftAnim.observeField("state", "onSlideLeftDone")
+    if m.fadeTransition <> invalid then m.fadeTransition.observeField("state", "onFadeTransitionDone")
     m.sec = CreateObject("roRegistrySection", "menuslide")
     m.deviceToken = m.sec.read("deviceToken")
     m.layoutStr = m.sec.read("layout")
@@ -324,7 +326,8 @@ sub onSlideTimerFire()
     nextSlide = m.slides[nextIndex]
     nextType = nextSlide.type
     if nextType = invalid then nextType = nextSlide.Type
-    if nextType = "image" and getTransitionEffect(nextSlide) = "slide-left" and m.slideLeftAnim <> invalid then
+    effect = getTransitionEffect(nextSlide)
+    if nextType = "image" and effect = "slide-left" and m.slideLeftAnim <> invalid then
         m.slideTimer.control = "stop"
         clearLayoutGroup()
         m.pendingNextIndex = nextIndex
@@ -334,6 +337,16 @@ sub onSlideTimerFire()
         m.nextSlidePoster.translation = [1920, 0]
         m.slideLeftAnim.duration = getTransitionSec(nextSlide)
         m.slideLeftAnim.control = "start"
+    else if nextType = "image" and effect = "fade" and m.fadeTransition <> invalid then
+        m.slideTimer.control = "stop"
+        m.pendingNextIndex = nextIndex
+        m.nextSlidePoster.uri = nextSlide.url
+        if m.nextSlidePoster.uri = invalid then m.nextSlidePoster.uri = nextSlide.Url
+        m.nextSlidePoster.opacity = 0
+        m.nextSlidePoster.translation = [0, 0]
+        m.nextSlidePoster.visible = true
+        m.fadeTransition.duration = getTransitionSec(nextSlide)
+        m.fadeTransition.control = "start"
     else
         showSlide(nextIndex)
         preloadNextImage()
@@ -349,8 +362,23 @@ sub onSlideLeftDone()
     m.slideIndex = nextIndex
     m.currentSlidePoster.uri = m.nextSlidePoster.uri
     m.currentSlidePoster.translation = [0, 0]
+    m.currentSlidePoster.opacity = 1
     m.nextSlidePoster.visible = false
     m.nextSlidePoster.translation = [1920, 0]
+    preloadNextImage()
+    startSlideTimer()
+end sub
+
+sub onFadeTransitionDone()
+    if m.fadeTransition = invalid or m.fadeTransition.state <> "stopped" then return
+    if m.pendingNextIndex = invalid then return
+    nextIndex = m.pendingNextIndex
+    m.pendingNextIndex = invalid
+    m.slideIndex = nextIndex
+    m.currentSlidePoster.uri = m.nextSlidePoster.uri
+    m.currentSlidePoster.opacity = 1
+    m.nextSlidePoster.visible = false
+    m.nextSlidePoster.opacity = 0
     preloadNextImage()
     startSlideTimer()
 end sub

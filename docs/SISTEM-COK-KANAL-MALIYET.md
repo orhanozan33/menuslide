@@ -40,6 +40,8 @@ Hepsi **aynı backend, aynı layout modeli**; fark sadece istemcinin (web/Androi
 
 ---
 
+**TV kodu (örn. 10011) girilince yayın yok:** O ekran için admin panelden template seçip **Yayınla** yapılmadıysa cihazda içerik görünmez; önce yayın gerekir.
+
 ## 3) Otomatik akış (Sistemsel otomatik)
 
 ```

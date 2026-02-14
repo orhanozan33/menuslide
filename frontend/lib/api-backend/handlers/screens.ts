@@ -6,7 +6,7 @@ import type { JwtPayload } from '@/lib/auth-server';
 import { useLocalDb, queryOne, queryLocal, insertLocal, updateLocal, deleteLocal, runLocal, mirrorToSupabase } from '@/lib/api-backend/db-local';
 import { insertAdminActivityLog } from '@/lib/api-backend/admin-activity-log';
 import { captureDisplayScreenshot } from '@/lib/render-screenshot';
-import { uploadSlideToSpaces, isSpacesConfigured } from '@/lib/spaces-slides';
+import { uploadSlideToSpaces, isSpacesConfigured, deleteSlidesNotInSet } from '@/lib/spaces-slides';
 
 function generatePublicToken(): string {
   return randomBytes(32).toString('hex');
@@ -822,6 +822,12 @@ export async function generateSlides(screenId: string, _request: NextRequest, us
     return Response.json({ message: 'Bu ekran için yayında template yok.' }, { status: 400 });
   }
 
+  const currentTemplateIds = new Set<string>();
+  for (const r of rotations) {
+    const tid = (r as { template_id?: string | null; full_editor_template_id?: string | null }).full_editor_template_id || (r as { template_id?: string | null }).template_id;
+    if (tid) currentTemplateIds.add(tid);
+  }
+
   const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://menuslide.com').replace(/\/$/, '');
   const keys: string[] = [];
   const errors: string[] = [];
@@ -846,9 +852,19 @@ export async function generateSlides(screenId: string, _request: NextRequest, us
     }
   }
 
+  let deletedCount = 0;
+  try {
+    deletedCount = await deleteSlidesNotInSet(screenId, currentTemplateIds);
+  } catch (e) {
+    console.error('[generate-slides] cleanup old slides failed', e);
+  }
+
   return Response.json({
-    message: keys.length > 0 ? `${keys.length} slide görseli Spaces'e yüklendi.` : 'Hiçbir görsel yüklenemedi.',
+    message: keys.length > 0
+      ? `${keys.length} slide yüklendi${deletedCount > 0 ? `, ${deletedCount} eski görsel silindi` : ''}.`
+      : 'Hiçbir görsel yüklenemedi.',
     generated: keys.length,
+    deleted: deletedCount,
     keys,
     errors: errors.length > 0 ? errors : undefined,
   });

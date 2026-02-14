@@ -37,6 +37,11 @@
       <Vector2DFieldInterpolator id="slideCurrent" fieldToInterp="currentSlidePoster.translation" key="[0.0, 1.0]" keyValue="[[0, 0], [-1920, 0]]"/>
       <Vector2DFieldInterpolator id="slideNext" fieldToInterp="nextSlidePoster.translation" key="[0.0, 1.0]" keyValue="[[1920, 0], [0, 0]]"/>
     </Animation>
+    <!-- Fade: crossfade current out, next in -->
+    <Animation id="fadeTransition" duration="0.4" easeFunction="linear">
+      <FloatFieldInterpolator fieldToInterp="currentSlidePoster.opacity" key="[0.0, 1.0]" keyValue="[1.0, 0.0]"/>
+      <FloatFieldInterpolator fieldToInterp="nextSlidePoster.opacity" key="[0.0, 1.0]" keyValue="[0.0, 1.0]"/>
+    </Animation>
     <Label
       id="status"
       translation="[100, 100]"

@@ -16,7 +16,7 @@
  */
 
 const { createClient } = require('@supabase/supabase-js');
-const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+const { S3Client, PutObjectCommand, ListObjectsV2Command, DeleteObjectsCommand } = require('@aws-sdk/client-s3');
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -85,6 +85,39 @@ async function uploadToSpaces(screenId, templateId, buffer) {
   return key;
 }
 
+async function deleteSlidesNotInSet(screenId, currentTemplateIds) {
+  const prefix = `slides/${screenId}/`;
+  let deleted = 0;
+  let continuationToken;
+  do {
+    const list = await s3.send(
+      new ListObjectsV2Command({
+        Bucket: doBucket,
+        Prefix: prefix,
+        ContinuationToken: continuationToken,
+      })
+    );
+    const toDelete = (list.Contents || [])
+      .filter((o) => (o.Key || '').endsWith('.jpg'))
+      .map((o) => {
+        const name = (o.Key || '').slice(prefix.length, -4);
+        return currentTemplateIds.has(name) ? null : { Key: o.Key };
+      })
+      .filter(Boolean);
+    if (toDelete.length > 0) {
+      await s3.send(
+        new DeleteObjectsCommand({
+          Bucket: doBucket,
+          Delete: { Objects: toDelete, Quiet: true },
+        })
+      );
+      deleted += toDelete.length;
+    }
+    continuationToken = list.IsTruncated ? list.NextContinuationToken : undefined;
+  } while (continuationToken);
+  return deleted;
+}
+
 async function main() {
   const screenIdFilter = process.argv[2] || null;
 
@@ -126,6 +159,9 @@ async function main() {
       continue;
     }
 
+    const currentTemplateIds = new Set(
+      rotations.map((r) => r.full_editor_template_id || r.template_id).filter(Boolean)
+    );
     console.log('Ekran:', screen.id, 'slug:', slug, 'slide sayısı:', rotations.length);
 
     for (let i = 0; i < rotations.length; i++) {
@@ -143,6 +179,9 @@ async function main() {
       const key = await uploadToSpaces(screen.id, templateId, buffer);
       console.log('    Yüklendi:', key);
     }
+
+    const removed = await deleteSlidesNotInSet(screen.id, currentTemplateIds);
+    if (removed > 0) console.log('    Eski görseller silindi:', removed);
   }
 
   console.log('Bitti.');
