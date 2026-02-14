@@ -1,9 +1,37 @@
 /**
  * Capture a 1920x1080 JPEG screenshot of a display page.
- * Used by GET /api/render/[displayId] for Roku App-Level Image Sync.
- * Requires: npm i puppeteer
+ * Used by generate-slides and GET /api/render/[displayId].
+ *
+ * Priority:
+ * 1. SCREENSHOTONE_ACCESS_KEY → ScreenshotOne API (Vercel uyumlu, ücretsiz 100/ay)
+ * 2. Puppeteer (yerel / VPS)
  */
 export async function captureDisplayScreenshot(displayPageUrl: string): Promise<Buffer | null> {
+  const key = process.env.SCREENSHOTONE_ACCESS_KEY?.trim();
+  if (key) {
+    try {
+      const url = new URL('https://api.screenshotone.com/take');
+      url.searchParams.set('url', displayPageUrl);
+      url.searchParams.set('viewport_width', '1920');
+      url.searchParams.set('viewport_height', '1080');
+      url.searchParams.set('format', 'jpeg');
+      url.searchParams.set('image_quality', '90');
+      url.searchParams.set('block_ads', 'true');
+      url.searchParams.set('cache', 'false');
+      url.searchParams.set('access_key', key);
+      const res = await fetch(url.toString(), { signal: AbortSignal.timeout(30000) });
+      if (!res.ok) {
+        console.error('[render-screenshot] ScreenshotOne error:', res.status, await res.text());
+        return null;
+      }
+      const arr = new Uint8Array(await res.arrayBuffer());
+      return Buffer.from(arr);
+    } catch (e) {
+      console.error('[render-screenshot] ScreenshotOne fetch failed:', e);
+      return null;
+    }
+  }
+
   const puppeteer = await import('puppeteer').catch(() => null);
   if (!puppeteer?.default) return null;
 
