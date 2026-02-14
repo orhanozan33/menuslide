@@ -27,15 +27,19 @@ sub Run()
         if ok
             msg = wait(15000, port)
             if type(msg) = "roUrlEvent" and msg.getResponseCode() = 200
-                json = ParseJson(msg.getString())
+                rawJson = msg.getString()
+                if rawJson <> invalid and Len(rawJson) > 10 then
+                    json = ParseJson(rawJson)
+                    if json <> invalid and json.error = invalid then
+                        ' Ham string gecir - node field objesi kesebilir
+                        m.top.result = { rawJson: rawJson }
+                        return
+                    end if
+                end if
                 exit for
             end if
         end if
         sleep(2000 + i * 3000)
     end for
-    if json <> invalid and json.error = invalid then
-        m.top.result = json
-    else
-        m.top.result = { error: true }
-    end if
+    m.top.result = { error: true }
 end sub
