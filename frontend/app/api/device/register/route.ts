@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
+import { after } from 'next/server';
 import { getServerSupabase } from '@/lib/supabase-server';
 import { generateSlidesForScreen } from '@/lib/generate-slides-internal';
 import { isSpacesConfigured } from '@/lib/spaces-slides';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 120; // generate-slides ~30–60 sn sürer; Vercel timeout
 
 const SLIDE_IMAGE_BASE =
   process.env.NEXT_PUBLIC_SLIDE_IMAGE_BASE_URL?.replace(/\/$/, '') ||
@@ -72,6 +74,7 @@ export async function POST(request: Request) {
     }
 
     if (!screen) {
+      console.log('[device/register] CODE_NOT_FOUND displayCode=', displayCode);
       return NextResponse.json(
         { error: 'CODE_NOT_FOUND', message: 'Display code not found or screen inactive' },
         { status: 404 }
@@ -79,6 +82,7 @@ export async function POST(request: Request) {
     }
 
     const screenId = (screen as { id: string }).id;
+    console.log('[device/register] screenId=', screenId, 'displayCode=', displayCode);
     const deviceToken = `dt_${screenId}_${deviceId.slice(0, 8)}_${Date.now()}`;
 
     const { data: rotations } = await supabase
@@ -89,6 +93,7 @@ export async function POST(request: Request) {
       .order('display_order', { ascending: true });
 
     const ordered = rotations ?? [];
+    console.log('[device/register] rotations count=', ordered.length, 'screenId=', screenId);
     const rotationMaxUpdated = ordered.reduce((max, r) => {
       const u = (r as { updated_at?: string }).updated_at;
       return u && (!max || u > max) ? u : max;
@@ -124,9 +129,19 @@ export async function POST(request: Request) {
       ),
     };
 
-    // Roku/Android aktivasyonunda slide görselleri yoksa otomatik oluştur (fire-and-forget)
-    if (ordered.length > 0 && isSpacesConfigured() && SLIDE_IMAGE_BASE) {
-      generateSlidesForScreen(screenId).catch((e) => console.error('[device/register] generate-slides failed:', e));
+    // Roku/Android aktivasyonunda slide görselleri otomatik oluştur (Vercel after = waitUntil)
+    const willGenerateSlides = ordered.length > 0 && isSpacesConfigured() && SLIDE_IMAGE_BASE;
+    console.log('[device/register] willGenerateSlides=', willGenerateSlides, 'spaces=', isSpacesConfigured(), 'base=', !!SLIDE_IMAGE_BASE);
+    if (willGenerateSlides) {
+      after(async () => {
+        try {
+          const r = await generateSlidesForScreen(screenId);
+          if (r.generated > 0) console.log('[device/register] generate-slides OK screen=', screenId, 'generated=', r.generated);
+          else if (r.errors?.length) console.error('[device/register] generate-slides errors:', r.errors);
+        } catch (e) {
+          console.error('[device/register] generate-slides failed:', e);
+        }
+      });
     }
 
     return NextResponse.json(

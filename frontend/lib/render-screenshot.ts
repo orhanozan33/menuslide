@@ -3,7 +3,7 @@
  * Used by generate-slides and GET /api/render/[displayId].
  *
  * Priority:
- * 1. SCREENSHOTONE_ACCESS_KEY → ScreenshotOne API (Vercel uyumlu, ücretsiz 100/ay)
+ * 1. SCREENSHOTONE_ACCESS_KEY → ScreenshotOne API (Vercel uyumlu)
  * 2. Puppeteer (yerel / VPS)
  */
 export async function captureDisplayScreenshot(displayPageUrl: string): Promise<Buffer | null> {
@@ -19,7 +19,7 @@ export async function captureDisplayScreenshot(displayPageUrl: string): Promise<
       url.searchParams.set('block_ads', 'true');
       url.searchParams.set('cache', 'false');
       url.searchParams.set('access_key', key);
-      const res = await fetch(url.toString(), { signal: AbortSignal.timeout(30000) });
+      const res = await fetch(url.toString(), { signal: AbortSignal.timeout(60000) });
       if (!res.ok) {
         console.error('[render-screenshot] ScreenshotOne error:', res.status, await res.text());
         return null;

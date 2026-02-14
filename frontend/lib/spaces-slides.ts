@@ -15,8 +15,12 @@ function getSpacesClient(): S3Client | null {
   if (s3Client) return s3Client;
   const key = process.env.DO_SPACES_KEY?.trim();
   const secret = process.env.DO_SPACES_SECRET?.trim();
-  const bucket = process.env.DO_SPACES_BUCKET?.trim() || 'menuslide-signage';
-  const region = process.env.DO_SPACES_REGION?.trim() || 'tor1';
+  // Bucket: sadece isim (https:// veya .com içermemeli)
+  let bucket = process.env.DO_SPACES_BUCKET?.trim() || 'menuslide-signage';
+  bucket = bucket.replace(/^https?:\/\//, '').split('/')[0].split('.')[0];
+  // Region: sadece tor1, nyc3 vb. (https veya URL değil)
+  let region = process.env.DO_SPACES_REGION?.trim() || 'tor1';
+  if (region.startsWith('http') || region.includes('.')) region = 'tor1';
   if (!key || !secret) return null;
   const endpoint = `https://${region}.digitaloceanspaces.com`;
   s3Client = new S3Client({
@@ -34,7 +38,8 @@ export async function uploadSlideToSpaces(
   buffer: Buffer
 ): Promise<string> {
   const client = getSpacesClient();
-  const bucket = process.env.DO_SPACES_BUCKET?.trim() || 'menuslide-signage';
+  let bucket = process.env.DO_SPACES_BUCKET?.trim() || 'menuslide-signage';
+  bucket = bucket.replace(/^https?:\/\//, '').split('/')[0].split('.')[0];
   if (!client) {
     throw new Error('Spaces not configured: DO_SPACES_KEY and DO_SPACES_SECRET required');
   }
@@ -64,7 +69,8 @@ export async function deleteSlidesNotInSet(
   currentTemplateIds: Set<string>
 ): Promise<number> {
   const client = getSpacesClient();
-  const bucket = process.env.DO_SPACES_BUCKET?.trim() || 'menuslide-signage';
+  let bucket = process.env.DO_SPACES_BUCKET?.trim() || 'menuslide-signage';
+  bucket = bucket.replace(/^https?:\/\//, '').split('/')[0].split('.')[0];
   if (!client) return 0;
 
   const prefix = `slides/${screenId}/`;
