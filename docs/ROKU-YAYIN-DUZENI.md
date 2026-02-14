@@ -4,11 +4,23 @@ Bu belge, Roku’da yayının geldiği mevcut düzeni tarif eder. Değişiklik y
 
 ---
 
-## Genel akış
+## Güncel akış (JSON slides — varsayılan)
+
+1. **Admin** → Template seçip **Yayınla** → generate-slides tetiklenir
+2. **Slides** → DigitalOcean Spaces'e `slides/{screenId}/{templateId}.jpg` yüklenir
+3. **Roku** → Kodu girer → API `layout.slides[]` döner → CDN'den görselleri gösterir
+
+Bkz: `docs/DIGITAL-SIGNAGE-JSON-SLIDES.md`, `docs/ROKU-YAYIN-KONTROL-LISTESI.md`
+
+---
+
+## Eski akış (Video — legacy)
 
 1. **Display sayfası:** https://menuslide.com/display/menuslide-tv10
 2. **VPS worker** bu sayfayı kaydeder → **loop.mp4** üretir (Roku HLS’i oynatamadığı için MP4 kullanılıyor).
 3. **Roku uygulaması** kodu (10012) girer → API **stream_url** döner → `http://68.183.205.207/stream/menuslide-tv10/loop.mp4` oynatılır.
+
+**Not:** Bu akış artık kullanılmıyor. Video scriptleri `scripts/legacy/` altındadır. Bkz: `docs/LEGACY-SCRIPTS.md`
 
 ---
 
@@ -16,7 +28,7 @@ Bu belge, Roku’da yayının geldiği mevcut düzeni tarif eder. Değişiklik y
 
 ### Worker: display → video
 
-- **Script:** `vps-video-worker.js` (sayfayı Puppeteer ile açar, kaydeder, hem HLS hem **loop.mp4** üretir).
+- **Script:** `scripts/legacy/vps-video-worker.js` (sayfayı Puppeteer ile açar, kaydeder, hem HLS hem **loop.mp4** üretir).
 - **Döngü süresi:** Worker, `GET /api/public-screen/{slug}` ile ekranın `templateRotations` verisini alır; her şablonun `display_duration` değerlerini toplar ve kayıt süresini bu toplam süreye göre ayarlar (min 30 sn, max 600 sn). Böylece tüm şablonlar tek döngüde kaydedilir.
 - **Çıktı:** `/var/www/menuslide/stream/menuslide-tv10/` içinde `loop.mp4` + isteğe bağlı `playlist.m3u8` ve segmentler.
 - **Roku için kullanılan:** Sadece `loop.mp4`.
@@ -56,8 +68,8 @@ Bu belge, Roku’da yayının geldiği mevcut düzeni tarif eder. Değişiklik y
 
 | Ne | Nerede |
 |----|--------|
-| Video worker | `scripts/vps-video-worker.js` (display → loop.mp4) |
-| MP4 tek seferlik | `scripts/stream-mp4-once.sh` (manuel input.mp4 → loop.mp4) |
+| Video worker (legacy) | `scripts/legacy/vps-video-worker.js` |
+| MP4 tek seferlik (legacy) | `scripts/legacy/stream-mp4-once.sh` |
 | Roku MainScene | `roku-tv/components/MainScene.brs` (video state, retry, finished→replay) |
 | Roku Task XML | `roku-tv/components/LayoutTask.xml`, `HeartbeatTask.xml` (field id) |
 | Nginx stream | `docs/nginx-menuslide-cdn.conf` (location /stream/) |

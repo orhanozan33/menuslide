@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSupabase } from '@/lib/supabase-server';
+import { generateSlidesForScreen } from '@/lib/generate-slides-internal';
+import { isSpacesConfigured } from '@/lib/spaces-slides';
 
 export const dynamic = 'force-dynamic';
 
@@ -121,6 +123,11 @@ export async function POST(request: Request) {
         s.url ? { ...s, url: `${s.url}?v=${encodeURIComponent(versionParam)}` } : s
       ),
     };
+
+    // Roku/Android aktivasyonunda slide görselleri yoksa otomatik oluştur (fire-and-forget)
+    if (ordered.length > 0 && isSpacesConfigured() && SLIDE_IMAGE_BASE) {
+      generateSlidesForScreen(screenId).catch((e) => console.error('[device/register] generate-slides failed:', e));
+    }
 
     return NextResponse.json(
       {

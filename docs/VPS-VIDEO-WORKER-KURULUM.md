@@ -35,7 +35,7 @@ npm install puppeteer puppeteer-screen-recorder
 Projeden script'i kopyala:
 
 ```bash
-cp /path/to/Tvproje/scripts/vps-video-worker.js .
+cp /path/to/Tvproje/scripts/legacy/vps-video-worker.js .
 ```
 
 (Puppeteer ilk çalıştırmada Chromium indirir; Linux'ta gerekli kütüphaneler için:
@@ -55,7 +55,7 @@ DISPLAY_BASE_URL=https://menuslide.com \
 STREAM_OUTPUT_DIR=/var/www/menuslide/stream \
 SCREEN_SLUGS=menuslide-tv10 \
 RECORD_SECONDS=30 \
-node vps-video-worker.js
+node scripts/legacy/vps-video-worker.js
 ```
 
 Birden fazla ekran (virgülle):
@@ -65,7 +65,7 @@ DISPLAY_BASE_URL=https://menuslide.com \
 STREAM_OUTPUT_DIR=/var/www/menuslide/stream \
 SCREEN_SLUGS=menuslide-tv10,menuslide-tv11 \
 RECORD_SECONDS=30 \
-node vps-video-worker.js
+node scripts/legacy/vps-video-worker.js
 ```
 
 Slug listesi dosyadan (her satırda bir slug):
@@ -75,7 +75,7 @@ DISPLAY_BASE_URL=https://menuslide.com \
 STREAM_OUTPUT_DIR=/var/www/menuslide/stream \
 SCREEN_SLUGS_FILE=/var/www/menuslide/slugs.txt \
 RECORD_SECONDS=30 \
-node vps-video-worker.js
+node scripts/legacy/vps-video-worker.js
 ```
 
 ---
@@ -110,7 +110,7 @@ crontab -e
 Eklenen satır:
 
 ```
-*/5 * * * * cd /var/www/menuslide/app && DISPLAY_BASE_URL=https://menuslide.com STREAM_OUTPUT_DIR=/var/www/menuslide/stream SCREEN_SLUGS=menuslide-tv10 RECORD_SECONDS=30 node vps-video-worker.js >> /var/log/menuslide-video.log 2>&1
+*/5 * * * * cd /var/www/menuslide/app && DISPLAY_BASE_URL=https://menuslide.com STREAM_OUTPUT_DIR=/var/www/menuslide/stream SCREEN_SLUGS=menuslide-tv10 RECORD_SECONDS=30 node scripts/legacy/vps-video-worker.js >> /var/log/menuslide-video.log 2>&1
 ```
 
 (30 saniyelik kayıt + dönüşüm birkaç dakika sürebilir; cron aralığını 10 dakika yapabilirsin.)

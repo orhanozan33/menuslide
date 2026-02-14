@@ -2,6 +2,8 @@
 
 Bu scriptler sistemi kurmak ve yönetmek için kullanılır.
 
+**Not:** Eski video akışı scriptleri (vps-video-worker, stream-mp4-once, vb.) `scripts/legacy/` altına taşındı. Güncel sistem JSON slides + Spaces kullanıyor. Bkz: `scripts/legacy/README.md`, `docs/LEGACY-SCRIPTS.md`
+
 ## Hızlı Kurulum
 
 Tüm sistemi kurmak için:

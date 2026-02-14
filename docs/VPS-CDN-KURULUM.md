@@ -93,7 +93,9 @@ DNS’te `cdn.menuslide.com` A kaydını VPS IP’sine yönlendirmiş olmalısı
 
 ## 3. Puppeteer screenshot worker (VPS’te çalışacak script)
 
-Projede `scripts/vps-screenshot-worker.js` var. VPS’e projeyi klonlayıp veya sadece bu script + `package.json` (puppeteer bağımlılığı) ile çalıştırabilirsin.
+**LEGACY:** vps-screenshot-worker eski CDN yapısı ({slug}.jpg) kullanır. Güncel sistem `slides/{screenId}/{templateId}.jpg` + Spaces kullanıyor. Bkz: `docs/LEGACY-SCRIPTS.md`
+
+Projede `scripts/legacy/vps-screenshot-worker.js` var. VPS’e projeyi klonlayıp veya sadece bu script + `package.json` (puppeteer bağımlılığı) ile çalıştırabilirsin.
 
 ### 3.1 VPS’te Node ve script kurulumu
 
@@ -102,13 +104,13 @@ Projede `scripts/vps-screenshot-worker.js` var. VPS’e projeyi klonlayıp veya 
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
 sudo apt install -y nodejs
 
-# Worker için klasör (projeden scripts/vps-screenshot-worker.js kopyala)
+# Worker için klasör (projeden scripts/legacy/vps-screenshot-worker.js kopyala)
 sudo mkdir -p /var/www/menuslide/app
 cd /var/www/menuslide/app
-sudo cp /path/to/Tvproje/scripts/vps-screenshot-worker.js .
+sudo cp /path/to/Tvproje/scripts/legacy/vps-screenshot-worker.js .
 npm init -y
 npm install puppeteer
-# Çalıştırma: aşağıdaki env'lerle node vps-screenshot-worker.js
+# Çalıştırma: aşağıdaki env'lerle node scripts/legacy/vps-screenshot-worker.js
 ```
 
 ### 3.2 Ortam değişkenleri
@@ -129,7 +131,7 @@ Worker şu env’leri kullanır:
 export DISPLAY_BASE_URL="https://menuslide.com"
 export OUTPUT_DIR="/var/www/menuslide/cdn"
 export SCREEN_SLUGS="menuslide-tv10,menuslide-tv11"
-node vps-screenshot-worker.js
+node scripts/legacy/vps-screenshot-worker.js
 ```
 
 ### 3.3 Cron ile periyodik çalıştırma (ör. 5 dakikada bir)
@@ -141,7 +143,7 @@ crontab -e
 **Az ekran (ör. 10 TV):**
 
 ```
-*/5 * * * * cd /var/www/menuslide/app && DISPLAY_BASE_URL=https://menuslide.com OUTPUT_DIR=/var/www/menuslide/cdn SCREEN_SLUGS=menuslide-tv10,menuslide-tv11 node vps-screenshot-worker.js >> /var/log/menuslide-worker.log 2>&1
+*/5 * * * * cd /var/www/menuslide/app && DISPLAY_BASE_URL=https://menuslide.com OUTPUT_DIR=/var/www/menuslide/cdn SCREEN_SLUGS=menuslide-tv10,menuslide-tv11 node scripts/legacy/vps-screenshot-worker.js >> /var/log/menuslide-worker.log 2>&1
 ```
 
 **200 TV:** Slug listesini dosyadan okuyup paralel çalıştır (aşağıdaki “200 TV için” bölümüne bak).
@@ -179,7 +181,7 @@ olur. Roku bu adresten resmi çeker; Nginx aynı path’i `/var/www/menuslide/cd
 - [ ] `/var/www/menuslide/cdn` oluşturuldu, Nginx alias ile `/cdn/` yayında
 - [ ] CORS ve MIME tipleri (m3u8, ts, jpg) Nginx’te tanımlı
 - [ ] SSL (certbot) domain için açıldı
-- [ ] `vps-screenshot-worker.js` env’lerle test edildi, `.jpg` dosyaları `OUTPUT_DIR`’e yazılıyor
+- [ ] `scripts/legacy/vps-screenshot-worker.js` env’lerle test edildi, `.jpg` dosyaları `OUTPUT_DIR`’e yazılıyor
 - [ ] Cron ile worker periyodik çalışıyor
 - [ ] `NEXT_PUBLIC_CDN_BASE_URL` production’da set, Roku doğru resim URL’sini alıyor
 - [ ] Gerekirse: `tail -f /var/log/nginx/access.log` ile Roku istekleri izlendi
@@ -225,13 +227,13 @@ export DISPLAY_BASE_URL="https://menuslide.com"
 export OUTPUT_DIR="/var/www/menuslide/cdn"
 export SCREEN_SLUGS_FILE="/var/www/menuslide/slugs.txt"
 export CONCURRENCY=10
-node vps-screenshot-worker.js
+node scripts/legacy/vps-screenshot-worker.js
 ```
 
 **Cron:** 200 ekran × ~25 sn/ekran ÷ 10 paralel ≈ 8–10 dakika sürebilir. Cron aralığını **10 veya 15 dakika** yap; önceki çalışma bitmeden yenisini başlatma:
 
 ```
-*/10 * * * * cd /var/www/menuslide/app && DISPLAY_BASE_URL=https://menuslide.com OUTPUT_DIR=/var/www/menuslide/cdn SCREEN_SLUGS_FILE=/var/www/menuslide/slugs.txt CONCURRENCY=10 node vps-screenshot-worker.js >> /var/log/menuslide-worker.log 2>&1
+*/10 * * * * cd /var/www/menuslide/app && DISPLAY_BASE_URL=https://menuslide.com OUTPUT_DIR=/var/www/menuslide/cdn SCREEN_SLUGS_FILE=/var/www/menuslide/slugs.txt CONCURRENCY=10 node scripts/legacy/vps-screenshot-worker.js >> /var/log/menuslide-worker.log 2>&1
 ```
 
 ### 7.4 Özet (200 TV)

@@ -33,13 +33,13 @@ ffmpeg -y -f lavfi -i "color=c=blue:s=1280x720:d=30" -f lavfi -i anullsrc=r=4410
 Projeden sunucuya script’i at (Mac’te):
 
 ```bash
-scp scripts/stream-loop-hls.sh root@68.183.205.207:/var/www/menuslide/app/
+scp scripts/scripts/legacy/stream-loop-hls.sh root@68.183.205.207:/var/www/menuslide/app/
 ```
 
 Sunucuda çalıştırılabilir yap:
 
 ```bash
-chmod +x /var/www/menuslide/app/stream-loop-hls.sh
+chmod +x /var/www/menuslide/app/scripts/legacy/stream-loop-hls.sh
 ```
 
 ## 5. Yayını başlat
@@ -48,7 +48,7 @@ Sunucuda (önce varsa eski FFmpeg’i durdur: Ctrl+C veya `pkill -f stream-loop-
 
 ```bash
 cd /var/www/menuslide/app
-INPUT=/var/www/menuslide/app/input.mp4 SLUG=menuslide-tv10 ./stream-loop-hls.sh
+INPUT=/var/www/menuslide/app/input.mp4 SLUG=menuslide-tv10 ./scripts/legacy/stream-loop-hls.sh
 ```
 
 `STREAM_BASE_URL` vermesen de script artık varsayılan olarak `http://68.183.205.207/stream` kullanır; segment URL’leri tam olur, Roku oynatır.
@@ -56,7 +56,7 @@ INPUT=/var/www/menuslide/app/input.mp4 SLUG=menuslide-tv10 ./stream-loop-hls.sh
 Arka planda çalışsın istersen:
 
 ```bash
-nohup env INPUT=/var/www/menuslide/app/input.mp4 SLUG=menuslide-tv10 /var/www/menuslide/app/stream-loop-hls.sh >> /var/www/menuslide/app/stream.log 2>&1 &
+nohup env INPUT=/var/www/menuslide/app/input.mp4 SLUG=menuslide-tv10 /var/www/menuslide/app/scripts/legacy/stream-loop-hls.sh >> /var/www/menuslide/app/stream.log 2>&1 &
 ```
 
 ## 6. Kontrol

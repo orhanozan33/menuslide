@@ -5,8 +5,8 @@ import { getDefaultStreamUrl } from '@/lib/stream-url';
 import type { JwtPayload } from '@/lib/auth-server';
 import { useLocalDb, queryOne, queryLocal, insertLocal, updateLocal, deleteLocal, runLocal, mirrorToSupabase } from '@/lib/api-backend/db-local';
 import { insertAdminActivityLog } from '@/lib/api-backend/admin-activity-log';
-import { captureDisplayScreenshot } from '@/lib/render-screenshot';
-import { uploadSlideToSpaces, isSpacesConfigured, deleteSlidesNotInSet } from '@/lib/spaces-slides';
+import { isSpacesConfigured } from '@/lib/spaces-slides';
+import { generateSlidesForScreen } from '@/lib/generate-slides-internal';
 
 function generatePublicToken(): string {
   return randomBytes(32).toString('hex');
@@ -793,79 +793,14 @@ export async function generateSlides(screenId: string, _request: NextRequest, us
   const screen = await checkScreenAccess(supabase, screenId, user);
   if (!screen) return Response.json({ message: 'Not found or access denied' }, { status: 404 });
 
-  const { data: screenRow, error: screenError } = await supabase
-    .from('screens')
-    .select('id, public_slug, public_token, broadcast_code')
-    .eq('id', screenId)
-    .single();
-
-  if (screenError || !screenRow) {
-    return Response.json({ message: 'Screen not found' }, { status: 404 });
-  }
-
-  const slug =
-    (screenRow as { public_slug?: string }).public_slug ||
-    (screenRow as { public_token?: string }).public_token ||
-    (screenRow as { broadcast_code?: string }).broadcast_code;
-  if (!slug) {
-    return Response.json({ message: 'Ekran için public slug/token/broadcast_code yok.' }, { status: 400 });
-  }
-
-  const { data: rotations, error: rotError } = await supabase
-    .from('screen_template_rotations')
-    .select('template_id, full_editor_template_id, display_order')
-    .eq('screen_id', screenId)
-    .eq('is_active', true)
-    .order('display_order', { ascending: true });
-
-  if (rotError || !rotations?.length) {
-    return Response.json({ message: 'Bu ekran için yayında template yok.' }, { status: 400 });
-  }
-
-  const currentTemplateIds = new Set<string>();
-  for (const r of rotations) {
-    const tid = (r as { template_id?: string | null; full_editor_template_id?: string | null }).full_editor_template_id || (r as { template_id?: string | null }).template_id;
-    if (tid) currentTemplateIds.add(tid);
-  }
-
-  const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://menuslide.com').replace(/\/$/, '');
-  const keys: string[] = [];
-  const errors: string[] = [];
-
-  for (let i = 0; i < rotations.length; i++) {
-    const r = rotations[i] as { template_id?: string | null; full_editor_template_id?: string | null };
-    const templateId = r.full_editor_template_id || r.template_id;
-    if (!templateId) continue;
-
-    const url = `${baseUrl}/display/${encodeURIComponent(String(slug))}?lite=1&rotationIndex=${i}`;
-    try {
-      const buffer = await captureDisplayScreenshot(url);
-      if (!buffer) {
-        errors.push(`Slide ${i}: screenshot alınamadı`);
-        continue;
-      }
-      const key = await uploadSlideToSpaces(screenId, templateId, buffer);
-      keys.push(key);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      errors.push(`Slide ${i} (${templateId}): ${msg}`);
-    }
-  }
-
-  let deletedCount = 0;
-  try {
-    deletedCount = await deleteSlidesNotInSet(screenId, currentTemplateIds);
-  } catch (e) {
-    console.error('[generate-slides] cleanup old slides failed', e);
-  }
-
+  const result = await generateSlidesForScreen(screenId);
   return Response.json({
-    message: keys.length > 0
-      ? `${keys.length} slide yüklendi${deletedCount > 0 ? `, ${deletedCount} eski görsel silindi` : ''}.`
+    message: result.generated > 0
+      ? `${result.generated} slide yüklendi${result.deleted > 0 ? `, ${result.deleted} eski görsel silindi` : ''}.`
       : 'Hiçbir görsel yüklenemedi.',
-    generated: keys.length,
-    deleted: deletedCount,
-    keys,
-    errors: errors.length > 0 ? errors : undefined,
+    generated: result.generated,
+    deleted: result.deleted,
+    keys: result.generated > 0 ? [] : undefined,
+    errors: result.errors,
   });
 }

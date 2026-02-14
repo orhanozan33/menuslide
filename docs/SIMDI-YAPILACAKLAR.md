@@ -50,7 +50,7 @@ Eğer referans (minimal) Roku uygulamasını kullanacaksan:
 
 ## 4. (İsteğe bağlı) Eski video worker’ı kapat
 
-- [ ] VPS’teki cron’da çalışan `vps-video-worker.js` (HLS/loop.mp4 üreten) artık gerekmiyorsa cron’u kaldır veya script’i durdur  
+- [ ] VPS’teki cron’da çalışan `scripts/legacy/vps-video-worker.js` (HLS/loop.mp4 üreten) artık gerekmiyorsa cron’u kaldır veya script’i durdur  
 - [ ] Böylece sunucuda video encode yükü kalmaz
 
 ---

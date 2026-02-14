@@ -1,6 +1,6 @@
 # VPS’e worker atma ve cron kurma
 
-Bu rehber: güncel **vps-video-worker.js** dosyasını VPS’e nasıl atacağını ve kaydı her 5 dakikada çalıştıracak cron’u nasıl kuracağını adım adım anlatır.
+Bu rehber: güncel **scripts/legacy/vps-video-worker.js** dosyasını VPS’e nasıl atacağını ve kaydı her 5 dakikada çalıştıracak cron’u nasıl kuracağını adım adım anlatır.
 
 ---
 
@@ -46,13 +46,13 @@ cd /var/www/menuslide   # veya projenin olduğu yol
 Bilgisayarında (worker’ın olduğu proje kökünde):
 
 ```bash
-scp -i ~/.ssh/id_ed25519 /Users/admin/Desktop/Tvproje/scripts/vps-video-worker.js root@SUNUCU_IP:/var/www/menuslide/app/
+scp -i ~/.ssh/id_ed25519 /Users/admin/Desktop/Tvproje/scripts/legacy/vps-video-worker.js root@SUNUCU_IP:/var/www/menuslide/app/
 ```
 
 Worker `scripts/` altındaysa ve VPS’te de `app` içinde `scripts` varsa:
 
 ```bash
-scp -i ~/.ssh/id_ed25519 /Users/admin/Desktop/Tvproje/scripts/vps-video-worker.js root@SUNUCU_IP:/var/www/menuslide/app/scripts/
+scp -i ~/.ssh/id_ed25519 /Users/admin/Desktop/Tvproje/scripts/legacy/vps-video-worker.js root@SUNUCU_IP:/var/www/menuslide/app/scripts/
 ```
 
 **Seçenek B – VPS’te proje Git ile ise:**
@@ -64,7 +64,7 @@ cd /var/www/menuslide   # veya proje dizini
 git pull origin main
 ```
 
-Worker `scripts/vps-video-worker.js` ise çekince güncel hali gelir.
+Worker `scripts/legacy/vps-video-worker.js` ise çekince güncel hali gelir.
 
 **Seçenek C – FileZilla (SFTP):**
 
@@ -75,7 +75,7 @@ Worker `scripts/vps-video-worker.js` ise çekince güncel hali gelir.
 
    | Yerel (sol) | Uzak (sağ) |
    |-------------|------------|
-   | `Tvproje/scripts/vps-video-worker.js` | `/var/www/menuslide/app/vps-video-worker.js` **veya** `/var/www/menuslide/scripts/vps-video-worker.js` |
+   | `Tvproje/scripts/legacy/vps-video-worker.js` | `/var/www/menuslide/app/vps-video-worker.js` **veya** `/var/www/menuslide/scripts/legacy/vps-video-worker.js` |
 
    Uzak tarafta `app` mi yoksa `scripts` mi kullandığına göre hedefi seç (cron’daki `cd` ve `node .../vps-video-worker.js` yolu ile uyumlu olsun).
 5. `vps-video-worker.js` dosyasını sağ panele (VPS’e) sürükleyip bırak → Üzerine yaz (güncelle).
@@ -163,7 +163,7 @@ Aşağıdaki satırlardan birini ekle (yol ve slug’ları kendine göre değiş
 **Worker proje içinde scripts/ altındaysa:**
 
 ```cron
-*/5 * * * * cd /var/www/menuslide && DISPLAY_BASE_URL=https://menuslide.com STREAM_OUTPUT_DIR=/var/www/menuslide/stream SCREEN_SLUGS=menuslide-tv10 node scripts/vps-video-worker.js >> /var/log/menuslide-video.log 2>&1
+*/5 * * * * cd /var/www/menuslide && DISPLAY_BASE_URL=https://menuslide.com STREAM_OUTPUT_DIR=/var/www/menuslide/stream SCREEN_SLUGS=menuslide-tv10 node scripts/legacy/vps-video-worker.js >> /var/log/menuslide-video.log 2>&1
 ```
 
 Kaydet ve çık (vim: `Esc` → `:wq` → Enter).
@@ -181,7 +181,7 @@ cd /var/www/menuslide/app
 DISPLAY_BASE_URL=https://menuslide.com STREAM_OUTPUT_DIR=/var/www/menuslide/stream SCREEN_SLUGS=menuslide-tv10 node vps-video-worker.js
 ```
 
-(Worker `scripts/` altındaysa `cd`’i proje köküne alıp `node scripts/vps-video-worker.js` kullan.)
+(Worker `scripts/` altındaysa `cd`’i proje köküne alıp `node scripts/legacy/vps-video-worker.js` kullan.)
 
 Log’da hata yoksa ve `/var/www/menuslide/stream/menuslide-tv10/` altında `loop.mp4` ve `playlist.m3u8` oluştuysa cron da aynı şekilde çalışacaktır.
 
