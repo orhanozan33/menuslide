@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
     const supabase = getServerSupabase();
     const { data: screen, error: screenError } = await supabase
       .from('screens')
-      .select('id, updated_at')
+      .select('id, updated_at, layout_snapshot_version')
       .eq('id', screenId)
       .eq('is_active', true)
       .limit(1)
@@ -55,6 +55,7 @@ export async function GET(request: NextRequest) {
       .order('display_order', { ascending: true });
 
     const ordered = rotations ?? [];
+    const versionHash = (screen as { layout_snapshot_version?: string | null }).layout_snapshot_version;
     const rotationMaxUpdated = ordered.length
       ? ordered.reduce((max, r) => {
           const u = (r as { updated_at?: string }).updated_at;
@@ -63,8 +64,7 @@ export async function GET(request: NextRequest) {
       : '';
     const screenUpdated = (screen as { updated_at?: string }).updated_at ?? new Date().toISOString();
     const version =
-      rotationMaxUpdated && rotationMaxUpdated > screenUpdated ? rotationMaxUpdated : screenUpdated;
-    const versionParam = version.replace(/[:.]/g, '-');
+      versionHash || (rotationMaxUpdated && rotationMaxUpdated > screenUpdated ? rotationMaxUpdated : screenUpdated);
     const slides: Array<{ type: string; url?: string; title?: string; description?: string; duration: number; transition_effect?: string; transition_duration?: number }> = [];
 
     ordered.forEach((r, index) => {
@@ -76,9 +76,14 @@ export async function GET(request: NextRequest) {
       const transitionDuration = (r as { transition_duration?: number }).transition_duration ?? 5000;
 
       const baseSlide = { duration, transition_effect: transitionEffect, transition_duration: Math.min(5000, Math.max(100, transitionDuration)) };
-      if (SLIDE_IMAGE_BASE && templateId) {
-        const url = `${SLIDE_IMAGE_BASE}/slides/${screenId}/${templateId}-${index}.jpg`;
-        slides.push({ ...baseSlide, type: 'image', url });
+      if (SLIDE_IMAGE_BASE) {
+        const url = versionHash
+          ? `${SLIDE_IMAGE_BASE}/slides/${screenId}/${versionHash}/slide_${index}.jpg`
+          : templateId
+            ? `${SLIDE_IMAGE_BASE}/slides/${screenId}/${templateId}-${index}.jpg`
+            : '';
+        if (url) slides.push({ ...baseSlide, type: 'image', url });
+        else slides.push({ ...baseSlide, type: 'text', title: 'Slide', description: '' });
       } else {
         slides.push({ ...baseSlide, type: 'text', title: 'Slide', description: '' });
       }

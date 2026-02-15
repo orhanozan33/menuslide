@@ -56,6 +56,8 @@ interface TemplateDisplayProps {
   animationDuration?: number;
   /** true = modal/önizleme içinde (absolute), false = tam ekran TV (fixed) */
   inline?: boolean;
+  /** Screenshot modu: animasyon/timer/rotation kapalı, deterministic ilk kare */
+  snapshotMode?: boolean;
 }
 
 function getGridLayout(blockCount: number) {
@@ -114,6 +116,7 @@ function VideoBlockWithRotation({
   fit,
   pos,
   scale,
+  snapshotMode = false,
 }: {
   firstVideoUrl: string;
   firstVideoDurationSeconds: number;
@@ -123,6 +126,7 @@ function VideoBlockWithRotation({
   fit: 'cover' | 'contain';
   pos: string;
   scale: number;
+  snapshotMode?: boolean;
 }) {
   const [phase, setPhase] = useState<'first' | 'rotation'>('first');
   const [rotationIndex, setRotationIndex] = useState(0);
@@ -140,6 +144,7 @@ function VideoBlockWithRotation({
             firstVideoDurationSeconds={firstVideoDurationSeconds}
             rotationItems={rotationItems.map((it) => ({ url: it.url, durationSeconds: it.durationSeconds ?? 10 }))}
             onPhaseChange={onPhaseChange}
+            snapshotMode={snapshotMode}
             className="w-full h-full"
             objectFit={fit}
             objectPosition={pos}
@@ -204,6 +209,7 @@ export function TemplateDisplay({
   animationType = 'fade',
   animationDuration = 500,
   inline = false,
+  snapshotMode = false,
 }: TemplateDisplayProps) {
   const { t } = useTranslation();
   const blocks = screenData?.screenBlocks ?? [];
@@ -437,6 +443,7 @@ export function TemplateDisplay({
                     fit={fit}
                     pos={pos}
                     scale={scale}
+                    snapshotMode={snapshotMode}
                   />
                 ) : (
                   <>
@@ -801,6 +808,7 @@ export function TemplateDisplay({
                               const cid = (imageContent as { id?: string }).id;
                               if (cid) setImageRotationPhaseByContentId((prev) => ({ ...prev, [cid]: { phase, index: idx } }));
                             }}
+                            snapshotMode={snapshotMode}
                             objectFit={fit}
                             objectPosition={pos}
                             imageScale={1}

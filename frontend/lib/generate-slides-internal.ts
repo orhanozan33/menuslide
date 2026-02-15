@@ -1,10 +1,16 @@
 /**
  * Slide görsellerini oluşturup Spaces'e yükler.
- * Auth gerektirmez — device/register veya generate-slides handler'dan çağrılır.
+ * Tek render authority: sadece publish anında snapshot; versioned path slides/{screenId}/{versionHash}/slide_X.jpg
  */
+import { createHash } from 'crypto';
 import { getServerSupabase } from '@/lib/supabase-server';
 import { captureDisplayScreenshot } from '@/lib/render-screenshot';
-import { uploadSlideToSpaces, isSpacesConfigured, deleteSlidesNotInSet } from '@/lib/spaces-slides';
+import {
+  isSpacesConfigured,
+  uploadSlideVersioned,
+  uploadLayoutSnapshotJson,
+  deleteSlidesExceptVersion,
+} from '@/lib/spaces-slides';
 
 export interface GenerateSlidesResult {
   generated: number;
@@ -44,7 +50,7 @@ export async function generateSlidesForScreen(screenId: string): Promise<Generat
 
   const { data: rotations, error: rotError } = await supabase
     .from('screen_template_rotations')
-    .select('template_id, full_editor_template_id, display_order')
+    .select('template_id, full_editor_template_id, display_order, display_duration, transition_effect, transition_duration')
     .eq('screen_id', screenId)
     .eq('is_active', true)
     .order('display_order', { ascending: true });
@@ -53,57 +59,103 @@ export async function generateSlidesForScreen(screenId: string): Promise<Generat
     return { generated: 0, deleted: 0, errors: ['Yayında template yok'] };
   }
 
+  const layoutData = JSON.stringify(
+    rotations.map((r) => ({
+      t: (r as { template_id?: string | null }).template_id,
+      f: (r as { full_editor_template_id?: string | null }).full_editor_template_id,
+      o: (r as { display_order?: number }).display_order,
+    }))
+  );
+  const versionHash = createHash('sha256').update(layoutData).digest('hex').slice(0, 16);
+
   const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://menuslide.com').replace(/\/$/, '');
-  const keys: string[] = [];
-  const keysToKeep: string[] = [];
   const errors: string[] = [];
   const runTs = Date.now();
-  console.log('[generate-slides-internal] screen=', screenId, 'slug=', slug, 'rotations=', rotations.length, 'baseUrl=', baseUrl);
+  let generatedCount = 0;
+  console.log('[generate-slides-internal] screen=', screenId, 'slug=', slug, 'rotations=', rotations.length, 'versionHash=', versionHash);
 
-  await new Promise((r) => setTimeout(r, 5000));
+  await new Promise((r) => setTimeout(r, 2000));
 
   for (let i = 0; i < rotations.length; i++) {
     const r = rotations[i] as { template_id?: string | null; full_editor_template_id?: string | null };
     const templateId = r.full_editor_template_id || r.template_id;
     if (!templateId) continue;
 
-    keysToKeep.push(`${templateId}-${i}`);
-
-    const url = `${baseUrl}/display/${encodeURIComponent(String(slug))}?lite=1&rotationIndex=${i}&_=${runTs}-${i}`;
+    const url = `${baseUrl}/display/${encodeURIComponent(String(slug))}?lite=1&mode=snapshot&rotationIndex=${i}&_=${runTs}-${i}`;
     try {
-      console.log('[generate-slides-internal] slide', i, 'capturing url=', url.slice(0, 80), '...');
+      console.log('[generate-slides-internal] slide', i, 'capturing...');
       const buffer = await captureDisplayScreenshot(url);
       if (!buffer) {
         errors.push(`Slide ${i}: screenshot alınamadı`);
-        console.error('[generate-slides-internal] slide', i, 'screenshot alınamadı (buffer null)');
         continue;
       }
-      const key = await uploadSlideToSpaces(screenId, templateId, i, buffer);
-      keys.push(key);
+      await uploadSlideVersioned(screenId, versionHash, i, buffer);
+      generatedCount += 1;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       errors.push(`Slide ${i} (${templateId}): ${msg}`);
     }
   }
 
+  if (generatedCount === 0) {
+    return {
+      generated: 0,
+      deleted: 0,
+      errors: errors.length > 0 ? errors : undefined,
+    };
+  }
+
+  const SLIDE_IMAGE_BASE =
+    process.env.NEXT_PUBLIC_SLIDE_IMAGE_BASE_URL?.replace(/\/$/, '') ||
+    process.env.NEXT_PUBLIC_CDN_BASE_URL?.replace(/\/$/, '');
+  const slides = rotations.map((r, index) => {
+    const duration = Math.max(1, (r as { display_duration?: number }).display_duration ?? 8);
+    const transitionEffect = (r as { transition_effect?: string }).transition_effect ?? 'slide-left';
+    const transitionDuration = Math.min(5000, Math.max(100, (r as { transition_duration?: number }).transition_duration ?? 5000));
+    const url = SLIDE_IMAGE_BASE
+      ? `${SLIDE_IMAGE_BASE}/slides/${screenId}/${versionHash}/slide_${index}.jpg`
+      : '';
+    return {
+      type: 'image' as const,
+      url,
+      duration,
+      transition_effect: transitionEffect,
+      transition_duration: transitionDuration,
+    };
+  });
+
+  try {
+    await uploadLayoutSnapshotJson(screenId, versionHash, {
+      version: versionHash,
+      backgroundColor: '#000000',
+      slides,
+    });
+  } catch (e) {
+    console.error('[generate-slides-internal] layout_snapshot upload failed', e);
+  }
+
   let deletedCount = 0;
   try {
-    deletedCount = await deleteSlidesNotInSet(screenId, keysToKeep);
+    deletedCount = await deleteSlidesExceptVersion(screenId, versionHash);
   } catch (e) {
     console.error('[generate-slides-internal] cleanup failed', e);
   }
 
-  if (keys.length > 0) {
-    console.log('[generate-slides-internal] screen=' + screenId + ' generated=' + keys.length + ' deleted=' + deletedCount);
-    try {
-      await supabase.from('screens').update({ updated_at: new Date().toISOString() }).eq('id', screenId);
-    } catch (e) {
-      console.error('[generate-slides-internal] bump screen updated_at failed', e);
-    }
+  try {
+    await supabase
+      .from('screens')
+      .update({
+        updated_at: new Date().toISOString(),
+        layout_snapshot_version: versionHash,
+      })
+      .eq('id', screenId);
+  } catch (e) {
+    console.error('[generate-slides-internal] update layout_snapshot_version failed', e);
   }
 
+  console.log('[generate-slides-internal] screen=' + screenId + ' generated=' + generatedCount + ' deleted=' + deletedCount);
   return {
-    generated: keys.length,
+    generated: generatedCount,
     deleted: deletedCount,
     errors: errors.length > 0 ? errors : undefined,
   };

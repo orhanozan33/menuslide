@@ -19,6 +19,8 @@ export interface VideoRotationPlayerProps {
   onPhaseChange?: (phase: 'first' | 'rotation', rotationIndex: number) => void;
   /** true ise döngü bir kez oynatılır ve son videoda kalır */
   playOnce?: boolean;
+  /** Screenshot modu: ilk karede sabit kal, timer/rotation yok */
+  snapshotMode?: boolean;
   className?: string;
   style?: React.CSSProperties;
   objectFit?: 'cover' | 'contain';
@@ -36,6 +38,7 @@ export function VideoRotationPlayer({
   rotationItems,
   onPhaseChange,
   playOnce = false,
+  snapshotMode = false,
   className = '',
   style = {},
   objectFit = 'cover',
@@ -94,9 +97,9 @@ export function VideoRotationPlayer({
     }, duration * 1000);
   }, [items, rotationIndex, playOnce]);
 
-  // İlk video süresi dolunca döngüye geç
+  // İlk video süresi dolunca döngüye geç (snapshot modunda timer yok)
   useEffect(() => {
-    if (!firstVideoUrl) return;
+    if (snapshotMode || !firstVideoUrl) return;
     setCurrentUrl(firstVideoUrl);
     setPhase('first');
     setRotationIndex(0);
@@ -120,11 +123,11 @@ export function VideoRotationPlayer({
       }
       clearRotationTimer();
     };
-  }, [firstVideoUrl, firstVideoDurationSeconds, hasRotation, items.length]);
+  }, [snapshotMode, firstVideoUrl, firstVideoDurationSeconds, hasRotation, items.length]);
 
   // Rotation fazında: her video kendi süresi kadar oynatılır (zamanlayıcı ile)
   useEffect(() => {
-    if (phase !== 'rotation' || items.length === 0 || stopped) return;
+    if (snapshotMode || phase !== 'rotation' || items.length === 0 || stopped) return;
     const item = items[rotationIndex];
     if (!item) return;
     const duration = Math.max(1, Math.min(120, item.durationSeconds || 10));

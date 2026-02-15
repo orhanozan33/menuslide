@@ -66,6 +66,8 @@ export interface ImageRotationPlayerProps {
   firstImageTransitionDuration?: number;
   /** true ise döngü bir kez oynatılır ve son resimde kalır */
   playOnce?: boolean;
+  /** Screenshot modu: ilk karede sabit kal, timer/rotation yok */
+  snapshotMode?: boolean;
   /** Resmin üzerinde gösterilecek overlay'lar (yazı, etiket vb.) - resimle birlikte hareket eder */
   overlays?: React.ReactNode;
 }
@@ -90,6 +92,7 @@ export function ImageRotationPlayer({
   firstImageTransitionType,
   firstImageTransitionDuration,
   playOnce = false,
+  snapshotMode = false,
   overlays,
 }: ImageRotationPlayerProps) {
   const [currentUrl, setCurrentUrl] = useState<string>(firstImageUrl);
@@ -131,9 +134,9 @@ export function ImageRotationPlayer({
     }
   }, []);
 
-  // İlk resim süresi dolunca döngüye geç
+  // İlk resim süresi dolunca döngüye geç (snapshot modunda timer yok)
   useEffect(() => {
-    if (!firstImageUrl) return;
+    if (snapshotMode || !firstImageUrl) return;
     setCurrentUrl(firstImageUrl);
     setPhase('first');
     setRotationIndex(0);
@@ -158,11 +161,11 @@ export function ImageRotationPlayer({
       }
       clearRotationTimer();
     };
-  }, [firstImageUrl, firstImageDurationSeconds, hasRotation, items.length]);
+  }, [snapshotMode, firstImageUrl, firstImageDurationSeconds, hasRotation, items.length]);
 
   // Rotation fazında: her resim kendi süresi kadar gösterilir (playOnce ise son resimde dur)
   useEffect(() => {
-    if (phase !== 'rotation' || items.length === 0) return;
+    if (snapshotMode || phase !== 'rotation' || items.length === 0) return;
     const item = items[rotationIndex];
     if (!item) return;
     const duration = item.durationSeconds;
@@ -181,7 +184,7 @@ export function ImageRotationPlayer({
       });
     }, duration * 1000);
     return clearRotationTimer;
-  }, [phase, rotationIndex, items, playOnce]);
+  }, [snapshotMode, phase, rotationIndex, items, playOnce]);
 
   if (!firstImageUrl) return null;
 

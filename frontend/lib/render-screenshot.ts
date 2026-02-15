@@ -2,12 +2,17 @@
  * Capture a 1920x1080 JPEG screenshot of a display page.
  * Used by generate-slides and GET /api/render/[displayId].
  *
+ * Snapshot mode (URL contains mode=snapshot):
+ * - Deterministic render: phase 0, no timers, no rotation
+ * - Puppeteer waits for window.__SNAPSHOT_READY__ = true before capture
+ *
  * Priority:
  * 1. SCREENSHOT_SERVICE_URL → Kendi Puppeteer servisimiz (ücretsiz)
  * 2. SCREENSHOTONE_ACCESS_KEY → ScreenshotOne API (ücretli)
  * 3. Puppeteer (yerel / VPS - sadece Chrome yüklü sunucularda)
  */
 export async function captureDisplayScreenshot(displayPageUrl: string): Promise<Buffer | null> {
+  const isSnapshotMode = displayPageUrl.includes('mode=snapshot');
   const serviceUrl = process.env.SCREENSHOT_SERVICE_URL?.trim();
   if (process.env.VERCEL) {
     console.log('[render-screenshot] Vercel env: SCREENSHOT_SERVICE_URL=', serviceUrl ? 'set' : 'NOT SET');
@@ -24,8 +29,9 @@ export async function captureDisplayScreenshot(displayPageUrl: string): Promise<
         width: 1920,
         height: 1080,
         quality: 90,
-        waitMs: 15000,
-        waitForSelector: '[data-display-ready="true"]',
+        waitMs: isSnapshotMode ? 25000 : 22000,
+        waitForSelector: isSnapshotMode ? undefined : '[data-display-ready="true"]',
+        waitForSnapshotReady: isSnapshotMode,
       };
       if (protectionBypass) body.protectionBypass = protectionBypass;
       const res = await fetch(`${base}/screenshot`, {
@@ -58,8 +64,7 @@ export async function captureDisplayScreenshot(displayPageUrl: string): Promise<
       url.searchParams.set('image_quality', '90');
       url.searchParams.set('block_ads', 'true');
       url.searchParams.set('cache', 'false');
-      // 20s: Google Fonts + canvas render süresi (ScreenshotOne waitForSelector desteklemez; font için SCREENSHOT_SERVICE_URL tercih edin)
-      url.searchParams.set('delay', '20');
+      url.searchParams.set('delay', isSnapshotMode ? '35' : '28');
       url.searchParams.set('access_key', key);
       const res = await fetch(url.toString(), { signal: AbortSignal.timeout(60000) });
       if (!res.ok) {
@@ -92,11 +97,15 @@ export async function captureDisplayScreenshot(displayPageUrl: string): Promise<
     const page = await browser.newPage();
     await page.setViewport({ width: 1920, height: 1080, deviceScaleFactor: 1 });
     await page.goto(displayPageUrl, {
-      waitUntil: 'networkidle2',
-      timeout: 20000,
+      waitUntil: isSnapshotMode ? 'networkidle0' : 'networkidle2',
+      timeout: 25000,
     });
-    await page.waitForSelector('[data-display-ready="true"]', { timeout: 15000 }).catch(() => {});
-    await new Promise((r) => setTimeout(r, 1000));
+    if (isSnapshotMode) {
+      await page.waitForFunction('window.__SNAPSHOT_READY__ === true', { timeout: 20000 }).catch(() => {});
+    } else {
+      await page.waitForSelector('[data-display-ready="true"]', { timeout: 15000 }).catch(() => {});
+    }
+    await new Promise((r) => setTimeout(r, 500));
     const buffer = await page.screenshot({
       type: 'jpeg',
       quality: 90,

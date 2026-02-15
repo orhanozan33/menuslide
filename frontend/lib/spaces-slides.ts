@@ -1,5 +1,7 @@
 /**
  * DigitalOcean Spaces'e slide görseli yükleme ve eski dosyaları temizleme.
+ * Versioned path: slides/{screenId}/{versionHash}/slide_X.jpg (immutable, long cache).
+ * Legacy path: slides/{screenId}/{templateId}-{index}.jpg (geçiş dönemi).
  * Env: DO_SPACES_KEY, DO_SPACES_SECRET, DO_SPACES_BUCKET, DO_SPACES_REGION
  */
 import {
@@ -56,6 +58,103 @@ export async function uploadSlideToSpaces(
     })
   );
   return key;
+}
+
+/** Versioned path: slides/{screenId}/{versionHash}/slide_X.jpg — Cache-Control: immutable */
+export async function uploadSlideVersioned(
+  screenId: string,
+  versionHash: string,
+  index: number,
+  buffer: Buffer
+): Promise<string> {
+  const client = getSpacesClient();
+  let bucket = process.env.DO_SPACES_BUCKET?.trim() || 'menuslide-signage';
+  bucket = bucket.replace(/^https?:\/\//, '').split('/')[0].split('.')[0];
+  if (!client) {
+    throw new Error('Spaces not configured: DO_SPACES_KEY and DO_SPACES_SECRET required');
+  }
+  const key = `slides/${screenId}/${versionHash}/slide_${index}.jpg`;
+  await client.send(
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      Body: buffer,
+      ContentType: 'image/jpeg',
+      ACL: 'public-read',
+      CacheControl: 'public, max-age=31536000, immutable',
+    })
+  );
+  return key;
+}
+
+/** layout_snapshot.json — Cache-Control: no-cache */
+export async function uploadLayoutSnapshotJson(
+  screenId: string,
+  versionHash: string,
+  json: object
+): Promise<string> {
+  const client = getSpacesClient();
+  let bucket = process.env.DO_SPACES_BUCKET?.trim() || 'menuslide-signage';
+  bucket = bucket.replace(/^https?:\/\//, '').split('/')[0].split('.')[0];
+  if (!client) {
+    throw new Error('Spaces not configured');
+  }
+  const key = `slides/${screenId}/${versionHash}/layout_snapshot.json`;
+  await client.send(
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      Body: JSON.stringify(json),
+      ContentType: 'application/json',
+      ACL: 'public-read',
+      CacheControl: 'no-cache, must-revalidate',
+    })
+  );
+  return key;
+}
+
+/** Versioned modelde: slides/{screenId}/ altında versionHash dışındaki tüm anahtarları siler (versioned klasörler + legacy .jpg) */
+export async function deleteSlidesExceptVersion(
+  screenId: string,
+  versionHashToKeep: string
+): Promise<number> {
+  const client = getSpacesClient();
+  let bucket = process.env.DO_SPACES_BUCKET?.trim() || 'menuslide-signage';
+  bucket = bucket.replace(/^https?:\/\//, '').split('/')[0].split('.')[0];
+  if (!client) return 0;
+
+  const prefix = `slides/${screenId}/`;
+  const keepPrefix = `slides/${screenId}/${versionHashToKeep}/`;
+  let deleted = 0;
+  let continuationToken: string | undefined;
+
+  do {
+    const list = await client.send(
+      new ListObjectsV2Command({
+        Bucket: bucket,
+        Prefix: prefix,
+        ContinuationToken: continuationToken,
+      })
+    );
+    const toDelete: { Key: string }[] = [];
+    for (const obj of list.Contents ?? []) {
+      const key = obj.Key ?? '';
+      if (!key || key.startsWith(keepPrefix)) continue;
+      toDelete.push({ Key: key });
+    }
+    if (toDelete.length > 0) {
+      await client.send(
+        new DeleteObjectsCommand({
+          Bucket: bucket,
+          Delete: { Objects: toDelete, Quiet: true },
+        })
+      );
+      deleted += toDelete.length;
+    }
+    continuationToken = list.IsTruncated ? list.NextContinuationToken : undefined;
+  } while (continuationToken);
+
+  return deleted;
 }
 
 export function isSpacesConfigured(): boolean {

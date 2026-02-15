@@ -22,6 +22,7 @@ const FullEditorDisplay = dynamic(
 import { TemplateDisplay } from '@/components/display/TemplateDisplay';
 import { DisplayFrame } from '@/components/display/DisplayFrame';
 import { TickerTape } from '@/components/display/TickerTape';
+import { SnapshotLayoutCarousel, type SnapshotLayoutData } from '@/components/display/SnapshotLayoutCarousel';
 import { formatPrice } from '@/lib/formatPrice';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 import { resolveMediaUrl } from '@/lib/resolveMediaUrl';
@@ -190,6 +191,7 @@ export default function DisplayPage() {
   const liteParam = searchParams?.get('lite');
   const lowParam = searchParams?.get('low');
   const ultralowParam = searchParams?.get('ultralow');
+  const isSnapshotMode = searchParams?.get('mode') === 'snapshot';
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -224,6 +226,12 @@ export default function DisplayPage() {
   const [currentSlideReady, setCurrentSlideReady] = useState(false); // Full Editor fontları yüklenene kadar rotasyon sayacı başlamasın
   const [businessName, setBusinessName] = useState<string>('');
   const [viewAllowed, setViewAllowed] = useState<boolean | null>(null);
+  const [snapshotLayoutData, setSnapshotLayoutData] = useState<SnapshotLayoutData | null>(null);
+  const useSnapshotLayout = !!(
+    snapshotLayoutData?.layout?.slides?.some((s) => s.type === 'image' && s.url)
+  );
+  const useSnapshotLayoutRef = useRef(false);
+  useSnapshotLayoutRef.current = useSnapshotLayout;
   const loadInProgressRef = useRef(false);
   const retryCountRef = useRef(0);
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -278,29 +286,85 @@ export default function DisplayPage() {
     return () => clearTimeout(t);
   }, [isLiteMode, isLowDeviceMode, isUltralowMode, reloadMs]);
 
+  // Production (preview değil): önce layout API — snapshot JPG varsa canlı render yok
   useEffect(() => {
+    if (!token) return;
     const initialRotation =
       previewIndex != null && previewIndex >= 0
         ? previewIndex
         : rotationIndexFromUrl != null && rotationIndexFromUrl >= 0
           ? rotationIndexFromUrl
           : undefined;
-    loadScreenData(initialRotation);
-    if (previewIndex != null) return;
+
+    if (previewIndex != null) {
+      loadScreenData(initialRotation);
+      const pollInterval = setInterval(() => {
+        const current = screenDataRef.current;
+        if (current?.templateRotations && current.templateRotations.length > 1) {
+          preloadRotationCache(current).catch(() => {});
+        } else {
+          loadScreenData();
+        }
+      }, POLL_INTERVAL_MS);
+      return () => {
+        clearInterval(pollInterval);
+        if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
+      };
+    }
+
+    let cancelled = false;
+    fetch(`/api/layout/${encodeURIComponent(token)}`, { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: SnapshotLayoutData | null) => {
+        if (cancelled || !data?.layout?.slides?.length) {
+          if (!cancelled) loadScreenData();
+          return;
+        }
+        const hasImageSlides = data.layout.slides.some((s) => s.type === 'image' && s.url);
+        if (hasImageSlides) {
+          setSnapshotLayoutData(data);
+          setLoading(false);
+        } else {
+          loadScreenData();
+        }
+      })
+      .catch(() => {
+        if (!cancelled) loadScreenData();
+      });
+
     const pollInterval = setInterval(() => {
+      if (useSnapshotLayoutRef.current) return;
       const current = screenDataRef.current;
       if (current?.templateRotations && current.templateRotations.length > 1) {
-        // Sadece önbelleği güncelle; mevcut ekranı yenileme (ziplama/göz kırpma olmasın)
         preloadRotationCache(current).catch(() => {});
       } else {
         loadScreenData();
       }
     }, POLL_INTERVAL_MS);
+
     return () => {
+      cancelled = true;
       clearInterval(pollInterval);
       if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
     };
   }, [token, previewIndex, rotationIndexFromUrl, preloadRotationCache]);
+
+  // Snapshot layout modunda layout API'yi periyodik yenile (publish sonrası yeni sürüm)
+  useEffect(() => {
+    if (!useSnapshotLayout || !token) return;
+    const sec = snapshotLayoutData?.refreshIntervalSeconds ?? 30;
+    const interval = setInterval(() => {
+      fetch(`/api/layout/${encodeURIComponent(token)}`, { cache: 'no-store' })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data: SnapshotLayoutData | null) => {
+          if (data?.layout?.slides?.some((s) => s.type === 'image' && s.url)) {
+            setSnapshotLayoutData(data);
+          }
+        })
+        .catch(() => {});
+    }, Math.max(10000, sec * 1000));
+    return () => clearInterval(interval);
+  }, [useSnapshotLayout, token, snapshotLayoutData?.refreshIntervalSeconds]);
 
   // Heartbeat: ilk yayınlayan izinli, diğer cihazlar blok (allowed: false)
   useEffect(() => {
@@ -507,6 +571,7 @@ export default function DisplayPage() {
 
   // Template rotation: tek şablon ise display_duration sonunda yenile; 2+ şablon ise süreyle dönüş (önizleme/screenshot modunda dönme)
   useEffect(() => {
+    if (isSnapshotMode) return;
     if (previewIndex != null) return;
     if (rotationIndexFromUrl != null) return;
     if (!screenData?.templateRotations || screenData.templateRotations.length === 0) {
@@ -593,7 +658,7 @@ export default function DisplayPage() {
       })();
     }, durationMs);
     return () => clearTimeout(timer);
-  }, [currentTemplateIndex, currentTemplateData, screenData, token, previewIndex, rotationIndexFromUrl, currentSlideReady]);
+  }, [currentTemplateIndex, currentTemplateData, screenData, token, previewIndex, rotationIndexFromUrl, currentSlideReady, isSnapshotMode]);
 
   // Geçiş sonrası kısa fade-in süresi bitince bayrağı kaldır
   useEffect(() => {
@@ -604,7 +669,10 @@ export default function DisplayPage() {
 
   // Base layer hazır olunca overlay kaldır (film gibi akıcı geçiş); Full Editor fontları da yüklendi demek → rotasyon sayacı başlayabilir
   const handleDisplayReady = useCallback(() => {
-    if (typeof document !== 'undefined') document.body.dataset.displayReady = 'true';
+    if (typeof document !== 'undefined') {
+      document.body.dataset.displayReady = 'true';
+      (window as unknown as { __SNAPSHOT_READY__?: boolean }).__SNAPSHOT_READY__ = true;
+    }
     setCurrentSlideReady(true);
     displayReadyRef.current?.();
     displayReadyRef.current = () => {};
@@ -614,6 +682,14 @@ export default function DisplayPage() {
   useEffect(() => {
     setCurrentSlideReady(false);
   }, [currentTemplateIndex, currentTemplateData?.template?.id]);
+
+  // Snapshot modunda block-based şablonlar için: render tamamlanınca __SNAPSHOT_READY__ set et (Full Editor kendi onReady kullanır)
+  const isFullEditorForSnapshot = currentTemplateData?.template?.template_type === 'full_editor' && currentTemplateData?.template?.canvas_json;
+  useEffect(() => {
+    if (!isSnapshotMode || !currentTemplateData || isFullEditorForSnapshot) return;
+    const t = setTimeout(handleDisplayReady, 1200);
+    return () => clearTimeout(t);
+  }, [isSnapshotMode, currentTemplateData, isFullEditorForSnapshot, handleDisplayReady]);
 
   // Full editor dışı tiplerde (canvas, block) overlay'ı kısa gecikmeyle kaldır; sadece geçiş bittikten sonra (current=next)
   useEffect(() => {
@@ -637,7 +713,7 @@ export default function DisplayPage() {
     );
   }
 
-  if (loading || (screenData && viewAllowed === null)) {
+  if (loading && !useSnapshotLayout) {
     return (
       <EmbedFitWrapper ref={displayContainerRef}>
         <div className="fixed inset-0 flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white">
@@ -645,6 +721,14 @@ export default function DisplayPage() {
             {businessName || t('display_loading')}
           </div>
         </div>
+      </EmbedFitWrapper>
+    );
+  }
+
+  if (useSnapshotLayout && snapshotLayoutData) {
+    return (
+      <EmbedFitWrapper ref={displayContainerRef}>
+        <SnapshotLayoutCarousel data={snapshotLayoutData} className="w-full h-full" />
       </EmbedFitWrapper>
     );
   }
@@ -740,8 +824,9 @@ export default function DisplayPage() {
                 key={displayTypeKey}
                 inline
                 screenData={displayData as any}
-                animationType={isLiteMode ? 'fade' : (displayData.screen?.animation_type || 'fade')}
-                animationDuration={isLowDeviceMode ? 300 : (isLiteMode ? 400 : (displayData.screen?.animation_duration || 500))}
+                animationType={isSnapshotMode ? 'none' : (isLiteMode ? 'fade' : (displayData.screen?.animation_type || 'fade'))}
+                animationDuration={isSnapshotMode ? 0 : (isLowDeviceMode ? 300 : (isLiteMode ? 400 : (displayData.screen?.animation_duration || 500)))}
+                snapshotMode={isSnapshotMode}
               />
             ) : null}
             {/* Geçiş overlay: animasyon bitene kadar üstte kalır, base layer onReady verince kaldırılır */}

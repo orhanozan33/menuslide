@@ -34,7 +34,7 @@ export async function POST(request: Request) {
     const supabase = getServerSupabase();
     const { data: byBroadcast, error: errBroadcast } = await supabase
       .from('screens')
-      .select('id, public_slug, public_token, broadcast_code, updated_at')
+      .select('id, public_slug, public_token, broadcast_code, updated_at, layout_snapshot_version')
       .eq('broadcast_code', displayCode)
       .eq('is_active', true)
       .limit(1)
@@ -45,7 +45,7 @@ export async function POST(request: Request) {
     if (!screen && /^\d+$/.test(displayCode)) {
       const { data: byNum } = await supabase
         .from('screens')
-        .select('id, public_slug, public_token, broadcast_code, updated_at')
+        .select('id, public_slug, public_token, broadcast_code, updated_at, layout_snapshot_version')
         .eq('broadcast_code', parseInt(displayCode, 10))
         .eq('is_active', true)
         .limit(1)
@@ -55,7 +55,7 @@ export async function POST(request: Request) {
     if (!screen) {
       const { data: bySlug } = await supabase
         .from('screens')
-        .select('id, public_slug, public_token, broadcast_code, updated_at')
+        .select('id, public_slug, public_token, broadcast_code, updated_at, layout_snapshot_version')
         .eq('public_slug', displayCode)
         .eq('is_active', true)
         .limit(1)
@@ -65,7 +65,7 @@ export async function POST(request: Request) {
     if (!screen) {
       const { data: byToken } = await supabase
         .from('screens')
-        .select('id, public_slug, public_token, broadcast_code, updated_at')
+        .select('id, public_slug, public_token, broadcast_code, updated_at, layout_snapshot_version')
         .eq('public_token', displayCode)
         .eq('is_active', true)
         .limit(1)
@@ -104,6 +104,7 @@ export async function POST(request: Request) {
     const versionParam = version.replace(/[:.]/g, '-');
     const slides: Array<{ type: string; url?: string; title?: string; description?: string; duration: number; transition_effect?: string; transition_duration?: number }> = [];
 
+    const versionHash = (screen as { layout_snapshot_version?: string | null }).layout_snapshot_version;
     ordered.forEach((r, index) => {
       const templateId =
         (r as { full_editor_template_id?: string | null }).full_editor_template_id ||
@@ -113,8 +114,14 @@ export async function POST(request: Request) {
       const transitionDuration = Math.min(5000, Math.max(100, (r as { transition_duration?: number }).transition_duration ?? 5000));
 
       const baseSlide = { duration, transition_effect: transitionEffect, transition_duration: transitionDuration };
-      if (SLIDE_IMAGE_BASE && templateId) {
-        slides.push({ ...baseSlide, type: 'image', url: `${SLIDE_IMAGE_BASE}/slides/${screenId}/${templateId}-${index}.jpg` });
+      if (SLIDE_IMAGE_BASE) {
+        const url = versionHash
+          ? `${SLIDE_IMAGE_BASE}/slides/${screenId}/${versionHash}/slide_${index}.jpg`
+          : templateId
+            ? `${SLIDE_IMAGE_BASE}/slides/${screenId}/${templateId}-${index}.jpg`
+            : '';
+        if (url) slides.push({ ...baseSlide, type: 'image', url });
+        else slides.push({ ...baseSlide, type: 'text', title: 'Slide', description: '' });
       } else {
         slides.push({ ...baseSlide, type: 'text', title: 'Slide', description: '' });
       }
