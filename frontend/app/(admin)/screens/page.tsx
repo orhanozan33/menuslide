@@ -42,7 +42,7 @@ interface Screen {
   public_token: string;
   public_slug?: string;
   /** Android TV uygulamasında girilecek 5 haneli kod (örn. 12345) */
-  broadcast_code?: string | null;
+broadcast_code?: string | null;
   is_active: boolean;
   created_at: string;
   frame_type?: string;
@@ -820,6 +820,29 @@ export default function ScreensPage() {
                   />
                   <button
                     onClick={() => copyPublicUrl(screen)}
+                    className="px-3 sm:px-4 py-1.5 text-xs sm:text-sm bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors font-medium whitespace-nowrap"
+                  >
+                    {t('btn_copy')}
+                  </button>
+                </div>
+              </div>
+              <div className="mb-3 pb-3 border-b border-gray-100">
+                <p className="text-xs sm:text-sm text-gray-700 mb-0.5 font-medium">{t('screens_visual_url')}</p>
+                <p className="text-xs text-gray-500 mb-2">{t('screens_visual_url_desc')}</p>
+                <div className="flex items-center gap-2 min-w-0">
+                  <input
+                    type="text"
+                    value={`${typeof window !== 'undefined' ? window.location.origin : ''}/display/${screen.public_slug || screen.public_token}?mode=visual`}
+                    readOnly
+                    className="flex-1 min-w-0 px-2 sm:px-3 py-1.5 text-xs sm:text-sm border border-gray-300 rounded-lg bg-white text-black font-mono truncate"
+                  />
+                  <button
+                    onClick={() => {
+                      const slug = (screen as any).public_slug || screen.public_token;
+                      const url = `${typeof window !== 'undefined' ? window.location.origin : ''}/display/${slug}?mode=visual`;
+                      navigator.clipboard.writeText(url);
+                      toast.showSuccess(t('screens_url_copied'));
+                    }}
                     className="px-3 sm:px-4 py-1.5 text-xs sm:text-sm bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors font-medium whitespace-nowrap"
                   >
                     {t('btn_copy')}

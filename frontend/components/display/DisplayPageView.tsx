@@ -199,6 +199,8 @@ export function DisplayPageView(props: DisplayPageProps) {
   const lowParam = searchParams?.get('low');
   const ultralowParam = searchParams?.get('ultralow');
   const isSnapshotMode = snapshotRotationFromPath !== undefined || searchParams?.get('mode') === 'snapshot';
+  /** Görsel URL: sadece layout görsel slaytları (Roku ile aynı kaynak), video/blok şablon oynatılmaz */
+  const isVisualOnlyMode = searchParams?.get('mode') === 'visual';
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -336,6 +338,40 @@ export function DisplayPageView(props: DisplayPageProps) {
       };
     }
 
+    // Görsel URL (mode=visual): sadece layout görsel slaytları, video/blok yok
+    if (isVisualOnlyMode) {
+      let cancelled = false;
+      setSnapshotLayoutData(null);
+      setLoading(true);
+      fetch(`/api/layout/${encodeURIComponent(token)}`, { cache: 'no-store' })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data: SnapshotLayoutData | null) => {
+          if (cancelled) return;
+          const hasImageSlides = data?.layout?.slides?.some((s) => s.type === 'image' && s.url);
+          if (hasImageSlides && data?.layout?.slides?.length) {
+            setSnapshotLayoutData(data);
+          }
+          setLoading(false);
+        })
+        .catch(() => {
+          if (!cancelled) setLoading(false);
+        });
+      const interval = setInterval(() => {
+        fetch(`/api/layout/${encodeURIComponent(token)}`, { cache: 'no-store' })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((data: SnapshotLayoutData | null) => {
+            if (data?.layout?.slides?.some((s) => s.type === 'image' && s.url)) {
+              setSnapshotLayoutData(data);
+            }
+          })
+          .catch(() => {});
+      }, 30000);
+      return () => {
+        cancelled = true;
+        clearInterval(interval);
+      };
+    }
+
     let cancelled = false;
     fetch(`/api/layout/${encodeURIComponent(token)}`, { cache: 'no-store' })
       .then((res) => (res.ok ? res.json() : null))
@@ -371,7 +407,7 @@ export function DisplayPageView(props: DisplayPageProps) {
       clearInterval(pollInterval);
       if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
     };
-  }, [token, previewIndex, rotationIndexFromUrl, isSnapshotMode, preloadRotationCache]);
+  }, [token, previewIndex, rotationIndexFromUrl, isSnapshotMode, isVisualOnlyMode, preloadRotationCache]);
 
   // Snapshot layout modunda layout API'yi periyodik yenile (publish sonrası yeni sürüm)
   useEffect(() => {
@@ -785,6 +821,18 @@ export function DisplayPageView(props: DisplayPageProps) {
     return (
       <EmbedFitWrapper ref={displayContainerRef}>
         <SnapshotLayoutCarousel data={snapshotLayoutData} className="w-full h-full" />
+      </EmbedFitWrapper>
+    );
+  }
+
+  if (isVisualOnlyMode && !loading && !snapshotLayoutData?.layout?.slides?.some((s) => s.type === 'image' && s.url)) {
+    return (
+      <EmbedFitWrapper ref={displayContainerRef}>
+        <div className="fixed inset-0 flex flex-col items-center justify-center bg-black text-white px-4">
+          <p className="text-lg text-slate-300 text-center max-w-md">
+            Görsel slayt henüz yok. Ekranı yayınlayıp &quot;Roku yenile&quot; ile slide&apos;ları oluşturun.
+          </p>
+        </div>
       </EmbedFitWrapper>
     );
   }

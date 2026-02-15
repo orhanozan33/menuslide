@@ -360,7 +360,7 @@ export default function ScreenDetailPage() {
           </div>
 
           <div className="mb-4">
-            <p className="text-sm text-gray-700 mb-2">Web link (tarayıcı / uygulama):</p>
+            <p className="text-sm text-gray-700 mb-2">{t('screens_public_url')}</p>
             <div className="flex items-center space-x-2">
               <input
                 type="text"
@@ -372,11 +372,36 @@ export default function ScreenDetailPage() {
                 onClick={copyPublicUrl}
                 className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
               >
-                Copy URL
+                {t('btn_copy')}
               </button>
             </div>
           </div>
 
+          <div className="mb-4">
+            <p className="text-sm font-medium text-gray-700 mb-0.5">{t('screens_visual_url')}</p>
+            <p className="text-xs text-gray-500 mb-2">{t('screens_visual_url_desc')}</p>
+            <div className="flex items-center space-x-2">
+              <input
+                type="text"
+                value={`${typeof window !== 'undefined' ? window.location.origin : ''}/display/${screen.public_slug || screen.public_token}?mode=visual`}
+                readOnly
+                className="flex-1 px-3 py-2 border border-gray-300 rounded bg-white text-black"
+              />
+              <button
+                onClick={() => {
+                  const slug = screen?.public_slug || screen?.public_token;
+                  if (slug) {
+                    const url = `${window.location.origin}/display/${slug}?mode=visual`;
+                    navigator.clipboard.writeText(url);
+                    toast.showSuccess(t('screens_url_copied'));
+                  }
+                }}
+                className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300"
+              >
+                {t('btn_copy')}
+              </button>
+            </div>
+          </div>
 
           <div className="mb-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
             <h3 className="text-lg font-semibold text-gray-900 mb-2">Roku / TV slide görselleri</h3>
