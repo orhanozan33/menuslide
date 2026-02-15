@@ -90,8 +90,8 @@ export async function generateSlidesForScreen(screenId: string): Promise<Generat
     }))
   );
   const runTs = Date.now();
-  // Her yeni üretimde farklı URL: layoutData + runTs → içerik (fiyat vb.) güncellenince path değişir
-  const versionHash = createHash('sha256').update(layoutData + String(runTs)).digest('hex').slice(0, 16);
+  // versionHash sadece içeriğe bağlı: aynı template/order → aynı hash → gereksiz yeniden üretim yok
+  const versionHash = createHash('sha256').update(layoutData).digest('hex').slice(0, 16);
 
   const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://menuslide.com').replace(/\/$/, '');
   const errors: string[] = [];
