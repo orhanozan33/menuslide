@@ -60,7 +60,7 @@ export async function uploadSlideToSpaces(
   return key;
 }
 
-/** Versioned path: slides/{screenId}/{versionHash}/slide_X.jpg — Cache-Control: immutable */
+/** Versioned path: slides/{screenId}/{versionHash}/slide_X.jpg — Cache-Control: immutable. Key overwrite kontrolü. */
 export async function uploadSlideVersioned(
   screenId: string,
   versionHash: string,
@@ -74,7 +74,10 @@ export async function uploadSlideVersioned(
     throw new Error('Spaces not configured: DO_SPACES_KEY and DO_SPACES_SECRET required');
   }
   const key = `slides/${screenId}/${versionHash}/slide_${index}.jpg`;
-  await client.send(
+  if (!/^slides\/[^/]+\/[^/]+\/slide_\d+\.jpg$/.test(key)) {
+    throw new Error(`uploadSlideVersioned: key format hatası (slide_0, slide_1, slide_2 olmalı): ${key}`);
+  }
+  const res = await client.send(
     new PutObjectCommand({
       Bucket: bucket,
       Key: key,
@@ -84,6 +87,7 @@ export async function uploadSlideVersioned(
       CacheControl: 'public, max-age=31536000, immutable',
     })
   );
+  console.log('[spaces-slides] uploadSlideVersioned key=%s ETag=%s', key, (res as { ETag?: string }).ETag ?? '');
   return key;
 }
 

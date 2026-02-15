@@ -1,3 +1,112 @@
+export type RotationForCapture = {
+  template_id?: string | null;
+  full_editor_template_id?: string | null;
+};
+
+/**
+ * Screenshot servisi batch: birden fazla URL tek istekte; servis loop içinde goto → screenshot döner.
+ * Response: { images: string[] } base64. Servis yoksa null döner.
+ */
+export async function captureDisplaySlidesBatch(urls: string[]): Promise<(Buffer | null)[] | null> {
+  const serviceUrl = process.env.SCREENSHOT_SERVICE_URL?.trim();
+  if (!serviceUrl || urls.length === 0) return null;
+  try {
+    const base = serviceUrl.replace(/\/$/, '');
+    const authToken = process.env.SCREENSHOT_SERVICE_AUTH_TOKEN?.trim();
+    const protectionBypass = process.env.VERCEL_AUTOMATION_BYPASS_SECRET?.trim();
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (authToken) headers['X-Auth-Token'] = authToken;
+    const body: Record<string, unknown> = { urls };
+    if (protectionBypass) body.protectionBypass = protectionBypass;
+    const res = await fetch(`${base}/screenshot-batch`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(120000),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { images?: string[] };
+    const images = data?.images ?? [];
+    return images.map((b64: string) => {
+      try {
+        return Buffer.from(b64, 'base64');
+      } catch {
+        return null;
+      }
+    });
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Snapshot slide'ları için navigation loop: tek browser, her rotation için goto → wait → screenshot.
+ * Cache kapalı; her iterasyonda yeni buffer; location.reload kullanılmaz, sadece page.goto.
+ * Her rotation için yeni page açılıp kapatılır (farklı içerik garantisi).
+ */
+export async function captureDisplaySlidesInLoop(options: {
+  baseUrl: string;
+  slug: string;
+  screenId: string;
+  versionHash: string;
+  rotations: RotationForCapture[];
+  runTs: number;
+}): Promise<(Buffer | null)[]> {
+  const { baseUrl, slug, screenId, versionHash, rotations, runTs } = options;
+  const puppeteer = await import('puppeteer').catch(() => null);
+  if (!puppeteer?.default) return rotations.map(() => null);
+
+  const browser = await puppeteer.default.launch({
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+  });
+
+  const results: (Buffer | null)[] = [];
+
+  try {
+    for (let orderIndex = 0; orderIndex < rotations.length; orderIndex++) {
+      const r = rotations[orderIndex];
+      const templateId = r.full_editor_template_id || r.template_id || '';
+      const fullUrl = `${baseUrl.replace(/\/$/, '')}/display/${encodeURIComponent(String(slug))}?lite=1&mode=snapshot&rotationIndex=${orderIndex}&_=${runTs}-${orderIndex}`;
+      const outputPath = `slides/${screenId}/${versionHash}/slide_${orderIndex}.jpg`;
+
+      const page = await browser.newPage();
+      try {
+        await page.setCacheEnabled(false);
+        await page.setViewport({ width: 1920, height: 1080, deviceScaleFactor: 1 });
+        await page.goto(fullUrl, { waitUntil: 'networkidle0', timeout: 25000 });
+        await page.waitForFunction('window.__SNAPSHOT_READY__ === true', { timeout: 20000 }).catch(() => {});
+        await new Promise((r) => setTimeout(r, 500));
+        const screenshotResult = await page.screenshot({
+          type: 'jpeg',
+          quality: 90,
+          fullPage: false,
+        });
+        const buffer: Buffer | null = screenshotResult
+          ? Buffer.isBuffer(screenshotResult)
+            ? screenshotResult
+            : Buffer.from(new Uint8Array(screenshotResult as ArrayBuffer))
+          : null;
+        results.push(buffer);
+        const len = buffer?.length ?? 0;
+        console.log('[render-screenshot] rotationIndex=%s templateId=%s fullUrl=%s buffer.length=%s outputPath=%s', orderIndex, templateId, fullUrl, len, outputPath);
+      } finally {
+        await page.close().catch(() => {});
+        await new Promise((r) => setTimeout(r, 300));
+      }
+    }
+
+    const lengths = results.map((b) => b?.length ?? 0).filter((l) => l > 0);
+    if (lengths.length >= 2 && new Set(lengths).size === 1) {
+      console.warn('[render-screenshot] WARNING: buffer.length aynı tüm slide\'lar için:', lengths[0], '- içerik aynı olabilir');
+    }
+  } finally {
+    await browser.close();
+  }
+
+  return results;
+}
+
 /**
  * Capture a 1920x1080 JPEG screenshot of a display page.
  * Used by generate-slides and GET /api/render/[displayId].
