@@ -46,7 +46,8 @@ export async function GET(request: NextRequest) {
     }
 
     const versionHash = (screen as { layout_snapshot_version?: string | null }).layout_snapshot_version;
-    const version = versionHash ?? (screen as { updated_at?: string }).updated_at ?? new Date().toISOString();
+    const updatedAt = (screen as { updated_at?: string }).updated_at ?? new Date().toISOString();
+    const version = updatedAt;
     const rotations = await getScreenTemplateRotations(screenId);
 
     const slides: Array<{ type: string; url?: string; title?: string; description?: string; duration: number; transition_effect?: string; transition_duration?: number }> = [];
@@ -67,7 +68,8 @@ export async function GET(request: NextRequest) {
         const transitionDuration = Math.min(5000, Math.max(100, r.transition_duration ?? 5000));
         const baseSlide = { duration, transition_effect: transitionEffect, transition_duration: transitionDuration };
         if (versionHash && SLIDE_IMAGE_BASE) {
-          const url = `${SLIDE_IMAGE_BASE}/slides/${screenId}/${versionHash}/slide_${orderIndex}.jpg`;
+          const t = encodeURIComponent(updatedAt);
+          const url = `${SLIDE_IMAGE_BASE}/slides/${screenId}/${versionHash}/slide_${orderIndex}.jpg?t=${t}`;
           slides.push({ ...baseSlide, type: 'image', url });
         } else if (!versionHash && SLIDE_IMAGE_BASE) {
           const templateId = r.full_editor_template_id || r.template_id;
