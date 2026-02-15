@@ -120,7 +120,8 @@ export async function GET(
           transition_duration: transitionDuration,
         };
         if (versionHash && SLIDE_IMAGE_BASE) {
-          const url = `${SLIDE_IMAGE_BASE}/slides/${screenId}/${versionHash}/slide_${orderIndex}.jpg`;
+          const t = (screen as { updated_at?: string }).updated_at ?? '';
+          const url = `${SLIDE_IMAGE_BASE}/slides/${screenId}/${versionHash}/slide_${orderIndex}.jpg?t=${encodeURIComponent(t)}`;
           slides.push({ ...baseSlide, type: 'image', url });
         } else if (!versionHash && SLIDE_IMAGE_BASE) {
           const templateId = r.full_editor_template_id || r.template_id;

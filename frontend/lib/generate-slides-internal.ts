@@ -97,7 +97,7 @@ export async function generateSlidesForScreen(screenId: string): Promise<Generat
 
   console.log('[generate-slides-internal] screen=', screenId, 'slug=', slug, 'rotationCount=', rotations.length, 'versionHash=', versionHash);
 
-  await new Promise((r) => setTimeout(r, 2000));
+  await new Promise((r) => setTimeout(r, 5000));
 
   let generatedCount = 0;
   const usePuppeteerLoop = !process.env.VERCEL;

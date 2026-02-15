@@ -84,7 +84,7 @@ export async function uploadSlideVersioned(
       Body: buffer,
       ContentType: 'image/jpeg',
       ACL: 'public-read',
-      CacheControl: 'public, max-age=31536000, immutable',
+      CacheControl: 'public, max-age=0, must-revalidate',
     })
   );
   console.log('[spaces-slides] uploadSlideVersioned key=%s ETag=%s', key, (res as { ETag?: string }).ETag ?? '');
