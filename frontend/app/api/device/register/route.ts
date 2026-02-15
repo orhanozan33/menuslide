@@ -98,6 +98,10 @@ export async function POST(request: Request) {
       const u = (r as { updated_at?: string }).updated_at;
       return u && (!max || u > max) ? u : max;
     }, '' as string);
+    const screenUpdated = (screen as { updated_at?: string }).updated_at ?? new Date().toISOString();
+    const version =
+      rotationMaxUpdated && rotationMaxUpdated > screenUpdated ? rotationMaxUpdated : screenUpdated;
+    const versionParam = version.replace(/[:.]/g, '-');
     const slides: Array<{ type: string; url?: string; title?: string; description?: string; duration: number; transition_effect?: string; transition_duration?: number }> = [];
 
     ordered.forEach((r, index) => {
@@ -110,7 +114,7 @@ export async function POST(request: Request) {
 
       const baseSlide = { duration, transition_effect: transitionEffect, transition_duration: transitionDuration };
       if (SLIDE_IMAGE_BASE && templateId) {
-        slides.push({ ...baseSlide, type: 'image', url: `${SLIDE_IMAGE_BASE}/slides/${screenId}/${templateId}-${index}.jpg` });
+        slides.push({ ...baseSlide, type: 'image', url: `${SLIDE_IMAGE_BASE}/slides/${screenId}/${templateId}-${index}-${versionParam}.jpg` });
       } else {
         slides.push({ ...baseSlide, type: 'text', title: 'Slide', description: '' });
       }
@@ -120,16 +124,10 @@ export async function POST(request: Request) {
       slides.push({ type: 'text', title: 'No content', description: 'Add templates in Admin.', duration: 10, transition_effect: 'fade', transition_duration: 400 });
     }
 
-    const screenUpdated = (screen as { updated_at?: string }).updated_at ?? new Date().toISOString();
-    const version =
-      rotationMaxUpdated && rotationMaxUpdated > screenUpdated ? rotationMaxUpdated : screenUpdated;
-    const versionParam = version.replace(/[:.]/g, '-');
     const layout = {
       version,
       backgroundColor: '#000000',
-      slides: slides.map((s) =>
-        s.url ? { ...s, url: `${s.url}?v=${encodeURIComponent(versionParam)}` } : s
-      ),
+      slides,
     };
 
     // Roku/Android aktivasyonunda slide görselleri otomatik oluştur (Vercel after = waitUntil)
