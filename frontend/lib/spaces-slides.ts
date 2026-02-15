@@ -32,11 +32,15 @@ function getSpacesClient(): S3Client | null {
   return s3Client;
 }
 
+/**
+ * @param versionParam - Cache-bust: path'a eklenir (örn. 2024-02-14T12-30-00-123Z). CDN eski görsel sunmasın.
+ */
 export async function uploadSlideToSpaces(
   screenId: string,
   templateId: string,
   rotationIndex: number,
-  buffer: Buffer
+  buffer: Buffer,
+  versionParam?: string
 ): Promise<string> {
   const client = getSpacesClient();
   let bucket = process.env.DO_SPACES_BUCKET?.trim() || 'menuslide-signage';
@@ -44,7 +48,8 @@ export async function uploadSlideToSpaces(
   if (!client) {
     throw new Error('Spaces not configured: DO_SPACES_KEY and DO_SPACES_SECRET required');
   }
-  const key = `slides/${screenId}/${templateId}-${rotationIndex}.jpg`;
+  const suffix = versionParam ? `-${versionParam}` : '';
+  const key = `slides/${screenId}/${templateId}-${rotationIndex}${suffix}.jpg`;
   await client.send(
     new PutObjectCommand({
       Bucket: bucket,
@@ -52,6 +57,7 @@ export async function uploadSlideToSpaces(
       Body: buffer,
       ContentType: 'image/jpeg',
       ACL: 'public-read',
+      CacheControl: 'public, max-age=300',
     })
   );
   return key;
@@ -62,8 +68,8 @@ export function isSpacesConfigured(): boolean {
 }
 
 /**
- * Ekrandaki yayında olmayan (rotation'da artık kullanılmayan) slide görsellerini siler.
- * keysToKeep: "templateId-0", "templateId-1" gibi dosya adları (prefix ve .jpg hariç).
+ * Ekrandaki yayında olmayan slide görsellerini siler (eski version'lar, rotation'dan çıkanlar).
+ * keysToKeep: "templateId-0", "templateId-0-v123" gibi dosya adları (prefix ve .jpg hariç).
  */
 export async function deleteSlidesNotInSet(
   screenId: string,

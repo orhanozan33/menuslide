@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
 
       const baseSlide = { duration, transition_effect: transitionEffect, transition_duration: Math.min(5000, Math.max(100, transitionDuration)) };
       if (SLIDE_IMAGE_BASE && templateId) {
-        const url = `${SLIDE_IMAGE_BASE}/slides/${screenId}/${templateId}-${index}.jpg?v=${encodeURIComponent(versionParam)}`;
+        const url = `${SLIDE_IMAGE_BASE}/slides/${screenId}/${templateId}-${index}-${versionParam}.jpg`;
         slides.push({ ...baseSlide, type: 'image', url });
       } else {
         slides.push({ ...baseSlide, type: 'text', title: 'Slide', description: '' });
