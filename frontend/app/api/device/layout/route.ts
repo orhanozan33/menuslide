@@ -72,8 +72,8 @@ export async function GET(request: NextRequest) {
         (r as { full_editor_template_id?: string | null }).full_editor_template_id ||
         (r as { template_id?: string }).template_id;
       const duration = Math.max(1, (r as { display_duration?: number }).display_duration ?? 8);
-      const transitionEffect = (r as { transition_effect?: string }).transition_effect ?? 'fade';
-      const transitionDuration = (r as { transition_duration?: number }).transition_duration ?? 300;
+      const transitionEffect = (r as { transition_effect?: string }).transition_effect ?? 'slide-left';
+      const transitionDuration = (r as { transition_duration?: number }).transition_duration ?? 5000;
 
       const baseSlide = { duration, transition_effect: transitionEffect, transition_duration: Math.min(5000, Math.max(100, transitionDuration)) };
       if (SLIDE_IMAGE_BASE && templateId) {
@@ -107,7 +107,7 @@ export async function GET(request: NextRequest) {
         deviceToken,
         layout,
         layoutVersion: version,
-        refreshIntervalSeconds: 60,
+        refreshIntervalSeconds: 30,
       },
       {
         headers: {

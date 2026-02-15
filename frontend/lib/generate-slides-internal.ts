@@ -57,6 +57,7 @@ export async function generateSlidesForScreen(screenId: string): Promise<Generat
   const keys: string[] = [];
   const keysToKeep: string[] = [];
   const errors: string[] = [];
+  const runTs = Date.now();
   console.log('[generate-slides-internal] screen=', screenId, 'slug=', slug, 'rotations=', rotations.length, 'baseUrl=', baseUrl);
 
   for (let i = 0; i < rotations.length; i++) {
@@ -66,7 +67,7 @@ export async function generateSlidesForScreen(screenId: string): Promise<Generat
 
     keysToKeep.push(`${templateId}-${i}`);
 
-    const url = `${baseUrl}/display/${encodeURIComponent(String(slug))}?lite=1&rotationIndex=${i}`;
+    const url = `${baseUrl}/display/${encodeURIComponent(String(slug))}?lite=1&rotationIndex=${i}&_=${runTs}-${i}`;
     try {
       console.log('[generate-slides-internal] slide', i, 'capturing url=', url.slice(0, 80), '...');
       const buffer = await captureDisplayScreenshot(url);

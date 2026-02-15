@@ -1,5 +1,4 @@
 import { NextRequest } from 'next/server';
-import { after } from 'next/server';
 import { getServerSupabase } from '@/lib/supabase-server';
 import { regenerateSlidesForAffectedScreens } from '@/lib/generate-slides-internal';
 import type { JwtPayload } from '@/lib/auth-server';
@@ -109,7 +108,10 @@ export async function update(id: string, request: NextRequest, user: JwtPayload)
     await mirrorToSupabase('menu_items', 'update', { id, row: { ...updates, id } });
     if (user.role === 'admin' || user.role === 'super_admin') await insertAdminActivityLog(user, { action_type: 'menu_item_update', page_key: 'menus', resource_type: 'menu_item', resource_id: id, details: {} });
     if (updates.price !== undefined || updates.name !== undefined) {
-      after(() => regenerateSlidesForAffectedScreens(id, item.menu_id));
+      await Promise.race([
+        regenerateSlidesForAffectedScreens(id, item.menu_id),
+        new Promise<void>((r) => setTimeout(r, 22000)),
+      ]);
     }
     return Response.json(data);
   }
@@ -126,7 +128,10 @@ export async function update(id: string, request: NextRequest, user: JwtPayload)
   if (error) return Response.json({ message: error.message }, { status: 500 });
   if (user.role === 'admin' || user.role === 'super_admin') await insertAdminActivityLog(user, { action_type: 'menu_item_update', page_key: 'menus', resource_type: 'menu_item', resource_id: id, details: {} });
   if (updates.price !== undefined || updates.name !== undefined) {
-    after(() => regenerateSlidesForAffectedScreens(id, (item as { menu_id: string }).menu_id));
+    await Promise.race([
+      regenerateSlidesForAffectedScreens(id, (item as { menu_id: string }).menu_id),
+      new Promise<void>((r) => setTimeout(r, 22000)),
+    ]);
   }
   return Response.json(data);
 }

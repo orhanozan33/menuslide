@@ -235,15 +235,23 @@ export async function getScreenByToken(token: string, request: NextRequest): Pro
     ticker_style: screenRow.ticker_style || 'default',
   };
 
-  return Response.json({
-    screen: screenPayload,
-    menus: activeMenu ? [activeMenu] : [],
-    schedules: schedules || [],
-    template,
-    screenBlocks,
-    blockContents,
-    templateRotations: templateRotations.length ? templateRotations : undefined,
-  });
+  return Response.json(
+    {
+      screen: screenPayload,
+      menus: activeMenu ? [activeMenu] : [],
+      schedules: schedules || [],
+      template,
+      screenBlocks,
+      blockContents,
+      templateRotations: templateRotations.length ? templateRotations : undefined,
+    },
+    {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+        Pragma: 'no-cache',
+      },
+    }
+  );
 }
 
 async function attachMenuItemsToContents(

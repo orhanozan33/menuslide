@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       {
         layoutVersion,
-        refreshIntervalSeconds: 60,
+        refreshIntervalSeconds: 30,
       },
       {
         headers: {

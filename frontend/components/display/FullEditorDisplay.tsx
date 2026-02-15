@@ -5,28 +5,33 @@ import { sanitizeCanvasJsonForFabric, collectFontFamiliesFromFabricJson } from '
 import { getGoogleFontsUrlForDisplayFamilies } from '@/lib/editor-fonts';
 
 /** Şablonda kullanılan fontları yükler; yükleme bitene kadar bekler (TV’de satır kırılımı editörle aynı olsun diye). */
+/** Fontlar zaten yüklüyse hazır olana kadar bekler (aynı şablon iki rotasyonda ikinci mount'ta duplicate link onload tetiklenmeyebilir). */
+function waitForFonts(families: string[]): Promise<void> {
+  const loads: Promise<unknown>[] = [];
+  for (const f of families.slice(0, 20)) {
+    loads.push(document.fonts.load(`16px "${f}"`).catch(() => {}));
+    loads.push(document.fonts.load(`700 16px "${f}"`).catch(() => {}));
+    loads.push(document.fonts.load(`italic 16px "${f}"`).catch(() => {}));
+    loads.push(document.fonts.load(`italic 700 16px "${f}"`).catch(() => {}));
+  }
+  return Promise.all(loads).then(async () => {
+    if (typeof document.fonts.ready !== 'undefined') await document.fonts.ready;
+  });
+}
+
 function loadFontsForDisplay(families: string[]): Promise<void> {
   if (families.length === 0) return Promise.resolve();
   const url = getGoogleFontsUrlForDisplayFamilies(families);
   if (!url) return Promise.resolve();
+  const existing =
+    typeof document !== 'undefined' &&
+    Array.from(document.querySelectorAll('link[rel="stylesheet"]')).some((el) => (el as HTMLLinkElement).href === url);
+  if (existing) return waitForFonts(families);
   return new Promise((resolve) => {
     const link = document.createElement('link');
     link.rel = 'stylesheet';
     link.href = url;
-    link.onload = () => {
-      const loads: Promise<unknown>[] = [];
-      for (const f of families.slice(0, 20)) {
-        loads.push(document.fonts.load(`16px "${f}"`).catch(() => {}));
-        loads.push(document.fonts.load(`700 16px "${f}"`).catch(() => {}));
-        loads.push(document.fonts.load(`italic 16px "${f}"`).catch(() => {}));
-        loads.push(document.fonts.load(`italic 700 16px "${f}"`).catch(() => {}));
-      }
-      Promise.all(loads)
-        .then(async () => {
-          if (typeof document.fonts.ready !== 'undefined') await document.fonts.ready;
-        })
-        .then(() => resolve());
-    };
+    link.onload = () => waitForFonts(families).then(resolve);
     link.onerror = () => resolve();
     document.head.appendChild(link);
   });

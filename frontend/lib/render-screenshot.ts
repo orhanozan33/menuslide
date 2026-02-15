@@ -58,7 +58,8 @@ export async function captureDisplayScreenshot(displayPageUrl: string): Promise<
       url.searchParams.set('image_quality', '90');
       url.searchParams.set('block_ads', 'true');
       url.searchParams.set('cache', 'false');
-      url.searchParams.set('delay', '12');
+      // 20s: Google Fonts + canvas render süresi (ScreenshotOne waitForSelector desteklemez; font için SCREENSHOT_SERVICE_URL tercih edin)
+      url.searchParams.set('delay', '20');
       url.searchParams.set('access_key', key);
       const res = await fetch(url.toString(), { signal: AbortSignal.timeout(60000) });
       if (!res.ok) {

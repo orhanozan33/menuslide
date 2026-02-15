@@ -159,7 +159,7 @@ export async function POST(request: Request) {
         deviceToken,
         layout,
         layoutVersion: version,
-        refreshIntervalSeconds: 60,
+        refreshIntervalSeconds: 30,
       },
       {
         headers: {

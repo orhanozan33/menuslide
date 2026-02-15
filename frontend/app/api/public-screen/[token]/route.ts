@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as publicScreenHandlers from '@/lib/api-backend/handlers/public-screen';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/public-screen/:token – TV yayını verisi (Supabase).
  */
