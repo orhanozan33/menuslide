@@ -96,8 +96,14 @@ export function loadFontsForCanvasJson(json: Record<string, unknown>): Promise<v
     link.rel = 'stylesheet';
     link.href = url;
     link.onload = () => {
-      const loadPromises = families.slice(0, 20).map((f) => document.fonts.load(`16px "${f}"`).catch(() => {}));
-      Promise.all(loadPromises).then(() => resolve());
+      const loads: Promise<unknown>[] = [];
+      for (const f of families.slice(0, 20)) {
+        loads.push(document.fonts.load(`16px "${f}"`).catch(() => {}));
+        loads.push(document.fonts.load(`700 16px "${f}"`).catch(() => {}));
+      }
+      Promise.all(loads)
+        .then(() => (typeof document.fonts.ready !== 'undefined' ? document.fonts.ready : Promise.resolve()))
+        .then(() => resolve());
     };
     link.onerror = () => resolve();
     document.head.appendChild(link);
