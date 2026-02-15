@@ -46,6 +46,16 @@ function getSlidesFromLayout(layout as object) as dynamic
     return slides
 end function
 
+' Append cache buster so Roku fetches new images when layout is refreshed (new slides on server)
+function imageUrlWithBuster(url as dynamic) as string
+    if url = invalid or url = "" then return ""
+    u = url
+    if m.layoutRefreshTs = invalid then return u
+    sep = "?"
+    if Instr(1, u, "?") > 0 then sep = "&"
+    return u + sep + "_=" + Str(m.layoutRefreshTs)
+end function
+
 ' Registry'de slide bazinda saklanan layout'u oku (kesilme olmasin)
 function loadLayoutFromChunkedRegistry() as dynamic
     cntStr = m.sec.read("layout_slide_count")
@@ -70,9 +80,39 @@ function loadLayoutFromChunkedRegistry() as dynamic
 end function
 
 sub loadLayout()
-    ' On every startup: fetch layout first so price/content updates show immediately (no stale cache)
-    m.status.text = "Loading. Please Wait."
-    m.status.visible = true
+    layout = invalid
+    if m.top.layout <> invalid then
+        layout = m.top.layout
+    else
+        layout = loadLayoutFromChunkedRegistry()
+        slidesFromChunked = getSlidesFromLayout(layout)
+        if layout = invalid or slidesFromChunked = invalid or slidesFromChunked.count() < 1 then
+            if m.layoutStr <> "" and m.layoutStr <> invalid then
+                layout = ParseJson(m.layoutStr)
+            end if
+        end if
+    end if
+    if layout = invalid then
+        m.status.text = "Loading. Please Wait."
+        m.status.visible = true
+        startLayoutFetch()
+        return
+    end if
+    slides = getSlidesFromLayout(layout)
+    if slides = invalid or slides.count() = 0 then
+        m.status.text = "Loading. Please Wait."
+        m.status.visible = true
+        startLayoutFetch()
+        return
+    end if
+    if slides.count() < 1 then
+        m.status.text = "Loading. Please Wait."
+        m.status.visible = true
+        startLayoutFetch()
+        return
+    end if
+    ' Always fetch on startup to get latest layout - prevent stale template
+    renderLayout(layout)
     startLayoutFetch()
 end sub
 
@@ -111,6 +151,7 @@ sub onLayoutResult(msg as dynamic)
         if layout <> invalid then
             m.layoutVersion = m.sec.read("layoutVersion")
             if m.layoutVersion = invalid then m.layoutVersion = ""
+            m.layoutRefreshTs = CreateObject("roDateTime").AsSeconds()
             print "[MainScene] layout from registry version="; m.layoutVersion
             r = m.sec.read("refreshInterval")
             if r <> "" and r <> invalid then m.refreshInterval = Int(Val(r))
@@ -149,6 +190,7 @@ sub onLayoutResult(msg as dynamic)
     m.sec.flush()
     needRender = (m.slides = invalid or m.slides.count() = 0) or versionChanged
     if needRender then
+        m.layoutRefreshTs = CreateObject("roDateTime").AsSeconds()
         renderLayout(layout)
     end if
     removeLayoutTask(taskNode)
@@ -237,7 +279,7 @@ sub showSlide(index as integer)
         url = slide.url
         if url = invalid then url = slide.Url
         if url <> invalid and url <> "" then
-            m.currentSlidePoster.uri = url
+            m.currentSlidePoster.uri = imageUrlWithBuster(url)
             m.currentSlidePoster.visible = true
             m.currentSlidePoster.opacity = 1
         else
@@ -289,7 +331,7 @@ sub preloadNextImage()
         url = nextSlide.url
         if url = invalid then url = nextSlide.Url
         if url <> invalid and url <> "" then
-            m.nextSlidePoster.uri = url
+            m.nextSlidePoster.uri = imageUrlWithBuster(url)
         end if
     end if
 end sub
@@ -323,8 +365,9 @@ sub onSlideTimerFire()
         clearLayoutGroup()
         m.pendingNextIndex = nextIndex
         m.pendingTransitionType = "slide-left"
-        m.nextSlidePoster.uri = nextSlide.url
-        if m.nextSlidePoster.uri = invalid then m.nextSlidePoster.uri = nextSlide.Url
+        url = nextSlide.url
+        if url = invalid then url = nextSlide.Url
+        m.nextSlidePoster.uri = imageUrlWithBuster(url)
         m.nextSlidePoster.visible = true
         m.nextSlidePoster.translation = [1920, 0]
         m.nextSlidePoster.opacity = 1
@@ -337,8 +380,9 @@ sub onSlideTimerFire()
         clearLayoutGroup()
         m.pendingNextIndex = nextIndex
         m.pendingTransitionType = "slide-right"
-        m.nextSlidePoster.uri = nextSlide.url
-        if m.nextSlidePoster.uri = invalid then m.nextSlidePoster.uri = nextSlide.Url
+        url = nextSlide.url
+        if url = invalid then url = nextSlide.Url
+        m.nextSlidePoster.uri = imageUrlWithBuster(url)
         m.nextSlidePoster.visible = true
         m.nextSlidePoster.translation = [-1920, 0]
         m.nextSlidePoster.opacity = 1
@@ -350,8 +394,9 @@ sub onSlideTimerFire()
         m.slideTimer.control = "stop"
         m.pendingNextIndex = nextIndex
         m.pendingTransitionType = "fade"
-        m.nextSlidePoster.uri = nextSlide.url
-        if m.nextSlidePoster.uri = invalid then m.nextSlidePoster.uri = nextSlide.Url
+        url = nextSlide.url
+        if url = invalid then url = nextSlide.Url
+        m.nextSlidePoster.uri = imageUrlWithBuster(url)
         m.nextSlidePoster.opacity = 0
         m.nextSlidePoster.translation = [0, 0]
         m.nextSlidePoster.visible = true

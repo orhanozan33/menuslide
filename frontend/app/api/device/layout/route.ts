@@ -47,7 +47,8 @@ export async function GET(request: NextRequest) {
 
     const versionHash = (screen as { layout_snapshot_version?: string | null }).layout_snapshot_version;
     const updatedAt = (screen as { updated_at?: string }).updated_at ?? new Date().toISOString();
-    const version = updatedAt;
+    // Use layout_snapshot_version when present so Roku sees new slides; fallback to updated_at
+    const version = (versionHash && String(versionHash).trim()) ? String(versionHash) : updatedAt;
     const rotations = await getScreenTemplateRotations(screenId);
 
     const slides: Array<{ type: string; url?: string; title?: string; description?: string; duration: number; transition_effect?: string; transition_duration?: number }> = [];

@@ -89,11 +89,12 @@ export async function generateSlidesForScreen(screenId: string): Promise<Generat
       o: r.display_order,
     }))
   );
-  const versionHash = createHash('sha256').update(layoutData).digest('hex').slice(0, 16);
+  const runTs = Date.now();
+  // Her yeni üretimde farklı URL: layoutData + runTs → içerik (fiyat vb.) güncellenince path değişir
+  const versionHash = createHash('sha256').update(layoutData + String(runTs)).digest('hex').slice(0, 16);
 
   const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://menuslide.com').replace(/\/$/, '');
   const errors: string[] = [];
-  const runTs = Date.now();
 
   console.log('[generate-slides-internal] screen=', screenId, 'slug=', slug, 'rotationCount=', rotations.length, 'versionHash=', versionHash);
 
