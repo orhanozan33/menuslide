@@ -125,6 +125,7 @@ export default function ScreensPage() {
     durationMs: number;
     templateName: string;
   } | null>(null);
+  const [regeneratingScreenId, setRegeneratingScreenId] = useState<string | null>(null);
   
   // Ref to store checkAndCreateScreens function to avoid circular dependency
   const checkAndCreateScreensRef = useRef<((currentScreens?: Screen[]) => Promise<void>) | null>(null);
@@ -866,12 +867,12 @@ export default function ScreensPage() {
                 </div>
               )}
               
-              {/* Durdur ve Yayınla butonları - abonelik yoksa Yayınla kilitli */}
-              <div className="flex space-x-2 mb-2 items-stretch">
+              {/* Durdur, Yayınla, Slide yenile, HTML butonları */}
+              <div className="flex flex-wrap gap-2 mb-2 items-stretch">
                 <button
                   onClick={() => handleStopPublishing(screen.id)}
                   disabled={!screen.is_active}
-                  className="flex-1 px-3 sm:px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm sm:text-base font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 min-w-0 px-3 sm:px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm sm:text-base font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {t('screens_stop')}
                 </button>
@@ -879,7 +880,7 @@ export default function ScreensPage() {
                   onClick={() => subscriptionActive && handlePublishClick(screen)}
                   disabled={!subscriptionActive}
                   title={!subscriptionActive ? t('screens_subscription_expired') : undefined}
-                  className={`flex-1 px-3 sm:px-4 py-2 rounded-lg transition-colors text-sm sm:text-base font-medium ${
+                  className={`flex-1 min-w-0 px-3 sm:px-4 py-2 rounded-lg transition-colors text-sm sm:text-base font-medium ${
                     subscriptionActive
                       ? 'bg-green-600 text-white hover:bg-green-700'
                       : 'bg-gray-300 text-gray-500 cursor-not-allowed'
@@ -889,13 +890,27 @@ export default function ScreensPage() {
                     ? t('screens_edit_publish')
                     : t('screens_publish')}
                 </button>
-                <button
-                  onClick={() => downloadIndexHtml(screen)}
-                  title={t('screens_download_html_hint')}
-                  className="px-2.5 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors text-xs font-medium whitespace-nowrap"
-                >
-                  HTML
-                </button>
+                {screen.templateRotations && screen.templateRotations.length > 0 && (
+                  <button
+                    onClick={async () => {
+                      setRegeneratingScreenId(screen.id);
+                      try {
+                        const res = await apiClient(`/screens/${screen.id}/generate-slides`, { method: 'POST' }) as { message?: string };
+                        toast?.showSuccess?.(res?.message || "Slide'lar yenilendi");
+                        loadScreensRef.current?.();
+                      } catch (e) {
+                        toast?.showError?.((e as Error)?.message || 'Slide yenileme başarısız');
+                      } finally {
+                        setRegeneratingScreenId(null);
+                      }
+                    }}
+                    disabled={regeneratingScreenId === screen.id}
+                    title="Roku / TV slide görsellerini yenile (fiyat veya font değiştiyse)"
+                    className="px-2.5 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors text-xs font-medium disabled:opacity-50 whitespace-nowrap"
+                  >
+                    {regeneratingScreenId === screen.id ? '...' : 'Yenile'}
+                  </button>
+                )}
               </div>
 
               {/* Yönet ve Sil butonları sadece admin/super_admin için görünür */}
