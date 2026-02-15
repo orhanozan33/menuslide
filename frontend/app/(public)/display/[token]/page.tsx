@@ -200,6 +200,8 @@ export default function DisplayPage() {
     return () => mq.removeEventListener('change', handler);
   }, []);
   const isLiteMode = liteParam === '1' || lowParam === '1' || ultralowParam === '1' || prefersReducedMotion;
+  const bustParam = searchParams?.get('_') ?? '';
+  const apiBust = bustParam ? `&_=${encodeURIComponent(bustParam)}` : '';
   /** Düşük güçlü cihazlar: daha sık sayfa yenileme (bellek sıfırlanır, kapanma azalır) */
   const isLowDeviceMode = lowParam === '1' || ultralowParam === '1';
   /** Çok zayıf stick: 1 dk sayfa yenileme (ultralow=1) */
@@ -247,7 +249,7 @@ export default function DisplayPage() {
     try {
       const results = await Promise.all(
         Array.from({ length: N }, (_, i) =>
-          fetch(`/api/public-screen/${encodeURIComponent(token)}?rotationIndex=${i}`, { cache: 'no-store' })
+          fetch(`/api/public-screen/${encodeURIComponent(token)}?rotationIndex=${i}${apiBust}`, { cache: 'no-store' })
             .then((r) => r.ok ? r.json() : null)
             .then((raw: any) => (raw && !raw.notFound && raw.screen ? raw : null))
         )
@@ -256,7 +258,7 @@ export default function DisplayPage() {
     } catch (e) {
       console.warn('Rotation cache preload failed:', e);
     }
-  }, [token]);
+  }, [token, apiBust]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -356,7 +358,7 @@ export default function DisplayPage() {
           : screenData?.templateRotations?.length && screenData.templateRotations.length > 0
             ? Math.min(currentTemplateIndexRef.current, screenData.templateRotations.length - 1)
             : undefined;
-      const query = rotationIdx !== undefined ? `?rotationIndex=${rotationIdx}` : '';
+      const query = rotationIdx !== undefined ? `?rotationIndex=${rotationIdx}${apiBust}` : apiBust ? `?${apiBust.slice(1)}` : '';
       const url = `/api/public-screen/${encodeURIComponent(token)}${query}`;
       const res = await fetch(url, { cache: 'no-store' });
       const data = res.ok ? await res.json() : null;
@@ -431,7 +433,7 @@ export default function DisplayPage() {
 
     try {
       // Load template data for this rotation index from backend
-      const res = await fetch(`/api/public-screen/${encodeURIComponent(token)}?rotationIndex=${templateIndex}`, { cache: 'no-store' });
+      const res = await fetch(`/api/public-screen/${encodeURIComponent(token)}?rotationIndex=${templateIndex}${apiBust}`, { cache: 'no-store' });
       const raw = res.ok ? await res.json() : null;
       const templateData = raw && !(raw as any).notFound && (raw as any).screen ? raw : null;
       
@@ -580,7 +582,7 @@ export default function DisplayPage() {
       }
       (async () => {
         try {
-          const res = await fetch(`/api/public-screen/${encodeURIComponent(token)}?rotationIndex=${nextIndex}`, { cache: 'no-store' });
+          const res = await fetch(`/api/public-screen/${encodeURIComponent(token)}?rotationIndex=${nextIndex}${apiBust}`, { cache: 'no-store' });
           const raw = res.ok ? await res.json() : null;
           const nextData = raw && !(raw as any).notFound && (raw as any).screen ? raw : null;
           if (nextData) applyNextTemplate(nextData);

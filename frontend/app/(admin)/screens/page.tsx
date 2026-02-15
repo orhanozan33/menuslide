@@ -906,9 +906,9 @@ export default function ScreensPage() {
                     }}
                     disabled={regeneratingScreenId === screen.id}
                     title="Roku / TV slide görsellerini yenile (fiyat veya font değiştiyse)"
-                    className="px-2.5 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors text-xs font-medium disabled:opacity-50 whitespace-nowrap"
+                    className="flex-1 min-w-0 px-3 sm:px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors text-sm sm:text-base font-medium disabled:opacity-50"
                   >
-                    {regeneratingScreenId === screen.id ? '...' : 'Yenile'}
+                    {regeneratingScreenId === screen.id ? '...' : 'Roku yenile'}
                   </button>
                 )}
               </div>
