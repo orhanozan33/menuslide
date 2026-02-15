@@ -3,6 +3,7 @@ import { getServerSupabase } from '@/lib/supabase-server';
 import type { JwtPayload } from '@/lib/auth-server';
 import { useLocalDb, insertLocal, queryLocal, queryOne, updateLocal, deleteLocal, runLocal, mirrorToSupabase } from '@/lib/api-backend/db-local';
 import { insertAdminActivityLog } from '@/lib/api-backend/admin-activity-log';
+import { regenerateSlidesForTemplate } from '@/lib/generate-slides-internal';
 
 /** POST /templates */
 export async function create(request: NextRequest, user: JwtPayload): Promise<Response> {
@@ -87,6 +88,7 @@ export async function update(id: string, request: NextRequest, user: JwtPayload)
     if (!data) return Response.json({ message: 'Not found' }, { status: 404 });
     await mirrorToSupabase('templates', 'update', { id, row: { ...updates, id } });
     await insertAdminActivityLog(user, { action_type: 'template_update', page_key: 'templates', resource_type: 'template', resource_id: id, details: { name: String(updates.display_name || updates.name || '') } });
+    void regenerateSlidesForTemplate(id).catch((e) => console.error('[templates update] regenerateSlidesForTemplate failed', e));
     return Response.json(data);
   }
 
@@ -102,6 +104,7 @@ export async function update(id: string, request: NextRequest, user: JwtPayload)
   const { data, error } = await supabase.from('templates').update(updates).eq('id', id).select().single();
   if (error) return Response.json({ message: error.message }, { status: 500 });
   await insertAdminActivityLog(user, { action_type: 'template_update', page_key: 'templates', resource_type: 'template', resource_id: id, details: { name: String(updates.display_name || updates.name || '') } });
+  void regenerateSlidesForTemplate(id).catch((e) => console.error('[templates update] regenerateSlidesForTemplate failed', e));
   return Response.json(data);
 }
 

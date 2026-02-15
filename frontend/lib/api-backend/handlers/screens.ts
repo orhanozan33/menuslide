@@ -6,7 +6,7 @@ import type { JwtPayload } from '@/lib/auth-server';
 import { useLocalDb, queryOne, queryLocal, insertLocal, updateLocal, deleteLocal, runLocal, mirrorToSupabase } from '@/lib/api-backend/db-local';
 import { insertAdminActivityLog } from '@/lib/api-backend/admin-activity-log';
 import { isSpacesConfigured } from '@/lib/spaces-slides';
-import { generateSlidesForScreen } from '@/lib/generate-slides-internal';
+import { generateSlidesForScreen, regenerateSlidesForTemplate } from '@/lib/generate-slides-internal';
 
 function generatePublicToken(): string {
   return randomBytes(32).toString('hex');
@@ -549,6 +549,12 @@ export async function publishTemplates(screenId: string, request: NextRequest, u
       sbRes = await sb.from('screens').update(frameUpdates).eq('id', screenId);
       if (sbRes.error) return Response.json({ message: sbRes.error.message || 'Failed to update screen options' }, { status: 500 });
     }
+    const templateIds = new Set<string>();
+    for (const t of templates) {
+      if (t.template_id) templateIds.add(t.template_id);
+      if (t.full_editor_template_id) templateIds.add(t.full_editor_template_id);
+    }
+    void Promise.all([...templateIds].map((tid) => regenerateSlidesForTemplate(tid))).catch((e) => console.error('[publishTemplates] regenerateSlidesForTemplate failed', e));
     return Response.json({ message: 'Templates published successfully', count: templates.length });
   }
 
@@ -615,6 +621,12 @@ export async function publishTemplates(screenId: string, request: NextRequest, u
     res = await supabase.from('screens').update(frameUpdates).eq('id', screenId);
     if (res.error) return Response.json({ message: res.error.message || 'Failed to update screen options' }, { status: 500 });
   }
+  const templateIds = new Set<string>();
+  for (const t of templates) {
+    if (t.template_id) templateIds.add(t.template_id);
+    if (t.full_editor_template_id) templateIds.add(t.full_editor_template_id);
+  }
+  void Promise.all([...templateIds].map((tid) => regenerateSlidesForTemplate(tid))).catch((e) => console.error('[publishTemplates] regenerateSlidesForTemplate failed', e));
   return Response.json({ message: 'Templates published successfully', count: templates.length });
 }
 

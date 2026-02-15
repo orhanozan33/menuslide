@@ -228,6 +228,38 @@ export async function generateSlidesForScreen(screenId: string): Promise<Generat
 }
 
 /**
+ * Bu şablonu (template_id veya full_editor_template_id) yayında kullanan tüm ekranların
+ * slide görsellerini yeniden oluşturur. Şablon güncellendiğinde sadece o şablonu kullanan
+ * yayınlar (TV8, TV10 vb.) güncellenir.
+ */
+export async function regenerateSlidesForTemplate(templateId: string): Promise<void> {
+  if (!templateId || !isSpacesConfigured()) return;
+  const supabase = getServerSupabase();
+  if (!supabase) return;
+  const { data: byBlock } = await supabase
+    .from('screen_template_rotations')
+    .select('screen_id')
+    .eq('template_id', templateId)
+    .eq('is_active', true);
+  const { data: byFullEditor } = await supabase
+    .from('screen_template_rotations')
+    .select('screen_id')
+    .eq('full_editor_template_id', templateId)
+    .eq('is_active', true);
+  const screenIds = new Set<string>();
+  (byBlock || []).forEach((r: { screen_id: string }) => screenIds.add(r.screen_id));
+  (byFullEditor || []).forEach((r: { screen_id: string }) => screenIds.add(r.screen_id));
+  for (const screenId of screenIds) {
+    try {
+      const r = await generateSlidesForScreen(screenId);
+      if (r.generated > 0) console.log('[regenerateSlidesForTemplate] template=', templateId, 'screen=', screenId, 'generated=', r.generated);
+    } catch (e) {
+      console.error('[regenerateSlidesForTemplate] template=', templateId, 'screen=', screenId, 'failed', e);
+    }
+  }
+}
+
+/**
  * Ürün (menu_item) güncellendiğinde bu ürünü gösteren ekranların slide'larını yeniler.
  * Block template, Full Editor ve screen_menu ile menü atanmış tüm ekranlar kapsanır.
  */

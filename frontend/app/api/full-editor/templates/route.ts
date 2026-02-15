@@ -3,7 +3,7 @@ import { after } from 'next/server';
 import { getServerSupabase } from '@/lib/supabase-server';
 import { verifyToken } from '@/lib/auth-server';
 import { useLocalDb, queryLocal, insertLocal, updateLocal, deleteLocal } from '@/lib/api-backend/db-local';
-import { generateSlidesForScreen } from '@/lib/generate-slides-internal';
+import { regenerateSlidesForTemplate } from '@/lib/generate-slides-internal';
 
 export const dynamic = 'force-dynamic';
 
@@ -197,17 +197,11 @@ export async function PATCH(request: NextRequest) {
       }
       const updated = await updateLocal('full_editor_templates', templateId, updates);
       if ((canvas_json !== undefined || preview_image !== undefined) && getServerSupabase()) {
-        const sb = getServerSupabase();
         after(async () => {
           try {
-            const { data: rotations } = await sb.from('screen_template_rotations').select('screen_id').eq('full_editor_template_id', templateId).eq('is_active', true);
-            const screenIds = [...new Set((rotations ?? []).map((r: { screen_id: string }) => r.screen_id))];
-            for (const screenId of screenIds) {
-              const r = await generateSlidesForScreen(screenId);
-              if (r.generated > 0) console.log('[full-editor PATCH local] regenerated slides screen=', screenId);
-            }
+            await regenerateSlidesForTemplate(templateId);
           } catch (e) {
-            console.error('[full-editor PATCH local] generate-slides failed', e);
+            console.error('[full-editor PATCH local] regenerateSlidesForTemplate failed', e);
           }
         });
       }
@@ -243,18 +237,9 @@ export async function PATCH(request: NextRequest) {
     if (canvas_json !== undefined || preview_image !== undefined) {
       after(async () => {
         try {
-          const { data: rotations } = await supabase
-            .from('screen_template_rotations')
-            .select('screen_id')
-            .eq('full_editor_template_id', templateId)
-            .eq('is_active', true);
-          const screenIds = [...new Set((rotations ?? []).map((r: { screen_id: string }) => r.screen_id))];
-          for (const screenId of screenIds) {
-            const r = await generateSlidesForScreen(screenId);
-            if (r.generated > 0) console.log('[full-editor PATCH] regenerated slides screen=', screenId, 'count=', r.generated);
-          }
+          await regenerateSlidesForTemplate(templateId);
         } catch (e) {
-          console.error('[full-editor PATCH] generate-slides failed', e);
+          console.error('[full-editor PATCH] regenerateSlidesForTemplate failed', e);
         }
       });
     }
