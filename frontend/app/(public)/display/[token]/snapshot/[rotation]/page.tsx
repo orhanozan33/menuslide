@@ -1,38 +1,16 @@
-'use client';
-
-import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
-import { DisplayPageView } from '@/components/display/DisplayPageView';
+import { SnapshotClient } from './SnapshotClient';
 
 /**
- * Path tabanlı snapshot URL: /display/:token/snapshot/:rotation
- * useParams() harici tarayıcıda (screenshot servisi) ilk paint'te boş kalıyor → hep rotation 0
- * yüklenip 3 aynı resim üretiliyordu. Rotation'ı path'ten okuyana kadar display göstermiyoruz.
+ * Sunucu bileşeni: rotation path'ten request anında okunur, ilk HTML doğru rotation ile gider.
+ * Böylece screenshot servisi sayfayı açtığında client hydration beklemeden doğru slayt yüklenir.
  */
-function getRotationFromPath(): number {
-  if (typeof window === 'undefined') return 0;
-  const match = window.location.pathname.match(/\/snapshot\/(\d+)$/);
-  return match ? parseInt(match[1], 10) : 0;
-}
-
-export default function SnapshotByPathPage() {
-  const params = useParams();
-  const [rotationIndex, setRotationIndex] = useState<number | null>(null);
-
-  useEffect(() => {
-    const fromParams = params?.rotation;
-    const str = typeof fromParams === 'string' ? fromParams : '';
-    if (/^\d+$/.test(str)) {
-      setRotationIndex(parseInt(str, 10));
-    } else {
-      setRotationIndex(getRotationFromPath());
-    }
-  }, [params?.rotation]);
-
-  if (rotationIndex === null) {
-    return (
-      <div style={{ width: 1920, height: 1080, background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }} />
-    );
-  }
-  return <DisplayPageView key={`snapshot-${rotationIndex}`} snapshotRotationFromPath={rotationIndex} />;
+export default async function SnapshotByPathPage({
+  params,
+}: {
+  params: Promise<{ token: string; rotation?: string }>;
+}) {
+  const { rotation } = await params;
+  const rotationStr = typeof rotation === 'string' ? rotation : '';
+  const rotationIndex = /^\d+$/.test(rotationStr) ? parseInt(rotationStr, 10) : 0;
+  return <SnapshotClient rotationIndex={rotationIndex} />;
 }

@@ -372,26 +372,10 @@ export function DisplayPageView(props: DisplayPageProps) {
       };
     }
 
+    // Halka Açık URL (normal link): her zaman canlı — layout resim carousel kullanılmaz, doğrudan şablon rotasyonu
+    setSnapshotLayoutData(null);
     let cancelled = false;
-    fetch(`/api/layout/${encodeURIComponent(token)}`, { cache: 'no-store' })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: SnapshotLayoutData | null) => {
-        if (cancelled || !data?.layout?.slides?.length) {
-          if (!cancelled) loadScreenData();
-          return;
-        }
-        const hasImageSlides = data.layout.slides.some((s) => s.type === 'image' && s.url);
-        if (hasImageSlides) {
-          setSnapshotLayoutData(data);
-          setLoading(false);
-        } else {
-          loadScreenData();
-        }
-      })
-      .catch(() => {
-        if (!cancelled) loadScreenData();
-      });
-
+    loadScreenData();
     const pollInterval = setInterval(() => {
       if (useSnapshotLayoutRef.current) return;
       const current = screenDataRef.current;
