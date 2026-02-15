@@ -145,7 +145,7 @@ export async function generateSlidesForScreen(screenId: string): Promise<Generat
       const templateId = r.full_editor_template_id || r.template_id || '';
       const fullUrl = urls[orderIndex];
       if (orderIndex > 0) {
-        await new Promise((resolve) => setTimeout(resolve, 2500));
+        await new Promise((resolve) => setTimeout(resolve, 4000));
       }
       console.log('[generate-slides-internal] rotationIndex=%s templateId=%s fullUrl=%s', orderIndex, templateId, fullUrl);
       try {
