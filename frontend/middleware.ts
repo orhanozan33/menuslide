@@ -7,13 +7,14 @@ export function middleware(request: NextRequest) {
   try {
     const pathname = request.nextUrl.pathname;
 
-    // Skip middleware for static assets, Next.js internals, API, favicon, icon
+    // Skip middleware for static assets, Next.js internals, API, favicon, icon, display (Görsel URL / slides)
     if (
       pathname.startsWith('/_next') ||
       pathname.startsWith('/api') ||
       pathname.startsWith('/favicon') ||
       pathname.startsWith('/icon') ||
       pathname === '/icon.svg' ||
+      pathname.startsWith('/display') ||
       /\.[a-z0-9]+$/i.test(pathname) // e.g. .css, .js, .svg, .ico
     ) {
       return NextResponse.next();
