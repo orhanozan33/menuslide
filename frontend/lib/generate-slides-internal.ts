@@ -60,6 +60,8 @@ export async function generateSlidesForScreen(screenId: string): Promise<Generat
   const runTs = Date.now();
   console.log('[generate-slides-internal] screen=', screenId, 'slug=', slug, 'rotations=', rotations.length, 'baseUrl=', baseUrl);
 
+  await new Promise((r) => setTimeout(r, 5000));
+
   for (let i = 0; i < rotations.length; i++) {
     const r = rotations[i] as { template_id?: string | null; full_editor_template_id?: string | null };
     const templateId = r.full_editor_template_id || r.template_id;
@@ -111,7 +113,7 @@ export async function generateSlidesForScreen(screenId: string): Promise<Generat
 
 /**
  * Ürün (menu_item) güncellendiğinde bu ürünü gösteren ekranların slide'larını yeniler.
- * Sadece block template kullanan ekranlar etkilenir (Full Editor statik canvas, ürün verisi kullanmaz).
+ * Block template, Full Editor ve screen_menu ile menü atanmış tüm ekranlar kapsanır.
  */
 export async function regenerateSlidesForAffectedScreens(
   menuItemId: string,
@@ -121,6 +123,13 @@ export async function regenerateSlidesForAffectedScreens(
   const supabase = getServerSupabase();
   if (!supabase) return;
   const screenIds = new Set<string>();
+
+  // screen_menu: Bu menüyü gösteren tüm ekranlar (tv8, tv9, tv10 vb.) — Full Editor dahil
+  const { data: sm } = await supabase
+    .from('screen_menu')
+    .select('screen_id')
+    .eq('menu_id', menuId);
+  (sm || []).forEach((r: { screen_id: string }) => screenIds.add(r.screen_id));
 
   // template_block_contents: single_product (menu_item_id) veya product_list (menu_id)
   const { data: tbc1 } = await supabase
