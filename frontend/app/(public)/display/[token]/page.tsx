@@ -768,6 +768,9 @@ export default function DisplayPage() {
   const tickerStyle = (screenData.screen as any)?.ticker_style || 'default';
   const showTransitionOverlay = isTransitioning && nextTemplateData && currentTemplateData && !nextTemplateData.digitalMenuData;
   const displayTypeKey = displayData?.digitalMenuData ? 'digital-menu' : displayData?.template?.template_type === 'full_editor' ? 'full-editor' : displayData?.template?.canvas_design ? 'canvas' : 'block';
+  // Snapshot capture: her rotationIndex için ayrı mount (aynı template tipi olsa bile farklı içerik gösterilsin)
+  const rotationKey = isCaptureMode && rotationIndexFromUrl != null ? rotationIndexFromUrl : currentTemplateIndex;
+  const templateInstanceKey = `${displayTypeKey}-${displayData?.template?.id ?? ''}-${rotationKey}`;
 
   // Tek layout: base layer her zaman render, geçişte sadece üstte overlay (unmount yok, video gibi akıcı)
   if (displayData?.digitalMenuData || displayData?.template?.template_type === 'full_editor' || displayData?.template?.canvas_design || (displayData?.template && displayData?.screenBlocks && displayData.screenBlocks.length > 0)) {
@@ -778,11 +781,11 @@ export default function DisplayPage() {
         <div className="fixed inset-0 flex flex-col overflow-hidden bg-black">
           <div className="flex-1 min-h-0 relative overflow-hidden">
             {/* Ustteki overlay arka plansiz; gecis sırasında altta onceki template gorunur, yeni onun uzerine biner */}
-            {/* Base layer - aynı tip şablonlar arasında remount yok (key=displayTypeKey) */}
+            {/* Base layer - snapshot capture'ta templateInstanceKey ile her slayt ayrı mount */}
             {displayData?.digitalMenuData ? (
               <DisplayFrame frameType={frameType} hideBottomFrame={hideBottomFrame} className="absolute inset-0 w-full h-full">
                 <MenuViewer
-                  key={displayTypeKey}
+                  key={templateInstanceKey}
                   data={{
                     id: displayData.digitalMenuData.id,
                     name: displayData.digitalMenuData.name,
@@ -816,7 +819,7 @@ export default function DisplayPage() {
             ) : displayData?.template?.template_type === 'full_editor' && displayData?.template?.canvas_json ? (
               <DisplayFrame frameType={frameType} hideBottomFrame={hideBottomFrame} className="absolute inset-0 w-full h-full">
                 <FullEditorDisplay
-                  key={displayTypeKey}
+                  key={templateInstanceKey}
                   canvasJson={displayData.template.canvas_json as object}
                   onReady={handleDisplayReady}
                 />
@@ -824,14 +827,14 @@ export default function DisplayPage() {
             ) : displayData?.template?.canvas_design ? (
               <DisplayFrame frameType={frameType} hideBottomFrame={hideBottomFrame} className="absolute inset-0 w-full h-full">
                 <CanvasDisplay
-                  key={displayTypeKey}
+                  key={templateInstanceKey}
                   canvasDesign={displayData.template.canvas_design}
                   className="w-full h-full"
                 />
               </DisplayFrame>
             ) : displayData?.template && displayData.screenBlocks && displayData.screenBlocks.length > 0 ? (
               <TemplateDisplay
-                key={displayTypeKey}
+                key={templateInstanceKey}
                 inline
                 screenData={displayData as any}
                 animationType={isSnapshotMode ? 'none' : (isLiteMode ? 'fade' : (displayData.screen?.animation_type || 'fade'))}
