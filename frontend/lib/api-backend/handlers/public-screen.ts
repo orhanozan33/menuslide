@@ -129,6 +129,10 @@ export async function getScreenByToken(token: string, request: NextRequest): Pro
     const rot = templateRotations[idx] as { template_id?: string | null; full_editor_template_id?: string | null; template_type?: string };
     currentTemplateId = rot.template_id ?? null;
     currentFullEditorId = rot.full_editor_template_id ?? null;
+    if (templateRotationIndex !== undefined && templateRotationIndex >= 0) {
+      const tid = currentFullEditorId || currentTemplateId || '';
+      console.log('[public-screen] rotationIndex=%s templateId=%s', templateRotationIndex, tid);
+    }
   }
 
   // Full Editor rotation

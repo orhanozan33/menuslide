@@ -244,6 +244,8 @@ export default function DisplayPage() {
   const displayReadyRef = useRef<() => void>(() => {});
   /** 24/7 yayında unmount sonrası setState engellemek için */
   const mountedRef = useRef(true);
+  /** Snapshot capture: sadece bu index için __SNAPSHOT_READY__ set edilsin (yanlış slayt ekran görüntüsü alınmasın) */
+  const snapshotExpectedIndexRef = useRef<number | null>(null);
 
   const POLL_INTERVAL_MS = 60_000; // 60s - tek interval, 1000 TV için ölçeklenebilir
   const MAX_BACKOFF_MS = 60_000;
@@ -314,6 +316,11 @@ export default function DisplayPage() {
 
     // Screenshot capture: mode=snapshot + rotationIndex → o slaytın canlı şablonunu göster (layout/carousel kullanma)
     if (isSnapshotMode && rotationIndexFromUrl != null && rotationIndexFromUrl >= 0) {
+      snapshotExpectedIndexRef.current = rotationIndexFromUrl;
+      setCurrentTemplateData(null);
+      setCurrentTemplateIndex(rotationIndexFromUrl);
+      setLoading(true);
+      (window as unknown as { __SNAPSHOT_READY__?: boolean }).__SNAPSHOT_READY__ = false;
       loadScreenData(rotationIndexFromUrl);
       return () => {
         if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
@@ -686,6 +693,19 @@ export default function DisplayPage() {
     displayReadyRef.current = () => {};
   }, []);
 
+  // Snapshot capture: sadece beklenen rotation index için ready sinyali ver (yanlış slayt ekran görüntülenmesin)
+  const handleSnapshotReady = useCallback(() => {
+    const expected = snapshotExpectedIndexRef.current;
+    if (expected != null && currentTemplateIndexRef.current !== expected) return;
+    if (typeof document !== 'undefined') {
+      document.body.dataset.displayReady = 'true';
+      (window as unknown as { __SNAPSHOT_READY__?: boolean }).__SNAPSHOT_READY__ = true;
+    }
+    setCurrentSlideReady(true);
+    displayReadyRef.current?.();
+    displayReadyRef.current = () => {};
+  }, []);
+
   // Şablon değişince “hazır” bayrağını sıfırla; bir sonraki onReady’de tekrar true olacak
   useEffect(() => {
     setCurrentSlideReady(false);
@@ -695,9 +715,10 @@ export default function DisplayPage() {
   const isFullEditorForSnapshot = currentTemplateData?.template?.template_type === 'full_editor' && currentTemplateData?.template?.canvas_json;
   useEffect(() => {
     if (!isSnapshotMode || !currentTemplateData || isFullEditorForSnapshot) return;
-    const t = setTimeout(handleDisplayReady, 1200);
+    const readyFn = rotationIndexFromUrl != null ? handleSnapshotReady : handleDisplayReady;
+    const t = setTimeout(readyFn, 1200);
     return () => clearTimeout(t);
-  }, [isSnapshotMode, currentTemplateData, isFullEditorForSnapshot, handleDisplayReady]);
+  }, [isSnapshotMode, currentTemplateData, isFullEditorForSnapshot, rotationIndexFromUrl, handleDisplayReady, handleSnapshotReady]);
 
   // Full editor dışı tiplerde (canvas, block) overlay'ı kısa gecikmeyle kaldır; sadece geçiş bittikten sonra (current=next)
   useEffect(() => {
@@ -821,7 +842,7 @@ export default function DisplayPage() {
                 <FullEditorDisplay
                   key={templateInstanceKey}
                   canvasJson={displayData.template.canvas_json as object}
-                  onReady={handleDisplayReady}
+                  onReady={isCaptureMode ? handleSnapshotReady : handleDisplayReady}
                 />
               </DisplayFrame>
             ) : displayData?.template?.canvas_design ? (
