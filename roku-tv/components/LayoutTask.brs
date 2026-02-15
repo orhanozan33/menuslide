@@ -13,7 +13,8 @@ sub Run()
     end if
     base = "https://menuslide.com/api"
     xfer = CreateObject("roUrlTransfer")
-    url = base + "/device/layout?deviceToken=" + xfer.Escape(token)
+    ts = Str(CreateObject("roDateTime").AsSeconds())
+    url = base + "/device/layout?deviceToken=" + xfer.Escape(token) + "&_=" + ts
     port = CreateObject("roMessagePort")
     json = invalid
     for i = 0 to 2

@@ -70,39 +70,9 @@ function loadLayoutFromChunkedRegistry() as dynamic
 end function
 
 sub loadLayout()
-    layout = invalid
-    if m.top.layout <> invalid then
-        layout = m.top.layout
-    else
-        layout = loadLayoutFromChunkedRegistry()
-        slidesFromChunked = getSlidesFromLayout(layout)
-        if layout = invalid or slidesFromChunked = invalid or slidesFromChunked.count() < 1 then
-            if m.layoutStr <> "" and m.layoutStr <> invalid then
-                layout = ParseJson(m.layoutStr)
-            end if
-        end if
-    end if
-    if layout = invalid then
-        m.status.text = "Loading. Please Wait."
-        m.status.visible = true
-        startLayoutFetch()
-        return
-    end if
-    slides = getSlidesFromLayout(layout)
-    if slides = invalid or slides.count() = 0 then
-        m.status.text = "Loading. Please Wait."
-        m.status.visible = true
-        startLayoutFetch()
-        return
-    end if
-    if slides.count() < 1 then
-        m.status.text = "Loading. Please Wait."
-        m.status.visible = true
-        startLayoutFetch()
-        return
-    end if
-    ' Always fetch on startup to get latest layout - prevent stale template
-    renderLayout(layout)
+    ' On every startup: fetch layout first so price/content updates show immediately (no stale cache)
+    m.status.text = "Loading. Please Wait."
+    m.status.visible = true
     startLayoutFetch()
 end sub
 

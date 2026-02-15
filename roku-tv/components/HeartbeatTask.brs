@@ -20,9 +20,10 @@ sub Run()
     reqHb.addHeader("Content-Type", "application/json")
     reqHb.setPort(port)
     reqHb.asyncPostFromString(FormatJson({ deviceToken: token }))
-    ' Version GET
+    ' Version GET (cache-buster so Roku always gets current layoutVersion)
     xfer = CreateObject("roUrlTransfer")
-    url = base + "/device/version?deviceToken=" + xfer.Escape(token)
+    ts = Str(CreateObject("roDateTime").AsSeconds())
+    url = base + "/device/version?deviceToken=" + xfer.Escape(token) + "&_=" + ts
     req = CreateObject("roUrlTransfer")
     req.setUrl(url)
     req.setRequest("GET")
