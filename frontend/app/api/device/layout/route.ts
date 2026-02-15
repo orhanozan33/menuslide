@@ -107,7 +107,7 @@ export async function GET(request: NextRequest) {
         deviceToken,
         layout,
         layoutVersion: version,
-        refreshIntervalSeconds: 15,
+        refreshIntervalSeconds: 10,
       },
       {
         headers: {

@@ -16,7 +16,7 @@ sub init()
     m.deviceToken = m.sec.read("deviceToken")
     m.layoutStr = m.sec.read("layout")
     m.layoutVersion = m.sec.read("layoutVersion")
-    m.refreshInterval = 300
+    m.refreshInterval = 30
     r = m.sec.read("refreshInterval")
     if r <> "" and r <> invalid then m.refreshInterval = Int(Val(r))
     if m.deviceToken = "" or m.deviceToken = invalid then
@@ -530,6 +530,11 @@ sub onHeartbeatResult(msg as dynamic)
     if data = invalid or data.error <> invalid then
         removeHeartbeatTask(taskNode)
         return
+    end if
+    if data.refreshIntervalSeconds <> invalid and data.refreshIntervalSeconds >= 5 then
+        m.refreshInterval = data.refreshIntervalSeconds
+        m.sec.write("refreshInterval", Str(m.refreshInterval))
+        m.sec.flush()
     end if
     newVer = ""
     if data.layoutVersion <> invalid and data.layoutVersion <> "" then newVer = data.layoutVersion
