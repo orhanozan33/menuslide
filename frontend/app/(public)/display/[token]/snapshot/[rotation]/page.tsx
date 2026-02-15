@@ -1,7 +1,7 @@
 'use client';
 
 import { useParams } from 'next/navigation';
-import DisplayPage from '../../page';
+import { DisplayPageView } from '@/components/display/DisplayPageView';
 
 /**
  * Path tabanlı snapshot URL: /display/:token/snapshot/:rotation
@@ -13,5 +13,5 @@ export default function SnapshotByPathPage() {
   const rotation = params?.rotation;
   const rotationStr = typeof rotation === 'string' ? rotation : '';
   const rotationIndex = /^\d+$/.test(rotationStr) ? parseInt(rotationStr, 10) : 0;
-  return <DisplayPage snapshotRotationFromPath={rotationIndex} />;
+  return <DisplayPageView snapshotRotationFromPath={rotationIndex} />;
 }
