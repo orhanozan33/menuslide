@@ -312,6 +312,14 @@ export default function DisplayPage() {
       };
     }
 
+    // Screenshot capture: mode=snapshot + rotationIndex → o slaytın canlı şablonunu göster (layout/carousel kullanma)
+    if (isSnapshotMode && rotationIndexFromUrl != null && rotationIndexFromUrl >= 0) {
+      loadScreenData(rotationIndexFromUrl);
+      return () => {
+        if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
+      };
+    }
+
     let cancelled = false;
     fetch(`/api/layout/${encodeURIComponent(token)}`, { cache: 'no-store' })
       .then((res) => (res.ok ? res.json() : null))
@@ -347,7 +355,7 @@ export default function DisplayPage() {
       clearInterval(pollInterval);
       if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
     };
-  }, [token, previewIndex, rotationIndexFromUrl, preloadRotationCache]);
+  }, [token, previewIndex, rotationIndexFromUrl, isSnapshotMode, preloadRotationCache]);
 
   // Snapshot layout modunda layout API'yi periyodik yenile (publish sonrası yeni sürüm)
   useEffect(() => {
@@ -725,7 +733,9 @@ export default function DisplayPage() {
     );
   }
 
-  if (useSnapshotLayout && snapshotLayoutData) {
+  // rotationIndex ile screenshot alınırken carousel gösterme — canlı şablon aşağıda render edilir
+  const isCaptureMode = isSnapshotMode && rotationIndexFromUrl != null;
+  if (useSnapshotLayout && snapshotLayoutData && !isCaptureMode) {
     return (
       <EmbedFitWrapper ref={displayContainerRef}>
         <SnapshotLayoutCarousel data={snapshotLayoutData} className="w-full h-full" />
