@@ -218,6 +218,7 @@ sub renderLayout(layout as object)
     startSlideTimer()
     m.status.visible = false
     startHeartbeat()
+    startKeepAlive()
 end sub
 
 function getTransitionSec(slide as object) as float
@@ -233,12 +234,10 @@ function getTransitionEffect(slide as object) as string
     te = slide.Lookup("transition_effect")
     if te = invalid then te = slide.Lookup("transitionEffect")
     if te = invalid then return "fade"
-    s = LCase(Trim(Str(te)))
-    if s = "slide-left" then return "slide-left"
-    if s = "slideleft" then return "slide-left"
-    if s = "slide_left" then return "slide-left"
-    if s = "fade" or s = "crossfade" then return "fade"
-    if s = "slide-right" or s = "slideright" or s = "slide_right" then return "slide-right"
+    ' roString from ParseJson - compare directly (avoid Str/Trim/LCase Type Mismatch)
+    if te = "slide-left" or te = "slideleft" or te = "slide_left" then return "slide-left"
+    if te = "slide-right" or te = "slideright" or te = "slide_right" then return "slide-right"
+    if te = "fade" or te = "crossfade" then return "fade"
     return "fade"
 end function
 
@@ -441,6 +440,24 @@ sub startHeartbeat()
     m.heartbeatTimer.repeat = true
     m.heartbeatTimer.observeField("fire", "onHeartbeat")
     m.heartbeatTimer.control = "start"
+end sub
+
+' Ekran koruyucuyu onlemek icin periyodik tuş simülasyonu (ECP localhost)
+sub startKeepAlive()
+    if m.keepAliveTimer <> invalid then return
+    m.keepAliveTimer = m.top.createChild("Timer")
+    m.keepAliveTimer.duration = 240
+    m.keepAliveTimer.repeat = true
+    m.keepAliveTimer.observeField("fire", "onKeepAliveFire")
+    m.keepAliveTimer.control = "start"
+end sub
+
+sub onKeepAliveFire()
+    req = CreateObject("roUrlTransfer")
+    req.setUrl("http://127.0.0.1:8060/keypress/Play")
+    req.setRequest("POST")
+    req.setPort(CreateObject("roMessagePort"))
+    req.asyncPostFromString("")
 end sub
 
 sub onHeartbeat()

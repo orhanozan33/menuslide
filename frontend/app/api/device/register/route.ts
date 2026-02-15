@@ -106,7 +106,7 @@ export async function POST(request: Request) {
         (r as { template_id?: string }).template_id;
       const duration = Math.max(1, (r as { display_duration?: number }).display_duration ?? 8);
       const transitionEffect = (r as { transition_effect?: string }).transition_effect ?? 'fade';
-      const transitionDuration = Math.min(2000, Math.max(100, (r as { transition_duration?: number }).transition_duration ?? 400));
+      const transitionDuration = Math.min(5000, Math.max(100, (r as { transition_duration?: number }).transition_duration ?? 400));
 
       const baseSlide = { duration, transition_effect: transitionEffect, transition_duration: transitionDuration };
       if (SLIDE_IMAGE_BASE && templateId) {
@@ -159,7 +159,7 @@ export async function POST(request: Request) {
         deviceToken,
         layout,
         layoutVersion: version,
-        refreshIntervalSeconds: 300,
+        refreshIntervalSeconds: 60,
       },
       {
         headers: {

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { getGoogleFontsUrlForDisplayFamilies } from '@/lib/editor-fonts';
 
 const VIDEO_EXT = /\.(mp4|webm|ogg|mov)(\?|$)/i;
 const DATA_VIDEO = /^data:video\//i;
@@ -59,6 +60,42 @@ export function stripVideoLikeObjects(json: Record<string, unknown>, removeAllIm
   const objects = obj.objects as unknown[] | undefined;
   if (Array.isArray(objects)) obj.objects = filterObjectsRecursive(objects, removeAllImages);
   return obj;
+}
+
+/** Fabric canvas JSON içinden kullanılan font ailelerini toplar (gruplar dahil). */
+export function collectFontFamiliesFromFabricJson(obj: Record<string, unknown>): string[] {
+  const families: string[] = [];
+  const type = String(obj?.type ?? '');
+  const fontFamily = obj?.fontFamily;
+  if (type && ['text', 'i-text', 'textbox', 'Textbox'].includes(type) && typeof fontFamily === 'string' && fontFamily.trim()) {
+    families.push(fontFamily.trim());
+  }
+  const objects = obj?.objects;
+  if (Array.isArray(objects)) {
+    for (const item of objects) {
+      if (item && typeof item === 'object') families.push(...collectFontFamiliesFromFabricJson(item as Record<string, unknown>));
+    }
+  }
+  return families;
+}
+
+/** Şablonda kullanılan fontları yükler. loadFromJSON'dan ÖNCE çağrılmalı; böylece Fabric metin boyutlarını doğru hesaplar. */
+export function loadFontsForCanvasJson(json: Record<string, unknown>): Promise<void> {
+  const families = collectFontFamiliesFromFabricJson(json);
+  if (families.length === 0) return Promise.resolve();
+  const url = getGoogleFontsUrlForDisplayFamilies(families);
+  if (!url) return Promise.resolve();
+  return new Promise((resolve) => {
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = url;
+    link.onload = () => {
+      const loadPromises = families.slice(0, 20).map((f) => document.fonts.load(`16px "${f}"`).catch(() => {}));
+      Promise.all(loadPromises).then(() => resolve());
+    };
+    link.onerror = () => resolve();
+    document.head.appendChild(link);
+  });
 }
 
 /** canvas_json'ı Fabric'da güvenle yüklenebilir hale getirir: video src'leri placeholder ile değiştirilir. Tüm loadFromJSON öncesi kullanılmalı. */

@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
       const transitionEffect = (r as { transition_effect?: string }).transition_effect ?? 'fade';
       const transitionDuration = (r as { transition_duration?: number }).transition_duration ?? 300;
 
-      const baseSlide = { duration, transition_effect: transitionEffect, transition_duration: Math.min(2000, Math.max(100, transitionDuration)) };
+      const baseSlide = { duration, transition_effect: transitionEffect, transition_duration: Math.min(5000, Math.max(100, transitionDuration)) };
       if (SLIDE_IMAGE_BASE && templateId) {
         const url = `${SLIDE_IMAGE_BASE}/slides/${screenId}/${templateId}-${index}.jpg?v=${encodeURIComponent(versionParam)}`;
         slides.push({ ...baseSlide, type: 'image', url });
@@ -107,7 +107,7 @@ export async function GET(request: NextRequest) {
         deviceToken,
         layout,
         layoutVersion: version,
-        refreshIntervalSeconds: 300,
+        refreshIntervalSeconds: 60,
       },
       {
         headers: {
