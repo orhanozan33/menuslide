@@ -197,10 +197,7 @@ sub renderLayout(layout as object)
     m.nextSlidePoster.uri = ""
     clearLayoutGroup()
     if layout.backgroundColor <> invalid and layout.backgroundColor <> "" then
-        bgCol = hexToRokuColor(layout.backgroundColor)
-        m.bg.color = bgCol
-        m.currentSlidePoster.color = bgCol
-        m.nextSlidePoster.color = bgCol
+        m.bg.color = hexToRokuColor(layout.backgroundColor)
     end if
     m.slides = slides
     ' Re-render (version change): keep current position so all slides keep rotating; don't jump back to 0

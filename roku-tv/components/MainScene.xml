@@ -18,7 +18,6 @@
       height="1080"
       translation="[0, 0]"
       visible="false"
-      color="0x000000FF"
       loadDisplayMode="scaleToFit"/>
     <Group id="layoutGroup"/>
     <!-- Preload next image for smooth transition -->
@@ -28,7 +27,6 @@
       height="1080"
       translation="[0, 0]"
       visible="false"
-      color="0x000000FF"
       loadDisplayMode="scaleToFit"/>
     <!-- Fade in: opacity 0 -> 1 -->
     <Animation id="fadeIn" duration="0.3" easeFunction="linear">
