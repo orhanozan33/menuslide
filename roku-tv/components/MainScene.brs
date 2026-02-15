@@ -474,9 +474,16 @@ sub finishTransition()
     if tt = invalid then tt = "slide-left"
     m.pendingTransitionType = invalid
     m.slideIndex = nextIndex
-    m.currentSlidePoster.uri = m.nextSlidePoster.uri
+    nextUri = m.nextSlidePoster.uri
+    if nextUri = invalid or nextUri = "" then
+        print "[MainScene] finishTransition WARNING: nextSlidePoster.uri empty, calling showSlide"
+        showSlide(nextIndex)
+        return
+    end if
+    m.currentSlidePoster.uri = nextUri
     m.currentSlidePoster.translation = [0, 0]
     m.currentSlidePoster.opacity = 1
+    m.currentSlidePoster.visible = true
     m.nextSlidePoster.visible = false
     if tt = "slide-left" then
         m.nextSlidePoster.translation = [1920, 0]
