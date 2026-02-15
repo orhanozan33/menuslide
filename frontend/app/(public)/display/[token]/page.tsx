@@ -436,13 +436,13 @@ export default function DisplayPage() {
     if (loadInProgressRef.current) return;
     loadInProgressRef.current = true;
     const snapshotMode = options?.snapshotMode === true;
+    const rotationIdx =
+      initialRotationIndex !== undefined && initialRotationIndex >= 0
+        ? initialRotationIndex
+        : screenData?.templateRotations?.length && screenData.templateRotations.length > 0
+          ? Math.min(currentTemplateIndexRef.current, screenData.templateRotations.length - 1)
+          : undefined;
     try {
-      const rotationIdx =
-        initialRotationIndex !== undefined && initialRotationIndex >= 0
-          ? initialRotationIndex
-          : screenData?.templateRotations?.length && screenData.templateRotations.length > 0
-            ? Math.min(currentTemplateIndexRef.current, screenData.templateRotations.length - 1)
-            : undefined;
       const query = rotationIdx !== undefined ? `?rotationIndex=${rotationIdx}${apiBust}` : apiBust ? `?${apiBust.slice(1)}` : '';
       const url = `/api/public-screen/${encodeURIComponent(token)}${query}`;
       const res = await fetch(url, { cache: 'no-store' });
