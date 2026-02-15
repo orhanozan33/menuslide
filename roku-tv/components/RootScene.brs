@@ -33,7 +33,7 @@ function onKeyEvent(key as string, press as boolean) as boolean
             end if
             m.top.dialog.close = true
         else if m.main <> invalid then
-            m.main.requestShowCode = true
+            showActivationScreen()
         else
             m.content.exitRequested = true
         end if
@@ -260,15 +260,21 @@ sub showMain()
     m.main.setFocus(true)
 end sub
 
-sub onMainRequestShowCode(msg as dynamic)
-    if msg = invalid or msg.getData() <> true then return
-    m.main.unobserveField("requestShowCode")
+sub showActivationScreen()
+    if m.main = invalid then return
+    mainNode = m.main
+    mainNode.unobserveField("requestShowCode")
+    m.top.removeChild(mainNode)
+    m.main = invalid
     m.sec.write("deviceToken", "")
     m.sec.write("layout", "")
     m.sec.write("layoutVersion", "")
     m.sec.flush()
-    m.top.removeChild(m.main)
-    m.main = invalid
     m.content.visible = true
     m.content.setFocus(true)
+end sub
+
+sub onMainRequestShowCode(msg as dynamic)
+    if msg = invalid or msg.getData() <> true then return
+    showActivationScreen()
 end sub
