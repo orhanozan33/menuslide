@@ -344,6 +344,7 @@ sub onSlideTimerFire()
         m.slideTimer.control = "stop"
         clearLayoutGroup()
         m.pendingNextIndex = nextIndex
+        m.pendingTransitionType = "slide-left"
         m.nextSlidePoster.uri = nextSlide.url
         if m.nextSlidePoster.uri = invalid then m.nextSlidePoster.uri = nextSlide.Url
         m.nextSlidePoster.visible = true
@@ -352,10 +353,12 @@ sub onSlideTimerFire()
         m.slideLeftAnim.duration = getTransitionSec(nextSlide)
         m.slideLeftAnim.control = "stop"
         m.slideLeftAnim.control = "start"
+        startTransitionFallback(getTransitionSec(nextSlide))
     else if nextType = "image" and effect = "slide-right" and m.slideRightAnim <> invalid then
         m.slideTimer.control = "stop"
         clearLayoutGroup()
         m.pendingNextIndex = nextIndex
+        m.pendingTransitionType = "slide-right"
         m.nextSlidePoster.uri = nextSlide.url
         if m.nextSlidePoster.uri = invalid then m.nextSlidePoster.uri = nextSlide.Url
         m.nextSlidePoster.visible = true
@@ -364,9 +367,11 @@ sub onSlideTimerFire()
         m.slideRightAnim.duration = getTransitionSec(nextSlide)
         m.slideRightAnim.control = "stop"
         m.slideRightAnim.control = "start"
+        startTransitionFallback(getTransitionSec(nextSlide))
     else if nextType = "image" and effect = "fade" and m.fadeTransition <> invalid then
         m.slideTimer.control = "stop"
         m.pendingNextIndex = nextIndex
+        m.pendingTransitionType = "fade"
         m.nextSlidePoster.uri = nextSlide.url
         if m.nextSlidePoster.uri = invalid then m.nextSlidePoster.uri = nextSlide.Url
         m.nextSlidePoster.opacity = 0
@@ -375,6 +380,7 @@ sub onSlideTimerFire()
         m.fadeTransition.duration = getTransitionSec(nextSlide)
         m.fadeTransition.control = "stop"
         m.fadeTransition.control = "start"
+        startTransitionFallback(getTransitionSec(nextSlide))
     else
         showSlide(nextIndex)
         preloadNextImage()
@@ -382,48 +388,67 @@ sub onSlideTimerFire()
     end if
 end sub
 
-sub onSlideLeftDone()
-    if m.slideLeftAnim = invalid or m.slideLeftAnim.state <> "stopped" then return
+sub startTransitionFallback(animSec as float)
+    stopTransitionFallback()
+    t = m.top.createChild("Timer")
+    t.duration = animSec + 0.6
+    t.repeat = false
+    t.observeField("fire", "onTransitionFallbackFire")
+    t.control = "start"
+    m.transitionFallbackTimer = t
+end sub
+
+sub stopTransitionFallback()
+    if m.transitionFallbackTimer <> invalid then
+        m.transitionFallbackTimer.control = "stop"
+        m.transitionFallbackTimer.unobserveField("fire")
+        m.top.removeChild(m.transitionFallbackTimer)
+        m.transitionFallbackTimer = invalid
+    end if
+end sub
+
+sub onTransitionFallbackFire()
+    if m.pendingNextIndex = invalid then return
+    finishTransition()
+end sub
+
+sub finishTransition()
+    stopTransitionFallback()
     if m.pendingNextIndex = invalid then return
     nextIndex = m.pendingNextIndex
     m.pendingNextIndex = invalid
+    tt = m.pendingTransitionType
+    if tt = invalid then tt = "slide-left"
+    m.pendingTransitionType = invalid
     m.slideIndex = nextIndex
     m.currentSlidePoster.uri = m.nextSlidePoster.uri
     m.currentSlidePoster.translation = [0, 0]
     m.currentSlidePoster.opacity = 1
     m.nextSlidePoster.visible = false
-    m.nextSlidePoster.translation = [1920, 0]
+    if tt = "slide-left" then
+        m.nextSlidePoster.translation = [1920, 0]
+    else if tt = "slide-right" then
+        m.nextSlidePoster.translation = [-1920, 0]
+    else
+        m.nextSlidePoster.opacity = 0
+    end if
     preloadNextImage()
     startSlideTimer()
+end sub
+
+sub onSlideLeftDone()
+    if m.slideLeftAnim = invalid or m.slideLeftAnim.state <> "stopped" then return
+    finishTransition()
 end sub
 
 sub onSlideRightDone()
     if m.slideRightAnim = invalid or m.slideRightAnim.state <> "stopped" then return
-    if m.pendingNextIndex = invalid then return
-    nextIndex = m.pendingNextIndex
-    m.pendingNextIndex = invalid
-    m.slideIndex = nextIndex
-    m.currentSlidePoster.uri = m.nextSlidePoster.uri
-    m.currentSlidePoster.translation = [0, 0]
-    m.currentSlidePoster.opacity = 1
-    m.nextSlidePoster.visible = false
-    m.nextSlidePoster.translation = [-1920, 0]
-    preloadNextImage()
-    startSlideTimer()
+    finishTransition()
 end sub
 
 sub onFadeTransitionDone()
     if m.fadeTransition = invalid or m.fadeTransition.state <> "stopped" then return
-    if m.pendingNextIndex = invalid then return
-    nextIndex = m.pendingNextIndex
-    m.pendingNextIndex = invalid
-    m.slideIndex = nextIndex
-    m.currentSlidePoster.uri = m.nextSlidePoster.uri
-    m.currentSlidePoster.opacity = 1
-    m.nextSlidePoster.visible = false
-    m.nextSlidePoster.opacity = 0
-    preloadNextImage()
-    startSlideTimer()
+    finishTransition()
 end sub
 
 sub clearLayoutGroup()

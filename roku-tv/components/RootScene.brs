@@ -257,8 +257,8 @@ sub showMain()
         m.main.layout = m.pendingLayout
         m.pendingLayout = invalid
     end if
-    ' Scene (RootScene) focus'ta kalirsa Back tusu RootScene.onKeyEvent'e gelir
-    m.top.setFocus(true)
+    ' MainScene focus'ta olsun ki Back tusu MainScene.onKeyEvent'e gelsin
+    m.main.setFocus(true)
 end sub
 
 sub showActivationScreen()
