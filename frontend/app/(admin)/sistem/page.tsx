@@ -565,9 +565,9 @@ export default function SistemPage() {
             const safe = sanitizeCanvasJsonForFabric(raw) as object;
             // Fontları önce yükle; yoksa Fabric metin boyutlarını yanlış hesaplar, yazılar kayar/kaybolur.
             loadFontsForCanvasJson(raw).then(() => {
-              fabricCanvas.loadFromJSON(safe).then(() => {
-                const c = fabricCanvasRef.current;
-                if (!c) return;
+              const c = fabricCanvasRef.current;
+              if (!c) return;
+              c.loadFromJSON(safe).then(() => {
                 c.renderAll();
                 requestAnimationFrame(() => {
                   constrainAllObjects(c);
