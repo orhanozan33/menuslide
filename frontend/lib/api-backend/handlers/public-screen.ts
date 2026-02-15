@@ -7,11 +7,13 @@ const VIEWER_STALE_MS = 30 * 1000; // 30 sn
 /** GET public/screen/:token – TV yayını verisi (Supabase) */
 export async function getScreenByToken(token: string, request: NextRequest): Promise<Response> {
   const supabase = getServerSupabase();
-  // nextUrl.searchParams Vercel/serverless'ta query string'i güvenilir şekilde verir
+  // rotationIndex: önce query (Vercel'de bazen strip'lenebilir), yoksa header (display snapshot'tan)
   const searchParams = request.nextUrl?.searchParams ?? new URL(request.url).searchParams;
   const rotationIndexParam = searchParams.get('rotationIndex');
-  const parsed = rotationIndexParam != null && rotationIndexParam !== '' ? parseInt(rotationIndexParam, 10) : NaN;
-  const templateRotationIndex = Number.isFinite(parsed) ? parsed : undefined;
+  const headerRotation = request.headers.get('X-Snapshot-Rotation');
+  const fromQuery = rotationIndexParam != null && rotationIndexParam !== '' ? parseInt(rotationIndexParam, 10) : NaN;
+  const fromHeader = headerRotation != null && headerRotation !== '' ? parseInt(headerRotation, 10) : NaN;
+  const templateRotationIndex = Number.isFinite(fromQuery) ? fromQuery : (Number.isFinite(fromHeader) ? fromHeader : undefined);
 
   // 1) Screen by public_slug or public_token (business must be active)
   const { data: screensBySlug } = await supabase

@@ -5,7 +5,7 @@
  */
 import { createHash } from 'crypto';
 import { getServerSupabase } from '@/lib/supabase-server';
-import { captureDisplayScreenshot, captureDisplaySlidesInLoop, captureDisplaySlidesBatch } from '@/lib/render-screenshot';
+import { captureDisplayScreenshot, captureDisplaySlidesInLoop } from '@/lib/render-screenshot';
 import {
   isSpacesConfigured,
   uploadSlideVersioned,
@@ -135,54 +135,30 @@ export async function generateSlidesForScreen(screenId: string): Promise<Generat
       }
     }
   } else {
-    // Vercel: önce batch (servis loop içinde navigation yapıyorsa); yoksa URL başına tek çağrı
+    // Vercel: her rotation için ayrı URL, sıralı tek tek screenshot (batch aynı sayfada 3 kez çekebiliyor → hep aynı resim)
     const urls = rotations.map((_, orderIndex) =>
       `${baseUrl}/display/${encodeURIComponent(String(slug))}?lite=1&mode=snapshot&rotationIndex=${orderIndex}&_=${runTs}-${orderIndex}`
     );
-    const batchBuffers = await captureDisplaySlidesBatch(urls);
-    if (batchBuffers && batchBuffers.length === rotations.length) {
-      const bufferLengths = batchBuffers.map((b) => b?.length ?? 0);
-      if (bufferLengths.filter((l) => l > 0).length >= 2 && new Set(bufferLengths.filter((l) => l > 0)).size === 1) {
-        console.warn('[generate-slides-internal] WARNING: buffer.length aynı tüm slide\'lar için:', bufferLengths[0]);
+    for (let orderIndex = 0; orderIndex < rotations.length; orderIndex++) {
+      const r = rotations[orderIndex];
+      const templateId = r.full_editor_template_id || r.template_id || '';
+      const fullUrl = urls[orderIndex];
+      if (orderIndex > 0) {
+        await new Promise((resolve) => setTimeout(resolve, 2500));
       }
-      for (let orderIndex = 0; orderIndex < batchBuffers.length; orderIndex++) {
-        const buffer = batchBuffers[orderIndex];
-        const r = rotations[orderIndex];
-        const templateId = r?.full_editor_template_id || r?.template_id || '';
-        const outputPath = `slides/${screenId}/${versionHash}/slide_${orderIndex}.jpg`;
-        console.log('[generate-slides-internal] rotationIndex=%s templateId=%s buffer.length=%s outputPath=%s', orderIndex, templateId, buffer?.length ?? 0, outputPath);
+      console.log('[generate-slides-internal] rotationIndex=%s templateId=%s fullUrl=%s', orderIndex, templateId, fullUrl);
+      try {
+        const buffer = await captureDisplayScreenshot(fullUrl);
         if (!buffer) {
           errors.push(`Slide ${orderIndex}: screenshot alınamadı`);
           continue;
         }
-        try {
-          await uploadSlideVersioned(screenId, versionHash, orderIndex, buffer);
-          generatedCount += 1;
-        } catch (e) {
-          const msg = e instanceof Error ? e.message : String(e);
-          errors.push(`Slide ${orderIndex} (${templateId}): ${msg}`);
-        }
-      }
-    } else {
-      for (let orderIndex = 0; orderIndex < rotations.length; orderIndex++) {
-        const r = rotations[orderIndex];
-        const templateId = r.full_editor_template_id || r.template_id || '';
-        const outputPath = `slides/${screenId}/${versionHash}/slide_${orderIndex}.jpg`;
-        const fullUrl = urls[orderIndex];
-        console.log('[generate-slides-internal] rotationIndex=%s templateId=%s fullUrl=%s outputPath=%s', orderIndex, templateId, fullUrl, outputPath);
-        try {
-          const buffer = await captureDisplayScreenshot(fullUrl);
-          if (!buffer) {
-            errors.push(`Slide ${orderIndex}: screenshot alınamadı`);
-            continue;
-          }
-          console.log('[generate-slides-internal] rotationIndex=%s buffer.length=%s', orderIndex, buffer.length);
-          await uploadSlideVersioned(screenId, versionHash, orderIndex, buffer);
-          generatedCount += 1;
-        } catch (e) {
-          const msg = e instanceof Error ? e.message : String(e);
-          errors.push(`Slide ${orderIndex} (${templateId}): ${msg}`);
-        }
+        console.log('[generate-slides-internal] rotationIndex=%s buffer.length=%s', orderIndex, buffer.length);
+        await uploadSlideVersioned(screenId, versionHash, orderIndex, buffer);
+        generatedCount += 1;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        errors.push(`Slide ${orderIndex} (${templateId}): ${msg}`);
       }
     }
   }

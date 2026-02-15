@@ -443,9 +443,13 @@ export default function DisplayPage() {
           ? Math.min(currentTemplateIndexRef.current, screenData.templateRotations.length - 1)
           : undefined;
     try {
-      const query = rotationIdx !== undefined ? `?rotationIndex=${rotationIdx}${apiBust}` : apiBust ? `?${apiBust.slice(1)}` : '';
+      const cacheBust = snapshotMode ? `&t=${Date.now()}` : '';
+      const baseQuery = rotationIdx !== undefined ? `?rotationIndex=${rotationIdx}${apiBust}` : apiBust ? `?${apiBust.slice(1)}` : '';
+      const query = baseQuery ? baseQuery + cacheBust : (cacheBust ? `?${cacheBust.slice(1)}` : '');
       const url = `/api/public-screen/${encodeURIComponent(token)}${query}`;
-      const res = await fetch(url, { cache: 'no-store' });
+      const headers: HeadersInit = { 'Cache-Control': 'no-cache', Pragma: 'no-cache' };
+      if (snapshotMode && rotationIdx !== undefined) headers['X-Snapshot-Rotation'] = String(rotationIdx);
+      const res = await fetch(url, { cache: 'no-store', headers });
       const data = res.ok ? await res.json() : null;
       if (!res.ok && res.status !== 404) {
         throw new Error(res.statusText || t('common_request_failed'));
