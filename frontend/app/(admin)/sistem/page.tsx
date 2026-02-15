@@ -421,7 +421,7 @@ export default function SistemPage() {
         const c = fabricCanvasRef.current;
         if (!c) return;
         try {
-          const json = (c as { toObject: (p?: string[]) => object }).toObject(['selectable', 'evented', 'fontFamily', 'fontWeight', 'fontStyle', 'fontSize', 'fill', 'textAlign', 'underline', 'linethrough', 'overline']);
+          const json = (c as { toObject: (p?: string[]) => object }).toObject(['selectable', 'evented', 'fontFamily', 'fontWeight', 'fontStyle', 'fontSize', 'fill', 'textAlign', 'underline', 'linethrough', 'overline', 'styles']);
           const cb = (c as { backgroundColor?: unknown }).backgroundColor;
           const bgStr = (typeof cb === 'string' ? cb : null) || bgColorRef.current || '#0f172a';
           const w = (c as { width?: number }).width ?? 1920;
@@ -593,7 +593,7 @@ export default function SistemPage() {
       const c = fabricCanvasRef.current;
       if (!c) return;
       try {
-        const json = JSON.stringify((c as { toObject: (p?: string[]) => object }).toObject(['selectable', 'evented', 'fontFamily', 'fontWeight', 'fontStyle', 'fontSize', 'fill', 'textAlign', 'underline', 'linethrough', 'overline']));
+        const json = JSON.stringify((c as { toObject: (p?: string[]) => object }).toObject(['selectable', 'evented', 'fontFamily', 'fontWeight', 'fontStyle', 'fontSize', 'fill', 'textAlign', 'underline', 'linethrough', 'overline', 'styles']));
         const hist = historyRef.current;
         const idx = historyIndexRef.current;
         const newHist = hist.slice(0, idx + 1);
@@ -1132,7 +1132,7 @@ export default function SistemPage() {
     canvas.renderAll();
     historyRef.current = [];
     historyIndexRef.current = -1;
-    const json = JSON.stringify((canvas as { toObject: (p?: string[]) => object }).toObject(['selectable', 'evented', 'fontFamily', 'fontWeight', 'fontStyle', 'fontSize', 'fill', 'textAlign', 'underline', 'linethrough', 'overline']));
+    const json = JSON.stringify((canvas as { toObject: (p?: string[]) => object }).toObject(['selectable', 'evented', 'fontFamily', 'fontWeight', 'fontStyle', 'fontSize', 'fill', 'textAlign', 'underline', 'linethrough', 'overline', 'styles']));
     historyRef.current = [json];
     historyIndexRef.current = 0;
     setDesignTitle('');
@@ -1167,7 +1167,7 @@ export default function SistemPage() {
           body: JSON.stringify({
             id: savedTemplateId,
             name: name.trim(),
-            canvas_json: (canvas as { toObject: (p?: string[]) => object }).toObject(['selectable', 'evented', 'fontFamily', 'fontWeight', 'fontStyle', 'fontSize', 'fill', 'textAlign', 'underline', 'linethrough', 'overline']),
+            canvas_json: (canvas as { toObject: (p?: string[]) => object }).toObject(['selectable', 'evented', 'fontFamily', 'fontWeight', 'fontStyle', 'fontSize', 'fill', 'textAlign', 'underline', 'linethrough', 'overline', 'styles']),
             preview_image: previewDataUrl || null,
             category_id: selectedCategoryId || null,
           }),
@@ -1200,7 +1200,7 @@ export default function SistemPage() {
       const previewDataUrl = (canvas as { toDataURL?: (o?: object) => string }).toDataURL?.({ format: 'png', multiplier: 0.6 }) ?? '';
       const body: Record<string, unknown> = {
         name: name.trim(),
-        canvas_json: (canvas as { toObject: (p?: string[]) => object }).toObject(['selectable', 'evented', 'fontFamily', 'fontWeight', 'fontStyle', 'fontSize', 'fill', 'textAlign', 'underline', 'linethrough', 'overline']),
+        canvas_json: (canvas as { toObject: (p?: string[]) => object }).toObject(['selectable', 'evented', 'fontFamily', 'fontWeight', 'fontStyle', 'fontSize', 'fill', 'textAlign', 'underline', 'linethrough', 'overline', 'styles']),
         category_id: selectedCategoryId,
         preview_image: previewDataUrl || undefined,
       };
@@ -1280,7 +1280,7 @@ export default function SistemPage() {
         },
         body: JSON.stringify({
           id: overwriteConfirm.id,
-          canvas_json: (canvas as { toObject: (p?: string[]) => object }).toObject(['selectable', 'evented', 'fontFamily', 'fontWeight', 'fontStyle', 'fontSize', 'fill', 'textAlign', 'underline', 'linethrough', 'overline']),
+          canvas_json: (canvas as { toObject: (p?: string[]) => object }).toObject(['selectable', 'evented', 'fontFamily', 'fontWeight', 'fontStyle', 'fontSize', 'fill', 'textAlign', 'underline', 'linethrough', 'overline', 'styles']),
           preview_image: previewDataUrl || null,
           category_id: selectedCategoryId || null,
         }),

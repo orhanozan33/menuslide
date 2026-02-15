@@ -157,19 +157,30 @@ export async function getScreenByToken(token: string, request: NextRequest): Pro
       const blocks = (tBlocks || []) as Record<string, unknown>[];
 
       if (templateRotations.length > 0) {
-        screenBlocks = blocks.map((tb) => ({
-          id: tb.id,
-          template_block_id: tb.id,
-          block_index: tb.block_index,
-          position_x: tb.position_x,
-          position_y: tb.position_y,
-          width: tb.width,
-          height: tb.height,
-          z_index: 0,
-          animation_type: 'fade',
-          animation_duration: 500,
-          animation_delay: 0,
-        }));
+        const n = blocks.length;
+        const cols = n <= 0 ? 2 : Math.ceil(Math.sqrt(n * 16 / 9));
+        const rows = n <= 0 ? 2 : Math.ceil(n / cols);
+        const cellW = cols > 0 ? 100 / cols : 50;
+        const cellH = rows > 0 ? 100 / rows : 50;
+        screenBlocks = blocks.map((tb: Record<string, unknown>, i: number) => {
+          const px = tb.position_x != null && Number(tb.position_x) >= 0 ? tb.position_x : (i % cols) * cellW;
+          const py = tb.position_y != null && Number(tb.position_y) >= 0 ? tb.position_y : Math.floor(i / cols) * cellH;
+          const w = tb.width != null && Number(tb.width) > 0 ? tb.width : cellW;
+          const h = tb.height != null && Number(tb.height) > 0 ? tb.height : cellH;
+          return {
+            id: tb.id,
+            template_block_id: tb.id,
+            block_index: tb.block_index,
+            position_x: px,
+            position_y: py,
+            width: w,
+            height: h,
+            z_index: 0,
+            animation_type: 'fade',
+            animation_duration: 500,
+            animation_delay: 0,
+          };
+        });
         const blockIds = blocks.map((b) => b.id);
         if (blockIds.length) {
           const { data: tbc } = await supabase.from('template_block_contents').select('*').in('template_block_id', blockIds).eq('is_active', true).order('display_order', { ascending: true });
@@ -182,16 +193,29 @@ export async function getScreenByToken(token: string, request: NextRequest): Pro
       } else {
         const { data: sbRows } = await supabase.from('screen_blocks').select('*, template_blocks(block_index, position_x, position_y, width, height)').eq('screen_id', screenId).eq('is_active', true).order('z_index', { ascending: true });
         const sbList = (sbRows || []) as Record<string, unknown>[];
-        screenBlocks = sbList.map((sb) => {
+        const nSb = sbList.length;
+        const colsSb = nSb <= 0 ? 2 : Math.ceil(Math.sqrt(nSb * 16 / 9));
+        const rowsSb = nSb <= 0 ? 2 : Math.ceil(nSb / colsSb);
+        const cellWSb = colsSb > 0 ? 100 / colsSb : 50;
+        const cellHSb = rowsSb > 0 ? 100 / rowsSb : 50;
+        screenBlocks = sbList.map((sb: Record<string, unknown>, i: number) => {
           const tb = (sb as { template_blocks?: Record<string, unknown> }).template_blocks;
+          const rawPx = tb?.position_x ?? sb.position_x;
+          const rawPy = tb?.position_y ?? sb.position_y;
+          const rawW = tb?.width ?? sb.width;
+          const rawH = tb?.height ?? sb.height;
+          const position_x = rawPx != null && Number(rawPx) >= 0 ? rawPx : (i % colsSb) * cellWSb;
+          const position_y = rawPy != null && Number(rawPy) >= 0 ? rawPy : Math.floor(i / colsSb) * cellHSb;
+          const width = rawW != null && Number(rawW) > 0 ? rawW : cellWSb;
+          const height = rawH != null && Number(rawH) > 0 ? rawH : cellHSb;
           return {
             id: sb.id,
             template_block_id: (sb as { template_block_id?: string }).template_block_id,
             block_index: tb?.block_index ?? sb.block_index,
-            position_x: tb?.position_x ?? sb.position_x,
-            position_y: tb?.position_y ?? sb.position_y,
-            width: tb?.width ?? sb.width,
-            height: tb?.height ?? sb.height,
+            position_x,
+            position_y,
+            width,
+            height,
             z_index: (sb as { z_index?: number }).z_index ?? 0,
             animation_type: (sb as { animation_type?: string }).animation_type ?? 'fade',
             animation_duration: (sb as { animation_duration?: number }).animation_duration ?? 500,
