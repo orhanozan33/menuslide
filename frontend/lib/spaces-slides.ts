@@ -32,15 +32,11 @@ function getSpacesClient(): S3Client | null {
   return s3Client;
 }
 
-/**
- * @param versionParam - Cache-bust: path'a eklenir (örn. 2024-02-14T12-30-00-123Z). CDN eski görsel sunmasın.
- */
 export async function uploadSlideToSpaces(
   screenId: string,
   templateId: string,
   rotationIndex: number,
-  buffer: Buffer,
-  versionParam?: string
+  buffer: Buffer
 ): Promise<string> {
   const client = getSpacesClient();
   let bucket = process.env.DO_SPACES_BUCKET?.trim() || 'menuslide-signage';
@@ -48,8 +44,7 @@ export async function uploadSlideToSpaces(
   if (!client) {
     throw new Error('Spaces not configured: DO_SPACES_KEY and DO_SPACES_SECRET required');
   }
-  const suffix = versionParam ? `-${versionParam}` : '';
-  const key = `slides/${screenId}/${templateId}-${rotationIndex}${suffix}.jpg`;
+  const key = `slides/${screenId}/${templateId}-${rotationIndex}.jpg`;
   await client.send(
     new PutObjectCommand({
       Bucket: bucket,

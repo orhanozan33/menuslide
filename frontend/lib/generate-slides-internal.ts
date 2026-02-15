@@ -58,8 +58,6 @@ export async function generateSlidesForScreen(screenId: string): Promise<Generat
   const keysToKeep: string[] = [];
   const errors: string[] = [];
   const runTs = Date.now();
-  const versionIso = new Date().toISOString();
-  const versionParam = versionIso.replace(/[:.]/g, '-');
   console.log('[generate-slides-internal] screen=', screenId, 'slug=', slug, 'rotations=', rotations.length, 'baseUrl=', baseUrl);
 
   await new Promise((r) => setTimeout(r, 5000));
@@ -69,7 +67,7 @@ export async function generateSlidesForScreen(screenId: string): Promise<Generat
     const templateId = r.full_editor_template_id || r.template_id;
     if (!templateId) continue;
 
-    keysToKeep.push(`${templateId}-${i}-${versionParam}`);
+    keysToKeep.push(`${templateId}-${i}`);
 
     const url = `${baseUrl}/display/${encodeURIComponent(String(slug))}?lite=1&rotationIndex=${i}&_=${runTs}-${i}`;
     try {
@@ -80,7 +78,7 @@ export async function generateSlidesForScreen(screenId: string): Promise<Generat
         console.error('[generate-slides-internal] slide', i, 'screenshot alınamadı (buffer null)');
         continue;
       }
-      const key = await uploadSlideToSpaces(screenId, templateId, i, buffer, versionParam);
+      const key = await uploadSlideToSpaces(screenId, templateId, i, buffer);
       keys.push(key);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -98,7 +96,7 @@ export async function generateSlidesForScreen(screenId: string): Promise<Generat
   if (keys.length > 0) {
     console.log('[generate-slides-internal] screen=' + screenId + ' generated=' + keys.length + ' deleted=' + deletedCount);
     try {
-      await supabase.from('screens').update({ updated_at: versionIso }).eq('id', screenId);
+      await supabase.from('screens').update({ updated_at: new Date().toISOString() }).eq('id', screenId);
     } catch (e) {
       console.error('[generate-slides-internal] bump screen updated_at failed', e);
     }
