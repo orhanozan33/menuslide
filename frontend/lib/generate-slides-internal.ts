@@ -70,6 +70,7 @@ export async function generateSlidesForScreen(screenId: string): Promise<Generat
     if (!templateId) continue;
 
     keysToKeep.push(`${templateId}-${i}-${versionParam}`);
+    keysToKeep.push(`${templateId}-${i}`);
 
     const url = `${baseUrl}/display/${encodeURIComponent(String(slug))}?lite=1&rotationIndex=${i}&_=${runTs}-${i}`;
     try {
