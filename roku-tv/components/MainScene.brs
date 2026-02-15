@@ -8,10 +8,12 @@ sub init()
     m.nextSlidePoster = m.top.findNode("nextSlidePoster")
     m.fadeIn = m.top.findNode("fadeIn")
     m.slideLeftAnim = m.top.findNode("slideLeft")
+    m.slideRightAnim = m.top.findNode("slideRight")
     m.fadeTransition = m.top.findNode("fadeTransition")
     m.slideTimer = m.top.findNode("slideTimer")
     if m.slideTimer <> invalid then m.slideTimer.observeField("fire", "onSlideTimerFire")
     if m.slideLeftAnim <> invalid then m.slideLeftAnim.observeField("state", "onSlideLeftDone")
+    if m.slideRightAnim <> invalid then m.slideRightAnim.observeField("state", "onSlideRightDone")
     if m.fadeTransition <> invalid then m.fadeTransition.observeField("state", "onFadeTransitionDone")
     m.sec = CreateObject("roRegistrySection", "menuslide")
     m.deviceToken = m.sec.read("deviceToken")
@@ -219,17 +221,25 @@ sub renderLayout(layout as object)
 end sub
 
 function getTransitionSec(slide as object) as float
-    td = slide.transition_duration
-    if td = invalid then td = slide.transition_duration
-    if td = invalid or td < 100 then return 0.3
-    return td / 1000.0
+    td = slide.Lookup("transition_duration")
+    if td = invalid then td = slide.Lookup("transitionDuration")
+    if td = invalid then return 0.8
+    num = Val(Str(td))
+    if num < 100 then return 0.8
+    return num / 1000.0
 end function
 
 function getTransitionEffect(slide as object) as string
-    te = slide.transition_effect
-    if te = invalid then te = slide.transition_effect
+    te = slide.Lookup("transition_effect")
+    if te = invalid then te = slide.Lookup("transitionEffect")
     if te = invalid then return "fade"
-    return te
+    s = LCase(Trim(Str(te)))
+    if s = "slide-left" then return "slide-left"
+    if s = "slideleft" then return "slide-left"
+    if s = "slide_left" then return "slide-left"
+    if s = "fade" or s = "crossfade" then return "fade"
+    if s = "slide-right" or s = "slideright" or s = "slide_right" then return "slide-right"
+    return "fade"
 end function
 
 sub showSlide(index as integer)
@@ -338,6 +348,16 @@ sub onSlideTimerFire()
         m.nextSlidePoster.translation = [1920, 0]
         m.slideLeftAnim.duration = getTransitionSec(nextSlide)
         m.slideLeftAnim.control = "start"
+    else if nextType = "image" and effect = "slide-right" and m.slideRightAnim <> invalid then
+        m.slideTimer.control = "stop"
+        clearLayoutGroup()
+        m.pendingNextIndex = nextIndex
+        m.nextSlidePoster.uri = nextSlide.url
+        if m.nextSlidePoster.uri = invalid then m.nextSlidePoster.uri = nextSlide.Url
+        m.nextSlidePoster.visible = true
+        m.nextSlidePoster.translation = [-1920, 0]
+        m.slideRightAnim.duration = getTransitionSec(nextSlide)
+        m.slideRightAnim.control = "start"
     else if nextType = "image" and effect = "fade" and m.fadeTransition <> invalid then
         m.slideTimer.control = "stop"
         m.pendingNextIndex = nextIndex
@@ -366,6 +386,21 @@ sub onSlideLeftDone()
     m.currentSlidePoster.opacity = 1
     m.nextSlidePoster.visible = false
     m.nextSlidePoster.translation = [1920, 0]
+    preloadNextImage()
+    startSlideTimer()
+end sub
+
+sub onSlideRightDone()
+    if m.slideRightAnim = invalid or m.slideRightAnim.state <> "stopped" then return
+    if m.pendingNextIndex = invalid then return
+    nextIndex = m.pendingNextIndex
+    m.pendingNextIndex = invalid
+    m.slideIndex = nextIndex
+    m.currentSlidePoster.uri = m.nextSlidePoster.uri
+    m.currentSlidePoster.translation = [0, 0]
+    m.currentSlidePoster.opacity = 1
+    m.nextSlidePoster.visible = false
+    m.nextSlidePoster.translation = [-1920, 0]
     preloadNextImage()
     startSlideTimer()
 end sub

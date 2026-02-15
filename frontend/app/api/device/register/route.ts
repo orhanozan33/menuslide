@@ -87,7 +87,7 @@ export async function POST(request: Request) {
 
     const { data: rotations } = await supabase
       .from('screen_template_rotations')
-      .select('template_id, full_editor_template_id, display_duration, display_order, updated_at')
+      .select('template_id, full_editor_template_id, display_duration, display_order, transition_effect, transition_duration, updated_at')
       .eq('screen_id', screenId)
       .eq('is_active', true)
       .order('display_order', { ascending: true });
@@ -98,23 +98,26 @@ export async function POST(request: Request) {
       const u = (r as { updated_at?: string }).updated_at;
       return u && (!max || u > max) ? u : max;
     }, '' as string);
-    const slides: Array<{ type: string; url?: string; title?: string; description?: string; duration: number }> = [];
+    const slides: Array<{ type: string; url?: string; title?: string; description?: string; duration: number; transition_effect?: string; transition_duration?: number }> = [];
 
     ordered.forEach((r, index) => {
       const templateId =
         (r as { full_editor_template_id?: string | null }).full_editor_template_id ||
         (r as { template_id?: string }).template_id;
       const duration = Math.max(1, (r as { display_duration?: number }).display_duration ?? 8);
+      const transitionEffect = (r as { transition_effect?: string }).transition_effect ?? 'fade';
+      const transitionDuration = Math.min(2000, Math.max(100, (r as { transition_duration?: number }).transition_duration ?? 400));
 
+      const baseSlide = { duration, transition_effect: transitionEffect, transition_duration: transitionDuration };
       if (SLIDE_IMAGE_BASE && templateId) {
-        slides.push({ type: 'image', url: `${SLIDE_IMAGE_BASE}/slides/${screenId}/${templateId}-${index}.jpg`, duration });
+        slides.push({ ...baseSlide, type: 'image', url: `${SLIDE_IMAGE_BASE}/slides/${screenId}/${templateId}-${index}.jpg` });
       } else {
-        slides.push({ type: 'text', title: 'Slide', description: '', duration });
+        slides.push({ ...baseSlide, type: 'text', title: 'Slide', description: '' });
       }
     });
 
     if (slides.length === 0) {
-      slides.push({ type: 'text', title: 'No content', description: 'Add templates in Admin.', duration: 10 });
+      slides.push({ type: 'text', title: 'No content', description: 'Add templates in Admin.', duration: 10, transition_effect: 'fade', transition_duration: 400 });
     }
 
     const screenUpdated = (screen as { updated_at?: string }).updated_at ?? new Date().toISOString();
