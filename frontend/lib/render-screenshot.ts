@@ -4,8 +4,8 @@ export type RotationForCapture = {
   display_duration?: number;
 };
 
-/** Her şablon göründükten 10 sn sonra ekran görüntüsü; tek canlı sayfa, her zaman güncel resim. */
-const LIVE_CAPTURE_SETTLE_MS = 10000;
+/** Her şablon göründükten 5 sn sonra ekran görüntüsü; tek canlı sayfa, her zaman güncel resim. */
+const LIVE_CAPTURE_SETTLE_MS = 5000;
 
 /**
  * Canlı sayfa: tek URL açılır, her template göründükten 10 sn sonra 1 resim alınır (Puppeteer).

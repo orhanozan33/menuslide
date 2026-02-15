@@ -73,7 +73,12 @@ sub Run()
             end for
             sec.flush()
         end if
-        m.top.result = { ok: true }
+        m.top.result = {
+            ok: true
+            layout: layout
+            layoutVersion: json.layoutVersion
+            refreshIntervalSeconds: json.refreshIntervalSeconds
+        }
     else
         m.top.result = { error: true }
     end if

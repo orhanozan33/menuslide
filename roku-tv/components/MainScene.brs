@@ -147,14 +147,27 @@ sub onLayoutResult(msg as dynamic)
     end if
     m.layoutFetchFailCount = 0
     if data.ok = true then
-        layout = loadLayoutFromChunkedRegistry()
+        layout = data.layout
+        if layout = invalid then layout = data.Layout
+        if layout = invalid then layout = loadLayoutFromChunkedRegistry()
         if layout <> invalid then
-            m.layoutVersion = m.sec.read("layoutVersion")
-            if m.layoutVersion = invalid then m.layoutVersion = ""
+            if data.layoutVersion <> invalid and data.layoutVersion <> "" then
+                m.layoutVersion = data.layoutVersion
+                m.sec.write("layoutVersion", m.layoutVersion)
+            else
+                m.layoutVersion = m.sec.read("layoutVersion")
+                if m.layoutVersion = invalid then m.layoutVersion = ""
+            end if
+            if data.refreshIntervalSeconds <> invalid and data.refreshIntervalSeconds >= 5 then
+                m.refreshInterval = data.refreshIntervalSeconds
+                m.sec.write("refreshInterval", Str(m.refreshInterval))
+            else
+                r = m.sec.read("refreshInterval")
+                if r <> "" and r <> invalid then m.refreshInterval = Int(Val(r))
+            end if
             m.layoutRefreshTs = CreateObject("roDateTime").AsSeconds()
-            print "[MainScene] layout from registry version="; m.layoutVersion
-            r = m.sec.read("refreshInterval")
-            if r <> "" and r <> invalid then m.refreshInterval = Int(Val(r))
+            print "[MainScene] layout version="; m.layoutVersion
+            m.sec.flush()
             renderLayout(layout)
         else
             m.status.text = "Loading. Please Wait."
@@ -216,7 +229,6 @@ sub renderLayout(layout as object)
     end if
     if m.slideTimer <> invalid then m.slideTimer.control = "stop"
     m.currentSlidePoster.visible = false
-    m.currentSlidePoster.uri = ""
     m.nextSlidePoster.visible = false
     m.nextSlidePoster.uri = ""
     clearLayoutGroup()
@@ -285,8 +297,6 @@ sub showSlide(index as integer)
     m.slideIndex = index
     slide = m.slides[index]
     clearLayoutGroup()
-    m.currentSlidePoster.visible = false
-    m.currentSlidePoster.uri = ""
     m.currentSlidePoster.translation = [0, 0]
     m.nextSlidePoster.visible = false
     m.nextSlidePoster.translation = [1920, 0]
@@ -506,7 +516,7 @@ end sub
 sub startHeartbeat()
     stopHeartbeat()
     dur = m.refreshInterval
-    if dur < 5 then dur = 15
+    if dur < 5 then dur = 5
     m.heartbeatTimer = m.top.createChild("Timer")
     m.heartbeatTimer.duration = dur
     m.heartbeatTimer.repeat = true
