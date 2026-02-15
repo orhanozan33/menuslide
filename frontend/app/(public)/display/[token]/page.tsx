@@ -179,7 +179,13 @@ interface ScreenData {
   };
 }
 
-export default function DisplayPage() {
+export interface DisplayPageProps {
+  /** Path'ten gelen rotation (örn. /display/:token/snapshot/1) — query string cache'ini bypass eder, her slide farklı URL */
+  snapshotRotationFromPath?: number;
+}
+
+export default function DisplayPage(props: DisplayPageProps = {}) {
+  const { snapshotRotationFromPath } = props;
   const params = useParams();
   const searchParams = useSearchParams();
   const token = (params?.token ?? '') as string;
@@ -187,11 +193,12 @@ export default function DisplayPage() {
   const previewIndexParam = searchParams?.get('previewIndex');
   const previewIndex = previewIndexParam != null && /^\d+$/.test(previewIndexParam) ? parseInt(previewIndexParam, 10) : null;
   const rotationIndexParam = searchParams?.get('rotationIndex');
-  const rotationIndexFromUrl = rotationIndexParam != null && /^\d+$/.test(rotationIndexParam) ? parseInt(rotationIndexParam, 10) : null;
+  const rotationFromQuery = rotationIndexParam != null && /^\d+$/.test(rotationIndexParam) ? parseInt(rotationIndexParam, 10) : null;
+  const rotationIndexFromUrl = snapshotRotationFromPath !== undefined ? snapshotRotationFromPath : rotationFromQuery;
   const liteParam = searchParams?.get('lite');
   const lowParam = searchParams?.get('low');
   const ultralowParam = searchParams?.get('ultralow');
-  const isSnapshotMode = searchParams?.get('mode') === 'snapshot';
+  const isSnapshotMode = snapshotRotationFromPath !== undefined || searchParams?.get('mode') === 'snapshot';
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   useEffect(() => {
     if (typeof window === 'undefined') return;

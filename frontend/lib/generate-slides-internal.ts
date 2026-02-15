@@ -135,9 +135,10 @@ export async function generateSlidesForScreen(screenId: string): Promise<Generat
       }
     }
   } else {
-    // Vercel: her rotation için ayrı URL, sıralı tek tek screenshot (batch aynı sayfada 3 kez çekebiliyor → hep aynı resim)
+    // Vercel: path tabanlı snapshot URL (her rotation farklı path → cache/servis çakışması yok)
+    // /display/:token/snapshot/0, /snapshot/1, /snapshot/2
     const urls = rotations.map((_, orderIndex) =>
-      `${baseUrl}/display/${encodeURIComponent(String(slug))}?lite=1&mode=snapshot&rotationIndex=${orderIndex}&_=${runTs}-${orderIndex}`
+      `${baseUrl}/display/${encodeURIComponent(String(slug))}/snapshot/${orderIndex}?lite=1&_=${runTs}-${orderIndex}`
     );
     for (let orderIndex = 0; orderIndex < rotations.length; orderIndex++) {
       const r = rotations[orderIndex];

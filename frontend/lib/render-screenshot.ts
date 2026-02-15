@@ -67,7 +67,7 @@ export async function captureDisplaySlidesInLoop(options: {
     for (let orderIndex = 0; orderIndex < rotations.length; orderIndex++) {
       const r = rotations[orderIndex];
       const templateId = r.full_editor_template_id || r.template_id || '';
-      const fullUrl = `${baseUrl.replace(/\/$/, '')}/display/${encodeURIComponent(String(slug))}?lite=1&mode=snapshot&rotationIndex=${orderIndex}&_=${runTs}-${orderIndex}`;
+      const fullUrl = `${baseUrl.replace(/\/$/, '')}/display/${encodeURIComponent(String(slug))}/snapshot/${orderIndex}?lite=1&_=${runTs}-${orderIndex}`;
       const outputPath = `slides/${screenId}/${versionHash}/slide_${orderIndex}.jpg`;
 
       const page = await browser.newPage();
@@ -122,7 +122,7 @@ export async function captureDisplaySlidesInLoop(options: {
  * 3. Puppeteer (yerel / VPS - sadece Chrome yüklü sunucularda)
  */
 export async function captureDisplayScreenshot(displayPageUrl: string): Promise<Buffer | null> {
-  const isSnapshotMode = displayPageUrl.includes('mode=snapshot');
+  const isSnapshotMode = displayPageUrl.includes('mode=snapshot') || /\/snapshot\/\d+/.test(displayPageUrl);
   const serviceUrl = process.env.SCREENSHOT_SERVICE_URL?.trim();
   if (process.env.VERCEL) {
     console.log('[render-screenshot] Vercel env: SCREENSHOT_SERVICE_URL=', serviceUrl ? 'set' : 'NOT SET');
