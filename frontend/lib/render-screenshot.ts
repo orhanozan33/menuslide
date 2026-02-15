@@ -82,11 +82,12 @@ export async function captureDisplaySlidesInLoop(options: {
           quality: 90,
           fullPage: false,
         });
-        const buffer: Buffer | null = screenshotResult
-          ? Buffer.isBuffer(screenshotResult)
-            ? screenshotResult
-            : Buffer.from(new Uint8Array(screenshotResult as ArrayBuffer))
-          : null;
+        const buffer: Buffer | null =
+          screenshotResult == null
+            ? null
+            : Buffer.isBuffer(screenshotResult)
+              ? screenshotResult
+              : Buffer.from(screenshotResult as unknown as Uint8Array);
         results.push(buffer);
         const len = buffer?.length ?? 0;
         console.log('[render-screenshot] rotationIndex=%s templateId=%s fullUrl=%s buffer.length=%s outputPath=%s', orderIndex, templateId, fullUrl, len, outputPath);
