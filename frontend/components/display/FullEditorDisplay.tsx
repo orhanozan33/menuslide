@@ -51,7 +51,9 @@ export function FullEditorDisplay({ canvasJson, onReady }: { canvasJson: object;
     const families = collectFontFamiliesFromFabricJson(safeJson as Record<string, unknown>);
     let cancelled = false;
     loadFontsForDisplay(families)
-      .then(() => (typeof document.fonts.ready !== 'undefined' ? document.fonts.ready : Promise.resolve()))
+      .then(async () => {
+        if (typeof document.fonts.ready !== 'undefined') await document.fonts.ready;
+      })
       .then(() => {
         if (!cancelled) setFontsReady(true);
       });
