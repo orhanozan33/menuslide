@@ -24,7 +24,7 @@ export async function captureDisplayScreenshot(displayPageUrl: string): Promise<
         width: 1920,
         height: 1080,
         quality: 90,
-        waitMs: 2000,
+        waitMs: 5000,
       };
       if (protectionBypass) body.protectionBypass = protectionBypass;
       const res = await fetch(`${base}/screenshot`, {
@@ -92,7 +92,7 @@ export async function captureDisplayScreenshot(displayPageUrl: string): Promise<
       waitUntil: 'load',
       timeout: 18000,
     });
-    await new Promise((r) => setTimeout(r, 2000));
+    await new Promise((r) => setTimeout(r, 5000));
     const buffer = await page.screenshot({
       type: 'jpeg',
       quality: 90,

@@ -12,9 +12,6 @@ sub init()
     m.fadeTransition = m.top.findNode("fadeTransition")
     m.slideTimer = m.top.findNode("slideTimer")
     if m.slideTimer <> invalid then m.slideTimer.observeField("fire", "onSlideTimerFire")
-    if m.slideLeftAnim <> invalid then m.slideLeftAnim.observeField("state", "onSlideLeftDone")
-    if m.slideRightAnim <> invalid then m.slideRightAnim.observeField("state", "onSlideRightDone")
-    if m.fadeTransition <> invalid then m.fadeTransition.observeField("state", "onFadeTransitionDone")
     m.sec = CreateObject("roRegistrySection", "menuslide")
     m.deviceToken = m.sec.read("deviceToken")
     m.layoutStr = m.sec.read("layout")
@@ -390,8 +387,10 @@ end sub
 
 sub startTransitionFallback(animSec as float)
     stopTransitionFallback()
+    d = animSec + 1.0
+    if d < 2.0 then d = 2.0
     t = m.top.createChild("Timer")
-    t.duration = animSec + 0.6
+    t.duration = d
     t.repeat = false
     t.observeField("fire", "onTransitionFallbackFire")
     t.control = "start"
@@ -434,21 +433,6 @@ sub finishTransition()
     end if
     preloadNextImage()
     startSlideTimer()
-end sub
-
-sub onSlideLeftDone()
-    if m.slideLeftAnim = invalid or m.slideLeftAnim.state <> "stopped" then return
-    finishTransition()
-end sub
-
-sub onSlideRightDone()
-    if m.slideRightAnim = invalid or m.slideRightAnim.state <> "stopped" then return
-    finishTransition()
-end sub
-
-sub onFadeTransitionDone()
-    if m.fadeTransition = invalid or m.fadeTransition.state <> "stopped" then return
-    finishTransition()
 end sub
 
 sub clearLayoutGroup()

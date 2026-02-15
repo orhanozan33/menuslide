@@ -5,37 +5,6 @@ import { sanitizeCanvasJsonForFabric, collectFontFamiliesFromFabricJson } from '
 import { getGoogleFontsUrlForDisplayFamilies } from '@/lib/editor-fonts';
 
 /** Şablonda kullanılan fontları yükler; yükleme bitene kadar bekler (TV’de satır kırılımı editörle aynı olsun diye). */
-/** Tek satırlık (içinde \n yok) Textbox genişliklerini metnin gerçek genişliğine çeker; böylece "LOREM IPSUM   $0.00" yayında satır kırılmaz. */
-function ensureSingleLineTextboxWidths(canvas: import('fabric').Canvas) {
-  const visit = (objs: import('fabric').FabricObject[]) => {
-    for (const obj of objs) {
-      const g = obj as { type?: string; getObjects?: () => import('fabric').FabricObject[] };
-      if (g.type === 'group' && typeof g.getObjects === 'function') {
-        visit(g.getObjects());
-        continue;
-      }
-      const type = (obj as { type?: string }).type;
-      const text = (obj as { text?: string }).text;
-      if ((type === 'textbox' || type === 'Textbox') && typeof text === 'string' && text.indexOf('\n') === -1 && text.trim() !== '') {
-        const tb = obj as { width?: number; set: (key: string, value: number) => void; setCoords: () => void; getLineWidth?: (i: number) => number };
-        const currentWidth = tb.width ?? 0;
-        tb.set('width', 10000);
-        tb.setCoords();
-        if (typeof tb.getLineWidth === 'function') {
-          try {
-            const lineW = tb.getLineWidth(0);
-            if (lineW > 0) tb.set('width', Math.max(currentWidth, lineW + 12));
-          } catch {
-            /* ignore */
-          }
-        }
-        tb.setCoords();
-      }
-    }
-  };
-  visit(canvas.getObjects());
-}
-
 function loadFontsForDisplay(families: string[]): Promise<void> {
   if (families.length === 0) return Promise.resolve();
   const url = getGoogleFontsUrlForDisplayFamilies(families);
@@ -81,7 +50,6 @@ export function FullEditorDisplay({ canvasJson, onReady }: { canvasJson: object;
         if (cancelled) return;
         const bg = (canvas as { backgroundColor?: string }).backgroundColor;
         if (typeof bg === 'string') canvas.backgroundColor = bg;
-        ensureSingleLineTextboxWidths(canvas);
         const objs = (canvas as { getObjects?: () => unknown[] }).getObjects?.() ?? [];
         for (const obj of objs) {
           const o = obj as { selectable?: boolean; evented?: boolean; hasControls?: boolean; hasBorders?: boolean };
