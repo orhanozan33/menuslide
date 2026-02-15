@@ -1,17 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSupabase } from '@/lib/supabase-server';
+import { getScreenTemplateRotations } from '@/lib/generate-slides-internal';
 
 export const dynamic = 'force-dynamic';
 
-/** Slide image base: static CDN only. No server encoding. e.g. https://cdn.domain.com/slides */
 const SLIDE_IMAGE_BASE =
   process.env.NEXT_PUBLIC_SLIDE_IMAGE_BASE_URL?.replace(/\/$/, '') ||
   process.env.NEXT_PUBLIC_CDN_BASE_URL?.replace(/\/$/, '');
 
 /**
- * GET /api/device/layout — JSON layout for Roku Digital Signage (slides only, no video).
- * Returns: { layout: { version, backgroundColor, slides }, layoutVersion, refreshIntervalSeconds }
- * Images are static URLs only (no server processing).
+ * GET /api/device/layout — JSON layout for Roku (slides only). Authority: screen_template_rotations.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -47,50 +45,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'invalid token' }, { status: 404 });
     }
 
-    const { data: rotations } = await supabase
-      .from('screen_template_rotations')
-      .select('template_id, full_editor_template_id, display_duration, display_order, transition_effect, transition_duration, updated_at')
-      .eq('screen_id', screenId)
-      .eq('is_active', true)
-      .order('display_order', { ascending: true });
-
-    const ordered = rotations ?? [];
     const versionHash = (screen as { layout_snapshot_version?: string | null }).layout_snapshot_version;
-    const rotationMaxUpdated = ordered.length
-      ? ordered.reduce((max, r) => {
-          const u = (r as { updated_at?: string }).updated_at;
-          return u && (!max || u > max) ? u : max;
-        }, '' as string)
-      : '';
-    const screenUpdated = (screen as { updated_at?: string }).updated_at ?? new Date().toISOString();
-    const version =
-      versionHash || (rotationMaxUpdated && rotationMaxUpdated > screenUpdated ? rotationMaxUpdated : screenUpdated);
+    const version = versionHash ?? (screen as { updated_at?: string }).updated_at ?? new Date().toISOString();
+    const rotations = await getScreenTemplateRotations(screenId);
+
     const slides: Array<{ type: string; url?: string; title?: string; description?: string; duration: number; transition_effect?: string; transition_duration?: number }> = [];
 
-    ordered.forEach((r, index) => {
-      const templateId =
-        (r as { full_editor_template_id?: string | null }).full_editor_template_id ||
-        (r as { template_id?: string }).template_id;
-      const duration = Math.max(1, (r as { display_duration?: number }).display_duration ?? 8);
-      const transitionEffect = (r as { transition_effect?: string }).transition_effect ?? 'slide-left';
-      const transitionDuration = (r as { transition_duration?: number }).transition_duration ?? 5000;
-
-      const baseSlide = { duration, transition_effect: transitionEffect, transition_duration: Math.min(5000, Math.max(100, transitionDuration)) };
-      if (SLIDE_IMAGE_BASE) {
-        const url = versionHash
-          ? `${SLIDE_IMAGE_BASE}/slides/${screenId}/${versionHash}/slide_${index}.jpg`
-          : templateId
-            ? `${SLIDE_IMAGE_BASE}/slides/${screenId}/${templateId}-${index}.jpg`
-            : '';
-        if (url) slides.push({ ...baseSlide, type: 'image', url });
-        else slides.push({ ...baseSlide, type: 'text', title: 'Slide', description: '' });
-      } else {
-        slides.push({ ...baseSlide, type: 'text', title: 'Slide', description: '' });
-      }
-    });
-
-    // No slides: one placeholder text slide so app has something to show
-    if (slides.length === 0) {
+    if (rotations.length === 0) {
       slides.push({
         type: 'text',
         title: 'No content',
@@ -98,6 +59,24 @@ export async function GET(request: NextRequest) {
         duration: 10,
         transition_effect: 'fade',
         transition_duration: 300,
+      });
+    } else {
+      rotations.forEach((r, orderIndex) => {
+        const duration = Math.max(1, r.display_duration ?? 8);
+        const transitionEffect = r.transition_effect ?? 'slide-left';
+        const transitionDuration = Math.min(5000, Math.max(100, r.transition_duration ?? 5000));
+        const baseSlide = { duration, transition_effect: transitionEffect, transition_duration: transitionDuration };
+        if (versionHash && SLIDE_IMAGE_BASE) {
+          const url = `${SLIDE_IMAGE_BASE}/slides/${screenId}/${versionHash}/slide_${orderIndex}.jpg`;
+          slides.push({ ...baseSlide, type: 'image', url });
+        } else if (!versionHash && SLIDE_IMAGE_BASE) {
+          const templateId = r.full_editor_template_id || r.template_id;
+          const url = templateId ? `${SLIDE_IMAGE_BASE}/slides/${screenId}/${templateId}-${orderIndex}.jpg` : '';
+          if (url) slides.push({ ...baseSlide, type: 'image', url });
+          else slides.push({ ...baseSlide, type: 'text', title: 'Slide', description: '' });
+        } else {
+          slides.push({ ...baseSlide, type: 'text', title: 'Slide', description: '' });
+        }
       });
     }
 

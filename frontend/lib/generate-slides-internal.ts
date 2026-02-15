@@ -1,6 +1,7 @@
 /**
  * Slide görsellerini oluşturup Spaces'e yükler.
- * Tek render authority: sadece publish anında snapshot; versioned path slides/{screenId}/{versionHash}/slide_X.jpg
+ * Authority: screen_template_rotations. Her rotation = bir slide, rotationIndex = dizi sırası (0,1,2...).
+ * Path: slides/{screenId}/{versionHash}/slide_{rotationIndex}.jpg
  */
 import { createHash } from 'crypto';
 import { getServerSupabase } from '@/lib/supabase-server';
@@ -12,15 +13,42 @@ import {
   deleteSlidesExceptVersion,
 } from '@/lib/spaces-slides';
 
+export type RotationRow = {
+  template_id?: string | null;
+  full_editor_template_id?: string | null;
+  display_order?: number;
+  display_duration?: number;
+  transition_effect?: string;
+  transition_duration?: number;
+};
+
+/** screen_template_rotations tablosu authoritative; display_order'a göre sıralı döner. */
+export async function getScreenTemplateRotations(screenId: string): Promise<RotationRow[]> {
+  const supabase = getServerSupabase();
+  if (!supabase) return [];
+  const { data, error } = await supabase
+    .from('screen_template_rotations')
+    .select('template_id, full_editor_template_id, display_order, display_duration, transition_effect, transition_duration')
+    .eq('screen_id', screenId)
+    .eq('is_active', true)
+    .order('display_order', { ascending: true });
+  if (error || !data) return [];
+  return data as RotationRow[];
+}
+
 export interface GenerateSlidesResult {
   generated: number;
   deleted: number;
   errors?: string[];
 }
 
+const SLIDE_IMAGE_BASE =
+  process.env.NEXT_PUBLIC_SLIDE_IMAGE_BASE_URL?.replace(/\/$/, '') ||
+  process.env.NEXT_PUBLIC_CDN_BASE_URL?.replace(/\/$/, '');
+
 /**
  * Ekran için slide görsellerini üretip Spaces'e yükler.
- * Yayında olan template'lerin display sayfası screenshot alınır.
+ * Her rotation için: /display/{slug}?mode=snapshot&rotationIndex={order_index} render → slide_{order_index}.jpg
  */
 export async function generateSlidesForScreen(screenId: string): Promise<GenerateSlidesResult> {
   if (!isSpacesConfigured()) {
@@ -28,6 +56,7 @@ export async function generateSlidesForScreen(screenId: string): Promise<Generat
   }
 
   const supabase = getServerSupabase();
+  if (!supabase) return { generated: 0, deleted: 0, errors: ['Supabase yok'] };
 
   const { data: screenRow, error: screenError } = await supabase
     .from('screens')
@@ -48,22 +77,16 @@ export async function generateSlidesForScreen(screenId: string): Promise<Generat
     return { generated: 0, deleted: 0, errors: ['Ekran için public slug yok'] };
   }
 
-  const { data: rotations, error: rotError } = await supabase
-    .from('screen_template_rotations')
-    .select('template_id, full_editor_template_id, display_order, display_duration, transition_effect, transition_duration')
-    .eq('screen_id', screenId)
-    .eq('is_active', true)
-    .order('display_order', { ascending: true });
-
-  if (rotError || !rotations?.length) {
+  const rotations = await getScreenTemplateRotations(screenId);
+  if (rotations.length === 0) {
     return { generated: 0, deleted: 0, errors: ['Yayında template yok'] };
   }
 
   const layoutData = JSON.stringify(
     rotations.map((r) => ({
-      t: (r as { template_id?: string | null }).template_id,
-      f: (r as { full_editor_template_id?: string | null }).full_editor_template_id,
-      o: (r as { display_order?: number }).display_order,
+      t: r.template_id,
+      f: r.full_editor_template_id,
+      o: r.display_order,
     }))
   );
   const versionHash = createHash('sha256').update(layoutData).digest('hex').slice(0, 16);
@@ -71,29 +94,31 @@ export async function generateSlidesForScreen(screenId: string): Promise<Generat
   const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://menuslide.com').replace(/\/$/, '');
   const errors: string[] = [];
   const runTs = Date.now();
-  let generatedCount = 0;
-  console.log('[generate-slides-internal] screen=', screenId, 'slug=', slug, 'rotations=', rotations.length, 'versionHash=', versionHash);
+
+  console.log('[generate-slides-internal] screen=', screenId, 'slug=', slug, 'rotationCount=', rotations.length, 'versionHash=', versionHash);
 
   await new Promise((r) => setTimeout(r, 2000));
 
-  for (let i = 0; i < rotations.length; i++) {
-    const r = rotations[i] as { template_id?: string | null; full_editor_template_id?: string | null };
-    const templateId = r.full_editor_template_id || r.template_id;
-    if (!templateId) continue;
+  let generatedCount = 0;
+  for (let orderIndex = 0; orderIndex < rotations.length; orderIndex++) {
+    const r = rotations[orderIndex];
+    const templateId = r.full_editor_template_id || r.template_id || '';
+    const outputPath = `slides/${screenId}/${versionHash}/slide_${orderIndex}.jpg`;
 
-    const url = `${baseUrl}/display/${encodeURIComponent(String(slug))}?lite=1&mode=snapshot&rotationIndex=${i}&_=${runTs}-${i}`;
+    console.log('[generate-slides-internal] rotationIndex=%s templateId=%s outputPath=%s', orderIndex, templateId, outputPath);
+
+    const url = `${baseUrl}/display/${encodeURIComponent(String(slug))}?lite=1&mode=snapshot&rotationIndex=${orderIndex}&_=${runTs}-${orderIndex}`;
     try {
-      console.log('[generate-slides-internal] slide', i, 'capturing...');
       const buffer = await captureDisplayScreenshot(url);
       if (!buffer) {
-        errors.push(`Slide ${i}: screenshot alınamadı`);
+        errors.push(`Slide ${orderIndex}: screenshot alınamadı`);
         continue;
       }
-      await uploadSlideVersioned(screenId, versionHash, i, buffer);
+      await uploadSlideVersioned(screenId, versionHash, orderIndex, buffer);
       generatedCount += 1;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      errors.push(`Slide ${i} (${templateId}): ${msg}`);
+      errors.push(`Slide ${orderIndex} (${templateId}): ${msg}`);
     }
   }
 
@@ -105,16 +130,11 @@ export async function generateSlidesForScreen(screenId: string): Promise<Generat
     };
   }
 
-  const SLIDE_IMAGE_BASE =
-    process.env.NEXT_PUBLIC_SLIDE_IMAGE_BASE_URL?.replace(/\/$/, '') ||
-    process.env.NEXT_PUBLIC_CDN_BASE_URL?.replace(/\/$/, '');
   const slides = rotations.map((r, index) => {
-    const duration = Math.max(1, (r as { display_duration?: number }).display_duration ?? 8);
-    const transitionEffect = (r as { transition_effect?: string }).transition_effect ?? 'slide-left';
-    const transitionDuration = Math.min(5000, Math.max(100, (r as { transition_duration?: number }).transition_duration ?? 5000));
-    const url = SLIDE_IMAGE_BASE
-      ? `${SLIDE_IMAGE_BASE}/slides/${screenId}/${versionHash}/slide_${index}.jpg`
-      : '';
+    const duration = Math.max(1, r.display_duration ?? 8);
+    const transitionEffect = r.transition_effect ?? 'slide-left';
+    const transitionDuration = Math.min(5000, Math.max(100, r.transition_duration ?? 5000));
+    const url = SLIDE_IMAGE_BASE ? `${SLIDE_IMAGE_BASE}/slides/${screenId}/${versionHash}/slide_${index}.jpg` : '';
     return {
       type: 'image' as const,
       url,
@@ -123,6 +143,10 @@ export async function generateSlidesForScreen(screenId: string): Promise<Generat
       transition_duration: transitionDuration,
     };
   });
+
+  if (slides.length !== rotations.length) {
+    console.error('[generate-slides-internal] slide count mismatch slides=%s rotations=%s', slides.length, rotations.length);
+  }
 
   try {
     await uploadLayoutSnapshotJson(screenId, versionHash, {

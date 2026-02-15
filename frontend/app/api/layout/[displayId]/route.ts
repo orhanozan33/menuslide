@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSupabase } from '@/lib/supabase-server';
+import { getScreenTemplateRotations } from '@/lib/generate-slides-internal';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,8 +10,8 @@ const SLIDE_IMAGE_BASE =
 
 /**
  * GET /api/layout/{displayId} — Public layout by slug or screen id.
- * Web ve Roku aynı endpoint: versioned JPG URL'leri, Cache-Control: no-cache.
- * displayId = public_slug, public_token, broadcast_code veya screen uuid.
+ * Authority: screen_template_rotations. Slide sayısı = rotation sayısı.
+ * Web ve Roku aynı endpoint: versioned JPG URL'leri.
  */
 export async function GET(
   request: NextRequest,
@@ -85,22 +86,9 @@ export async function GET(
     const screenId = (screen as { id: string }).id;
     const versionHash = (screen as { layout_snapshot_version?: string | null }).layout_snapshot_version;
 
-    const { data: rotations } = await supabase
-      .from('screen_template_rotations')
-      .select('template_id, full_editor_template_id, display_duration, display_order, transition_effect, transition_duration, updated_at')
-      .eq('screen_id', screenId)
-      .eq('is_active', true)
-      .order('display_order', { ascending: true });
+    const rotations = await getScreenTemplateRotations(screenId);
 
-    const ordered = rotations ?? [];
-    const rotationMaxUpdated = ordered.length
-      ? ordered.reduce((max, r) => {
-          const u = (r as { updated_at?: string }).updated_at;
-          return u && (!max || u > max) ? u : max;
-        }, '' as string)
-      : '';
-    const screenUpdated = (screen as { updated_at?: string }).updated_at ?? new Date().toISOString();
-    const version = versionHash || (rotationMaxUpdated && rotationMaxUpdated > screenUpdated ? rotationMaxUpdated : screenUpdated);
+    const version = versionHash ?? (screen as { updated_at?: string }).updated_at ?? new Date().toISOString();
 
     const slides: Array<{
       type: string;
@@ -112,32 +100,7 @@ export async function GET(
       transition_duration?: number;
     }> = [];
 
-    ordered.forEach((r, index) => {
-      const templateId =
-        (r as { full_editor_template_id?: string | null }).full_editor_template_id ||
-        (r as { template_id?: string }).template_id;
-      const duration = Math.max(1, (r as { display_duration?: number }).display_duration ?? 8);
-      const transitionEffect = (r as { transition_effect?: string }).transition_effect ?? 'slide-left';
-      const transitionDuration = Math.min(5000, Math.max(100, (r as { transition_duration?: number }).transition_duration ?? 5000));
-      const baseSlide = {
-        duration,
-        transition_effect: transitionEffect,
-        transition_duration: transitionDuration,
-      };
-      if (SLIDE_IMAGE_BASE) {
-        const url = versionHash
-          ? `${SLIDE_IMAGE_BASE}/slides/${screenId}/${versionHash}/slide_${index}.jpg`
-          : templateId
-            ? `${SLIDE_IMAGE_BASE}/slides/${screenId}/${templateId}-${index}.jpg`
-            : '';
-        if (url) slides.push({ ...baseSlide, type: 'image', url });
-        else slides.push({ ...baseSlide, type: 'text', title: 'Slide', description: '' });
-      } else {
-        slides.push({ ...baseSlide, type: 'text', title: 'Slide', description: '' });
-      }
-    });
-
-    if (slides.length === 0) {
+    if (rotations.length === 0) {
       slides.push({
         type: 'text',
         title: 'No content',
@@ -146,6 +109,32 @@ export async function GET(
         transition_effect: 'fade',
         transition_duration: 300,
       });
+    } else {
+      rotations.forEach((r, orderIndex) => {
+        const duration = Math.max(1, r.display_duration ?? 8);
+        const transitionEffect = r.transition_effect ?? 'slide-left';
+        const transitionDuration = Math.min(5000, Math.max(100, r.transition_duration ?? 5000));
+        const baseSlide = {
+          duration,
+          transition_effect: transitionEffect,
+          transition_duration: transitionDuration,
+        };
+        if (versionHash && SLIDE_IMAGE_BASE) {
+          const url = `${SLIDE_IMAGE_BASE}/slides/${screenId}/${versionHash}/slide_${orderIndex}.jpg`;
+          slides.push({ ...baseSlide, type: 'image', url });
+        } else if (!versionHash && SLIDE_IMAGE_BASE) {
+          const templateId = r.full_editor_template_id || r.template_id;
+          const url = templateId ? `${SLIDE_IMAGE_BASE}/slides/${screenId}/${templateId}-${orderIndex}.jpg` : '';
+          if (url) slides.push({ ...baseSlide, type: 'image', url });
+          else slides.push({ ...baseSlide, type: 'text', title: 'Slide', description: '' });
+        } else {
+          slides.push({ ...baseSlide, type: 'text', title: 'Slide', description: '' });
+        }
+      });
+
+      if (versionHash && slides.length !== rotations.length) {
+        console.error('[api/layout] slide count !== rotation count', { displayId, slidesLength: slides.length, rotationCount: rotations.length });
+      }
     }
 
     const layout = {
