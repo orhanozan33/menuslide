@@ -280,7 +280,8 @@ export async function captureDisplayScreenshot(displayPageUrl: string): Promise<
     } else {
       await page.waitForSelector('[data-display-ready="true"]', { timeout: 15000 }).catch(() => {});
     }
-    await new Promise((r) => setTimeout(r, 500));
+    // Font rendering için ek bekleme — Roku screenshot'ta yazı stili tutarlı olsun
+    await new Promise((r) => setTimeout(r, 1000));
     const buffer = await page.screenshot({
       type: 'jpeg',
       quality: 90,

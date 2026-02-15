@@ -26,6 +26,10 @@ import { SnapshotLayoutCarousel, type SnapshotLayoutData } from '@/components/di
 import { formatPrice } from '@/lib/formatPrice';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 import { resolveMediaUrl } from '@/lib/resolveMediaUrl';
+import {
+  collectFontFamiliesFromBlockTemplate,
+  loadFontsForDisplayFamilies,
+} from '@/lib/display-fonts';
 
 const EMBED_WIDTH = 1920;
 const EMBED_HEIGHT = 1080;
@@ -756,13 +760,39 @@ export function DisplayPageView(props: DisplayPageProps) {
     setCurrentSlideReady(false);
   }, [currentTemplateIndex, currentTemplateData?.template?.id]);
 
-  // Snapshot modunda block-based şablonlar için: render tamamlanınca __SNAPSHOT_READY__ set et (Full Editor kendi onReady kullanır)
+  // Block/Canvas şablonları için font yükleme — halka açık link ve Roku screenshot'ta yazı stili tutarlı olsun
+  const isBlockOrCanvasForFonts =
+    currentTemplateData?.template &&
+    (currentTemplateData.template.template_type !== 'full_editor' || !currentTemplateData.template.canvas_json) &&
+    (currentTemplateData.screenBlocks?.length ?? 0) > 0;
+  useEffect(() => {
+    if (!isBlockOrCanvasForFonts || typeof document === 'undefined') return;
+    const families = collectFontFamiliesFromBlockTemplate(currentTemplateData as any);
+    if (families.length === 0) return;
+    loadFontsForDisplayFamilies(families).catch(() => {});
+  }, [isBlockOrCanvasForFonts, currentTemplateData]);
+
+  // Snapshot modunda block-based şablonlar için: fontlar yüklendikten sonra __SNAPSHOT_READY__ set et (Full Editor kendi onReady kullanır)
   const isFullEditorForSnapshot = currentTemplateData?.template?.template_type === 'full_editor' && currentTemplateData?.template?.canvas_json;
   useEffect(() => {
     if (!isSnapshotMode || !currentTemplateData || isFullEditorForSnapshot) return;
     const readyFn = rotationIndexFromUrl != null ? handleSnapshotReady : handleDisplayReady;
-    const t = setTimeout(readyFn, 1200);
-    return () => clearTimeout(t);
+    let cancelled = false;
+    let innerTimer: ReturnType<typeof setTimeout> | null = null;
+
+    if (typeof document?.fonts?.ready !== 'undefined') {
+      document.fonts.ready.then(() => {
+        if (cancelled) return;
+        innerTimer = setTimeout(readyFn, 500);
+      }).catch(() => {});
+    } else {
+      innerTimer = setTimeout(readyFn, 1200);
+    }
+
+    return () => {
+      cancelled = true;
+      if (innerTimer != null) clearTimeout(innerTimer);
+    };
   }, [isSnapshotMode, currentTemplateData, isFullEditorForSnapshot, rotationIndexFromUrl, handleDisplayReady, handleSnapshotReady]);
 
   // Full editor dışı tiplerde (canvas, block) overlay'ı kısa gecikmeyle kaldır; sadece geçiş bittikten sonra (current=next)
