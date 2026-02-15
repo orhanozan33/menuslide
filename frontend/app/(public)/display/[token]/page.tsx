@@ -497,7 +497,7 @@ export default function DisplayPage() {
       retryTimeoutRef.current = setTimeout(() => {
         retryTimeoutRef.current = null;
         loadInProgressRef.current = false;
-        loadScreenData(snapshotMode ? snapshotExpectedIndexRef.current : undefined, snapshotMode ? { snapshotMode: true } : undefined);
+        loadScreenData(snapshotMode ? (snapshotExpectedIndexRef.current ?? undefined) : undefined, snapshotMode ? { snapshotMode: true } : undefined);
       }, backoff);
       return;
     } finally {
