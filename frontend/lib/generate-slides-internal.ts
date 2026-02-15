@@ -5,7 +5,7 @@
  */
 import { createHash } from 'crypto';
 import { getServerSupabase } from '@/lib/supabase-server';
-import { captureDisplayScreenshot, captureDisplaySlidesInLoop } from '@/lib/render-screenshot';
+import { captureDisplayScreenshot, captureDisplaySlidesFromLivePage } from '@/lib/render-screenshot';
 import {
   isSpacesConfigured,
   uploadSlideVersioned,
@@ -103,8 +103,8 @@ export async function generateSlidesForScreen(screenId: string): Promise<Generat
   const usePuppeteerLoop = !process.env.VERCEL;
 
   if (usePuppeteerLoop) {
-    // Navigation loop içinde: tek browser, her rotation için goto → wait → screenshot → upload (buffer reuse yok)
-    const buffers = await captureDisplaySlidesInLoop({
+    // Canlı sayfa: tek URL açılır, her template geçişinden 3 sn sonra 1 resim alınır
+    const buffers = await captureDisplaySlidesFromLivePage({
       baseUrl,
       slug,
       screenId,

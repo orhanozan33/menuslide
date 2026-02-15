@@ -1,7 +1,72 @@
 export type RotationForCapture = {
   template_id?: string | null;
   full_editor_template_id?: string | null;
+  display_duration?: number;
 };
+
+/** Her şablon geçişinden 3 sn sonra ekran görüntüsü; tek canlı sayfa, her zaman güncel resim. */
+const LIVE_CAPTURE_SETTLE_MS = 3000;
+
+/**
+ * Canlı sayfa: tek URL açılır, her template geçişinden 3 sn sonra 1 resim alınır (Puppeteer).
+ * Kullanıcı URL açmasa bile arka planda güncel slaytlar üretilir.
+ */
+export async function captureDisplaySlidesFromLivePage(options: {
+  baseUrl: string;
+  slug: string;
+  screenId: string;
+  versionHash: string;
+  rotations: RotationForCapture[];
+  runTs: number;
+}): Promise<(Buffer | null)[]> {
+  const { baseUrl, slug, screenId, versionHash, rotations, runTs } = options;
+  const puppeteer = await import('puppeteer').catch(() => null);
+  if (!puppeteer?.default) return rotations.map(() => null);
+
+  const liveUrl = `${baseUrl.replace(/\/$/, '')}/display/${encodeURIComponent(String(slug))}?lite=1&_live=${runTs}`;
+  const durationsSec = rotations.map((r) => Math.max(1, r.display_duration ?? 8));
+  const results: (Buffer | null)[] = [];
+
+  const browser = await puppeteer.default.launch({
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+  });
+
+  try {
+    const page = await browser.newPage();
+    await page.setCacheEnabled(false);
+    await page.setViewport({ width: 1920, height: 1080, deviceScaleFactor: 1 });
+    await page.goto(liveUrl, { waitUntil: 'networkidle0', timeout: 30000 });
+    await page.waitForSelector('[data-display-ready="true"]', { timeout: 25000 }).catch(() => {});
+    await new Promise((r) => setTimeout(r, 2000));
+
+    for (let i = 0; i < rotations.length; i++) {
+      await new Promise((r) => setTimeout(r, LIVE_CAPTURE_SETTLE_MS));
+      const screenshotResult = await page.screenshot({
+        type: 'jpeg',
+        quality: 90,
+        fullPage: false,
+      });
+      const buffer: Buffer | null =
+        screenshotResult == null
+          ? null
+          : Buffer.isBuffer(screenshotResult)
+            ? Buffer.from(screenshotResult)
+            : Buffer.from(screenshotResult as unknown as Uint8Array);
+      results.push(buffer);
+      const templateId = rotations[i]?.full_editor_template_id || rotations[i]?.template_id || '';
+      console.log('[render-screenshot] live capture slide %s templateId=%s buffer.length=%s', i, templateId, buffer?.length ?? 0);
+      if (i < rotations.length - 1) {
+        const waitMs = durationsSec[i] * 1000;
+        await new Promise((r) => setTimeout(r, waitMs));
+      }
+    }
+  } finally {
+    await browser.close().catch(() => {});
+  }
+
+  return results;
+}
 
 /**
  * Screenshot servisi batch: birden fazla URL tek istekte; servis loop içinde goto → screenshot döner.
