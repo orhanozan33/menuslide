@@ -219,6 +219,7 @@ export default function DisplayPage() {
   const [nextTemplateIndex, setNextTemplateIndex] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [justFinishedTransition, setJustFinishedTransition] = useState(false); // Geçiş sonrası kısa fade-in (blink azaltma)
+  const [currentSlideReady, setCurrentSlideReady] = useState(false); // Full Editor fontları yüklenene kadar rotasyon sayacı başlamasın
   const [businessName, setBusinessName] = useState<string>('');
   const [viewAllowed, setViewAllowed] = useState<boolean | null>(null);
   const loadInProgressRef = useRef(false);
@@ -536,6 +537,8 @@ export default function DisplayPage() {
       setCurrentTemplateData(screenData);
       return;
     }
+    const isFullEditor = currentTemplateData?.template?.template_type === 'full_editor' && currentTemplateData?.template?.canvas_json;
+    if (isFullEditor && !currentSlideReady) return;
     const durationSec = Math.max(1, currentRotation.display_duration || 5);
     const durationMs = durationSec * 1000;
     const nextIndex = (currentTemplateIndex + 1) % screenData.templateRotations!.length;
@@ -588,7 +591,7 @@ export default function DisplayPage() {
       })();
     }, durationMs);
     return () => clearTimeout(timer);
-  }, [currentTemplateIndex, currentTemplateData, screenData, token, previewIndex, rotationIndexFromUrl]);
+  }, [currentTemplateIndex, currentTemplateData, screenData, token, previewIndex, rotationIndexFromUrl, currentSlideReady]);
 
   // Geçiş sonrası kısa fade-in süresi bitince bayrağı kaldır
   useEffect(() => {
@@ -597,12 +600,18 @@ export default function DisplayPage() {
     return () => clearTimeout(t);
   }, [justFinishedTransition]);
 
-  // Base layer hazır olunca overlay kaldır (film gibi akıcı geçiş)
+  // Base layer hazır olunca overlay kaldır (film gibi akıcı geçiş); Full Editor fontları da yüklendi demek → rotasyon sayacı başlayabilir
   const handleDisplayReady = useCallback(() => {
     if (typeof document !== 'undefined') document.body.dataset.displayReady = 'true';
+    setCurrentSlideReady(true);
     displayReadyRef.current?.();
     displayReadyRef.current = () => {};
   }, []);
+
+  // Şablon değişince “hazır” bayrağını sıfırla; bir sonraki onReady’de tekrar true olacak
+  useEffect(() => {
+    setCurrentSlideReady(false);
+  }, [currentTemplateIndex, currentTemplateData?.template?.id]);
 
   // Full editor dışı tiplerde (canvas, block) overlay'ı kısa gecikmeyle kaldır; sadece geçiş bittikten sonra (current=next)
   useEffect(() => {
