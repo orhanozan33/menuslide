@@ -24,7 +24,7 @@ export async function captureDisplayScreenshot(displayPageUrl: string): Promise<
         width: 1920,
         height: 1080,
         quality: 90,
-        waitMs: 5000,
+        waitMs: 8000,
       };
       if (protectionBypass) body.protectionBypass = protectionBypass;
       const res = await fetch(`${base}/screenshot`, {
@@ -57,6 +57,7 @@ export async function captureDisplayScreenshot(displayPageUrl: string): Promise<
       url.searchParams.set('image_quality', '90');
       url.searchParams.set('block_ads', 'true');
       url.searchParams.set('cache', 'false');
+      url.searchParams.set('delay', '8');
       url.searchParams.set('access_key', key);
       const res = await fetch(url.toString(), { signal: AbortSignal.timeout(60000) });
       if (!res.ok) {
@@ -92,7 +93,7 @@ export async function captureDisplayScreenshot(displayPageUrl: string): Promise<
       waitUntil: 'load',
       timeout: 18000,
     });
-    await new Promise((r) => setTimeout(r, 5000));
+    await new Promise((r) => setTimeout(r, 8000));
     const buffer = await page.screenshot({
       type: 'jpeg',
       quality: 90,

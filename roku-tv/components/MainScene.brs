@@ -108,12 +108,14 @@ end sub
 
 sub startLayoutFetch()
     task = m.top.createChild("LayoutTask")
+    task.id = "LayoutTask"
     task.input = { deviceToken: m.deviceToken }
     task.observeField("result", "onLayoutResult")
     task.control = "RUN"
 end sub
 
 sub onLayoutResult(msg as dynamic)
+    taskNode = msg.getRoSGNode()
     data = msg.getData()
     if data = invalid or data.error <> invalid then
         if m.layoutFetchFailCount = invalid then m.layoutFetchFailCount = 0
@@ -126,11 +128,11 @@ sub onLayoutResult(msg as dynamic)
         slides = getSlidesFromLayout(layout)
         if layout <> invalid and slides <> invalid and slides.count() > 0 then
             renderLayout(layout)
-            return
         end if
         if m.layoutFetchFailCount >= 2 and (m.layoutStr = "" or m.layoutStr = invalid) then
             m.top.requestShowCode = true
         end if
+        removeLayoutTask(taskNode)
         return
     end if
     m.layoutFetchFailCount = 0
@@ -147,6 +149,7 @@ sub onLayoutResult(msg as dynamic)
             m.status.text = "Loading. Please Wait."
             m.status.visible = true
         end if
+        removeLayoutTask(taskNode)
         return
     end if
     layout = data.layout
@@ -155,6 +158,7 @@ sub onLayoutResult(msg as dynamic)
     if layout = invalid then
         m.status.text = "Loading. Please Wait."
         m.status.visible = true
+        removeLayoutTask(taskNode)
         return
     end if
     m.sec.write("layout", FormatJson(layout))
@@ -176,6 +180,14 @@ sub onLayoutResult(msg as dynamic)
     needRender = (m.slides = invalid or m.slides.count() = 0) or versionChanged
     if needRender then
         renderLayout(layout)
+    end if
+    removeLayoutTask(taskNode)
+end sub
+
+sub removeLayoutTask(taskNode as dynamic)
+    if taskNode <> invalid then
+        taskNode.unobserveField("result")
+        m.top.removeChild(taskNode)
     end if
 end sub
 
@@ -314,6 +326,7 @@ end sub
 
 sub startSlideTimer()
     if m.slides = invalid or m.slides.count() = 0 then return
+    print "[MainScene] startSlideTimer slideIndex="; m.slideIndex; " dur="; m.slideTimer.duration
     if m.slideTimer = invalid then return
     slide = m.slides[m.slideIndex]
     dur = slide.duration
@@ -328,6 +341,7 @@ sub startSlideTimer()
 end sub
 
 sub onSlideTimerFire()
+    print "[MainScene] onSlideTimerFire slideIndex="; m.slideIndex
     nextIndex = m.slideIndex + 1
     if nextIndex >= m.slides.count() then nextIndex = 0
     nextSlide = m.slides[nextIndex]
@@ -409,6 +423,7 @@ sub onTransitionFallbackFire()
 end sub
 
 sub finishTransition()
+    print "[MainScene] finishTransition nextIndex="; m.pendingNextIndex
     stopTransitionFallback()
     if m.pendingNextIndex = invalid then return
     nextIndex = m.pendingNextIndex
@@ -476,6 +491,7 @@ end sub
 
 sub onHeartbeat()
     task = m.top.createChild("HeartbeatTask")
+    task.id = "HeartbeatTask"
     task.input = { deviceToken: m.deviceToken }
     task.observeField("result", "onHeartbeatResult")
     task.control = "RUN"
@@ -491,13 +507,25 @@ function onKeyEvent(key as string, press as boolean) as boolean
 end function
 
 sub onHeartbeatResult(msg as dynamic)
+    taskNode = msg.getRoSGNode()
     data = msg.getData()
-    if data = invalid or data.error <> invalid then return
+    if data = invalid or data.error <> invalid then
+        removeHeartbeatTask(taskNode)
+        return
+    end if
     newVer = ""
     if data.layoutVersion <> invalid and data.layoutVersion <> "" then newVer = data.layoutVersion
     curVer = m.layoutVersion
     if curVer = invalid then curVer = ""
     if newVer <> "" and newVer <> curVer then
         startLayoutFetch()
+    end if
+    removeHeartbeatTask(taskNode)
+end sub
+
+sub removeHeartbeatTask(taskNode as dynamic)
+    if taskNode <> invalid then
+        taskNode.unobserveField("result")
+        m.top.removeChild(taskNode)
     end if
 end sub
