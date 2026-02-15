@@ -58,7 +58,7 @@ export function getGoogleFontsUrlForDisplayFamilies(displayFamilies: string[]): 
     )
   )];
   if (unique.length === 0) return '';
-  const forUrl = unique.slice(0, 20).map((f) => `${f.trim().replace(/\s+/g, '+')}:wght@400;700`);
+  const forUrl = unique.slice(0, 20).map((f) => `${f.trim().replace(/\s+/g, '+')}:ital,wght@0,400;0,700;1,400;1,700`);
   return getGoogleFontsUrl(forUrl);
 }
 

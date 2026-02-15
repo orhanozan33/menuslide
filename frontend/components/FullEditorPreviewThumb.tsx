@@ -100,6 +100,8 @@ export function loadFontsForCanvasJson(json: Record<string, unknown>): Promise<v
       for (const f of families.slice(0, 20)) {
         loads.push(document.fonts.load(`16px "${f}"`).catch(() => {}));
         loads.push(document.fonts.load(`700 16px "${f}"`).catch(() => {}));
+        loads.push(document.fonts.load(`italic 16px "${f}"`).catch(() => {}));
+        loads.push(document.fonts.load(`italic 700 16px "${f}"`).catch(() => {}));
       }
       Promise.all(loads)
         .then(async () => {

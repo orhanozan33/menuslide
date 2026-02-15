@@ -599,6 +599,7 @@ export default function DisplayPage() {
 
   // Base layer hazır olunca overlay kaldır (film gibi akıcı geçiş)
   const handleDisplayReady = useCallback(() => {
+    if (typeof document !== 'undefined') document.body.dataset.displayReady = 'true';
     displayReadyRef.current?.();
     displayReadyRef.current = () => {};
   }, []);
