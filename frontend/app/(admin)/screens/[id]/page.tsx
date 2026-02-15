@@ -101,6 +101,7 @@ export default function ScreenDetailPage() {
   const [editTickerText, setEditTickerText] = useState<string>('');
   const [editTickerStyle, setEditTickerStyle] = useState<string>('default');
   const [editStreamUrl, setEditStreamUrl] = useState<string>('');
+  const [regeneratingSlides, setRegeneratingSlides] = useState(false);
 
   useEffect(() => {
     loadScreen();
@@ -376,6 +377,32 @@ export default function ScreenDetailPage() {
             </div>
           </div>
 
+
+          <div className="mb-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Roku / TV slide görselleri</h3>
+            <p className="text-sm text-gray-600 mb-2">
+              Ürün fiyatı veya şablon değiştiyse slide'ları yenileyin. Roku güncel görselleri gösterir.
+            </p>
+            <button
+              type="button"
+              onClick={async () => {
+                setRegeneratingSlides(true);
+                try {
+                  const res = await apiClient(`/screens/${screenId}/generate-slides`, { method: 'POST' }) as { message?: string; generated?: number };
+                  toast?.showSuccess?.(res?.message || `Slide'lar yenilendi`);
+                  loadScreen();
+                } catch (e) {
+                  toast?.showError?.((e as Error)?.message || 'Slide yenileme başarısız');
+                } finally {
+                  setRegeneratingSlides(false);
+                }
+              }}
+              disabled={regeneratingSlides}
+              className="px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 disabled:opacity-50 font-medium"
+            >
+              {regeneratingSlides ? 'Yenileniyor...' : "Slide'ları yenile"}
+            </button>
+          </div>
 
           <div className="mb-4 p-4 bg-emerald-50 rounded-lg border border-emerald-200">
             <h3 className="text-lg font-semibold text-gray-900 mb-2">{t('screens_broadcast_code_title')}</h3>

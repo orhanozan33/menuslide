@@ -107,3 +107,70 @@ export async function generateSlidesForScreen(screenId: string): Promise<Generat
     errors: errors.length > 0 ? errors : undefined,
   };
 }
+
+/**
+ * Ürün (menu_item) güncellendiğinde bu ürünü gösteren ekranların slide'larını yeniler.
+ * Sadece block template kullanan ekranlar etkilenir (Full Editor statik canvas, ürün verisi kullanmaz).
+ */
+export async function regenerateSlidesForAffectedScreens(
+  menuItemId: string,
+  menuId: string
+): Promise<void> {
+  if (!isSpacesConfigured()) return;
+  const supabase = getServerSupabase();
+  if (!supabase) return;
+  const screenIds = new Set<string>();
+
+  // template_block_contents: single_product (menu_item_id) veya product_list (menu_id)
+  const { data: tbc1 } = await supabase
+    .from('template_block_contents')
+    .select('template_block_id')
+    .eq('is_active', true)
+    .eq('menu_item_id', menuItemId);
+  const { data: tbc2 } = await supabase
+    .from('template_block_contents')
+    .select('template_block_id')
+    .eq('is_active', true)
+    .eq('content_type', 'product_list')
+    .eq('menu_id', menuId);
+  const tbc = [...(tbc1 || []), ...(tbc2 || [])];
+  if (tbc.length) {
+    const blockIds = [...new Set((tbc as { template_block_id: string }[]).map((x) => x.template_block_id))];
+    const { data: tb } = await supabase.from('template_blocks').select('template_id').in('id', blockIds);
+    const templateIds = [...new Set((tb || []).map((x: { template_id: string }) => x.template_id))];
+    const { data: rotations } = await supabase
+      .from('screen_template_rotations')
+      .select('screen_id')
+      .in('template_id', templateIds)
+      .eq('is_active', true);
+    (rotations || []).forEach((r: { screen_id: string }) => screenIds.add(r.screen_id));
+  }
+
+  // screen_block_contents: aynı mantık
+  const { data: sbc1 } = await supabase
+    .from('screen_block_contents')
+    .select('screen_block_id')
+    .eq('is_active', true)
+    .eq('menu_item_id', menuItemId);
+  const { data: sbc2 } = await supabase
+    .from('screen_block_contents')
+    .select('screen_block_id')
+    .eq('is_active', true)
+    .eq('content_type', 'product_list')
+    .eq('menu_id', menuId);
+  const sbc = [...(sbc1 || []), ...(sbc2 || [])];
+  if (sbc.length) {
+    const sbIds = [...new Set((sbc as { screen_block_id: string }[]).map((x) => x.screen_block_id))];
+    const { data: sb } = await supabase.from('screen_blocks').select('screen_id').in('id', sbIds);
+    (sb || []).forEach((r: { screen_id: string }) => screenIds.add(r.screen_id));
+  }
+
+  for (const screenId of screenIds) {
+    try {
+      const r = await generateSlidesForScreen(screenId);
+      if (r.generated > 0) console.log('[regenerateSlidesForMenuItem] screen=', screenId, 'generated=', r.generated);
+    } catch (e) {
+      console.error('[regenerateSlidesForMenuItem] screen=', screenId, 'failed', e);
+    }
+  }
+}

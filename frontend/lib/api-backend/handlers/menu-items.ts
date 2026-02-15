@@ -1,5 +1,7 @@
 import { NextRequest } from 'next/server';
+import { after } from 'next/server';
 import { getServerSupabase } from '@/lib/supabase-server';
+import { regenerateSlidesForAffectedScreens } from '@/lib/generate-slides-internal';
 import type { JwtPayload } from '@/lib/auth-server';
 import { useLocalDb, queryOne, queryLocal, insertLocal, updateLocal, deleteLocal, mirrorToSupabase } from '@/lib/api-backend/db-local';
 import { insertAdminActivityLog } from '@/lib/api-backend/admin-activity-log';
@@ -106,6 +108,9 @@ export async function update(id: string, request: NextRequest, user: JwtPayload)
     if (!data) return Response.json({ message: 'Not found' }, { status: 404 });
     await mirrorToSupabase('menu_items', 'update', { id, row: { ...updates, id } });
     if (user.role === 'admin' || user.role === 'super_admin') await insertAdminActivityLog(user, { action_type: 'menu_item_update', page_key: 'menus', resource_type: 'menu_item', resource_id: id, details: {} });
+    if (updates.price !== undefined || updates.name !== undefined) {
+      after(() => regenerateSlidesForAffectedScreens(id, item.menu_id));
+    }
     return Response.json(data);
   }
   const supabase = getServerSupabase();
@@ -120,6 +125,9 @@ export async function update(id: string, request: NextRequest, user: JwtPayload)
   const { data, error } = await supabase.from('menu_items').update(updates).eq('id', id).select().single();
   if (error) return Response.json({ message: error.message }, { status: 500 });
   if (user.role === 'admin' || user.role === 'super_admin') await insertAdminActivityLog(user, { action_type: 'menu_item_update', page_key: 'menus', resource_type: 'menu_item', resource_id: id, details: {} });
+  if (updates.price !== undefined || updates.name !== undefined) {
+    after(() => regenerateSlidesForAffectedScreens(id, (item as { menu_id: string }).menu_id));
+  }
   return Response.json(data);
 }
 

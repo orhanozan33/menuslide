@@ -482,11 +482,18 @@ sub startKeepAlive()
 end sub
 
 sub onKeepAliveFire()
-    req = CreateObject("roUrlTransfer")
-    req.setUrl("http://127.0.0.1:8060/keypress/Play")
-    req.setRequest("POST")
-    req.setPort(CreateObject("roMessagePort"))
-    req.asyncPostFromString("")
+    ' roUrlTransfer must run on TASK thread, not RENDER thread (Timer callback runs on RENDER)
+    task = m.top.createChild("KeepAliveTask")
+    task.observeField("result", "onKeepAliveResult")
+    task.control = "RUN"
+end sub
+
+sub onKeepAliveResult(msg as dynamic)
+    taskNode = msg.getRoSGNode()
+    if taskNode <> invalid then
+        taskNode.unobserveField("result")
+        m.top.removeChild(taskNode)
+    end if
 end sub
 
 sub onHeartbeat()

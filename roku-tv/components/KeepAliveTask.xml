@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<component name="KeepAliveTask" extends="Task">
+  <interface>
+    <field id="result" name="result" type="assocarray" alwaysNotify="true"/>
+  </interface>
+  <script type="text/brightscript" uri="pkg:/components/KeepAliveTask.brs"/>
+</component>
