@@ -998,9 +998,14 @@ export function TemplateEditorPage({ templateId, showSaveAs = false, isMineTempl
             if ((content.content_type === 'image' || content.content_type === 'video') && content.style_config) {
             const sc = typeof content.style_config === 'string' ? JSON.parse(content.style_config || '{}') : content.style_config;
             setEditingImageBlur(typeof sc.blur === 'number' ? Math.min(20, Math.max(0, sc.blur)) : 0);
-            // Çoklu yazı katmanlarını yükle (eski verilerde fontFamily olmayabilir)
+            // Çoklu yazı katmanlarını yükle (yazı stili alanları her zaman uygulansın)
             if (sc.textLayers && Array.isArray(sc.textLayers)) {
-              setTextLayers(sc.textLayers.map((l: any) => ({ ...l, fontFamily: l.fontFamily || 'Arial' })));
+              setTextLayers(sc.textLayers.map((l: any) => ({
+                ...l,
+                fontFamily: l.fontFamily || 'Arial',
+                fontWeight: l.fontWeight ?? 'bold',
+                fontStyle: l.fontStyle ?? 'normal',
+              })));
             } else {
               setTextLayers([]);
             }
@@ -1045,7 +1050,12 @@ export function TemplateEditorPage({ templateId, showSaveAs = false, isMineTempl
                     url: it.url,
                     durationSeconds: dur,
                     sourceDurationSeconds: typeof it.sourceDurationSeconds === 'number' ? Math.min(120, it.sourceDurationSeconds) : undefined,
-                    textLayers: Array.isArray(it.textLayers) ? it.textLayers.map((l: any) => ({ ...l, fontFamily: l.fontFamily || 'Arial' })) : [],
+                    textLayers: Array.isArray(it.textLayers) ? it.textLayers.map((l: any) => ({
+                      ...l,
+                      fontFamily: l.fontFamily || 'Arial',
+                      fontWeight: l.fontWeight ?? 'bold',
+                      fontStyle: l.fontStyle ?? 'normal',
+                    })) : [],
                     priceBadge: it.priceBadge && typeof it.priceBadge === 'object' ? it.priceBadge : undefined,
                     title: it.title ?? '',
                     price: it.price != null ? String(it.price) : '',
@@ -1078,7 +1088,12 @@ export function TemplateEditorPage({ templateId, showSaveAs = false, isMineTempl
                 setEditingImageRotationItems(ir.rotationItems.map((it: any) => ({
                   url: it.url,
                   durationSeconds: typeof it.durationSeconds === 'number' ? Math.max(1, Math.min(120, it.durationSeconds)) : 10,
-                  textLayers: Array.isArray(it.textLayers) ? it.textLayers.map((l: any) => ({ ...l, fontFamily: l.fontFamily || 'Arial' })) : [],
+                  textLayers: Array.isArray(it.textLayers) ? it.textLayers.map((l: any) => ({
+                    ...l,
+                    fontFamily: l.fontFamily || 'Arial',
+                    fontWeight: l.fontWeight ?? 'bold',
+                    fontStyle: l.fontStyle ?? 'normal',
+                  })) : [],
                   title: it.title || '',
                   price: it.price != null ? String(it.price) : '',
                   isVideo: it.isVideo || undefined,
@@ -1632,11 +1647,16 @@ export function TemplateEditorPage({ templateId, showSaveAs = false, isMineTempl
             title: updatedTitle,
             price: updatedPrice,
             description: updatedDescription,
-            style_config: JSON.stringify({ 
-              ...existingStyle, 
+            style_config: JSON.stringify({
+              ...existingStyle,
               alternateTitle: updatedAlternateTitle,
               blur: editingImageBlur,
-              textLayers: textLayers,
+              textLayers: textLayers.map((l) => ({
+                ...l,
+                fontFamily: l.fontFamily || 'Arial',
+                fontWeight: l.fontWeight ?? 'bold',
+                fontStyle: l.fontStyle ?? 'normal',
+              })),
               overlayImages: overlayImages,
               ...(editingPriceBadge && { priceBadge: editingPriceBadge }),
             }),
@@ -1764,17 +1784,23 @@ export function TemplateEditorPage({ templateId, showSaveAs = false, isMineTempl
           ? (typeof visualContent.style_config === 'string' ? JSON.parse(visualContent.style_config || '{}') : visualContent.style_config)
           : {};
         
+        const layersToSave = textLayers.map((l) => ({
+          ...l,
+          fontFamily: l.fontFamily || 'Arial',
+          fontWeight: l.fontWeight ?? 'bold',
+          fontStyle: l.fontStyle ?? 'normal',
+        }));
         await apiClient(`/template-block-contents/${visualContent.id}`, {
           method: 'PATCH',
           body: {
             style_config: JSON.stringify({
               ...existingStyle,
-              textLayers: textLayers,
+              textLayers: layersToSave,
               overlayImages: overlayImages,
             }),
           },
         });
-        
+
         showSuccess('✅ Yazılar kaydedildi!');
         await loadTemplate();
         setShowImageTextModal(false);
