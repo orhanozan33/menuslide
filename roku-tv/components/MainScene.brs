@@ -462,10 +462,21 @@ function hexToRokuColor(hex as string) as integer
     return Val("&h" + s)
 end function
 
+sub stopHeartbeat()
+    if m.heartbeatTimer <> invalid then
+        m.heartbeatTimer.control = "stop"
+        m.heartbeatTimer.unobserveField("fire")
+        m.top.removeChild(m.heartbeatTimer)
+        m.heartbeatTimer = invalid
+    end if
+end sub
+
 sub startHeartbeat()
-    if m.heartbeatTimer <> invalid then return
+    stopHeartbeat()
+    dur = m.refreshInterval
+    if dur < 5 then dur = 15
     m.heartbeatTimer = m.top.createChild("Timer")
-    m.heartbeatTimer.duration = m.refreshInterval
+    m.heartbeatTimer.duration = dur
     m.heartbeatTimer.repeat = true
     m.heartbeatTimer.observeField("fire", "onHeartbeat")
     m.heartbeatTimer.control = "start"
