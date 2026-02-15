@@ -317,11 +317,13 @@ export default function DisplayPage() {
     // Screenshot capture: mode=snapshot + rotationIndex → o slaytın canlı şablonunu göster (layout/carousel kullanma)
     if (isSnapshotMode && rotationIndexFromUrl != null && rotationIndexFromUrl >= 0) {
       snapshotExpectedIndexRef.current = rotationIndexFromUrl;
+      setSnapshotLayoutData(null);
       setCurrentTemplateData(null);
       setCurrentTemplateIndex(rotationIndexFromUrl);
       setLoading(true);
       (window as unknown as { __SNAPSHOT_READY__?: boolean }).__SNAPSHOT_READY__ = false;
-      loadScreenData(rotationIndexFromUrl);
+      loadInProgressRef.current = false;
+      loadScreenData(rotationIndexFromUrl, { snapshotMode: true });
       return () => {
         if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
       };
@@ -427,9 +429,13 @@ export default function DisplayPage() {
     return () => clearInterval(t);
   }, [token, viewAllowed]);
 
-  const loadScreenData = async (initialRotationIndex?: number) => {
+  const loadScreenData = async (
+    initialRotationIndex?: number,
+    options?: { snapshotMode?: boolean },
+  ) => {
     if (loadInProgressRef.current) return;
     loadInProgressRef.current = true;
+    const snapshotMode = options?.snapshotMode === true;
     try {
       const rotationIdx =
         initialRotationIndex !== undefined && initialRotationIndex >= 0
@@ -446,8 +452,14 @@ export default function DisplayPage() {
       }
       retryCountRef.current = 0;
       if ((data as any)?.notFound || !(data as any)?.screen) {
-        setScreenData(null);
-        setError(t('display_screen_not_found'));
+        if (!snapshotMode || snapshotExpectedIndexRef.current === rotationIdx) {
+          setScreenData(null);
+          setError(t('display_screen_not_found'));
+        }
+        return;
+      }
+      // Snapshot capture: sadece hâlâ beklenen rotation ise state güncelle (geç gelen eski istekleri yok say)
+      if (snapshotMode && rotationIdx !== undefined && snapshotExpectedIndexRef.current !== rotationIdx) {
         return;
       }
       setScreenData(data);
@@ -474,7 +486,9 @@ export default function DisplayPage() {
         setCurrentTemplateData(data);
       }
     } catch (err: any) {
-      setError(err?.message || t('display_screen_load_failed'));
+      if (!snapshotMode || snapshotExpectedIndexRef.current === rotationIdx) {
+        setError(err?.message || t('display_screen_load_failed'));
+      }
       const backoff = Math.min(
         2000 * Math.pow(2, retryCountRef.current),
         MAX_BACKOFF_MS,
@@ -483,7 +497,7 @@ export default function DisplayPage() {
       retryTimeoutRef.current = setTimeout(() => {
         retryTimeoutRef.current = null;
         loadInProgressRef.current = false;
-        loadScreenData();
+        loadScreenData(snapshotMode ? snapshotExpectedIndexRef.current : undefined, snapshotMode ? { snapshotMode: true } : undefined);
       }, backoff);
       return;
     } finally {
