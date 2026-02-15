@@ -114,7 +114,7 @@ export async function POST(request: Request) {
 
       const baseSlide = { duration, transition_effect: transitionEffect, transition_duration: transitionDuration };
       if (SLIDE_IMAGE_BASE && templateId) {
-        slides.push({ ...baseSlide, type: 'image', url: `${SLIDE_IMAGE_BASE}/slides/${screenId}/${templateId}-${index}.jpg` });
+        slides.push({ ...baseSlide, type: 'image', url: `${SLIDE_IMAGE_BASE}/slides/${screenId}/${templateId}-${index}-${versionParam}.jpg` });
       } else {
         slides.push({ ...baseSlide, type: 'text', title: 'Slide', description: '' });
       }

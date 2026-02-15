@@ -50,12 +50,16 @@ export async function uploadSlideToSpaces(
   }
   const suffix = versionParam ? `-${versionParam}` : '';
   const key = `slides/${screenId}/${templateId}-${rotationIndex}${suffix}.jpg`;
-  const meta = { Bucket: bucket, Body: buffer, ContentType: 'image/jpeg', ACL: 'public-read' as const, CacheControl: 'public, max-age=0, must-revalidate' };
-  await client.send(new PutObjectCommand({ ...meta, Key: key }));
-  if (versionParam) {
-    const legacyKey = `slides/${screenId}/${templateId}-${rotationIndex}.jpg`;
-    await client.send(new PutObjectCommand({ ...meta, Key: legacyKey }));
-  }
+  await client.send(
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      Body: buffer,
+      ContentType: 'image/jpeg',
+      ACL: 'public-read',
+      CacheControl: 'public, max-age=0, must-revalidate',
+    })
+  );
   return key;
 }
 
