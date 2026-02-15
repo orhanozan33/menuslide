@@ -313,3 +313,23 @@ textarea::placeholder {
 .partners-marquee-right-gap {
   animation: partners-marquee-right 50s linear infinite;
 }
+
+/* Template root: sabit 1920x1080, preview ve edit aynı ölçü. Global body stilleri bu alanı etkilemesin. */
+.template-root {
+  width: 1920px;
+  height: 1080px;
+  position: relative;
+  overflow: hidden;
+  box-sizing: border-box;
+  isolation: isolate;
+}
+.template-root canvas {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+/* Edit ekranında zoom/scale kullanıldığında layout hesaplaması doğru olsun */
+.template-root[data-scaled] {
+  transform-origin: top left;
+}

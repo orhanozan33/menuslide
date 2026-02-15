@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { sanitizeCanvasJsonForFabric, collectFontFamiliesFromFabricJson } from '@/components/FullEditorPreviewThumb';
 import { getGoogleFontsUrlForDisplayFamilies } from '@/lib/editor-fonts';
+import { TemplateRoot } from './TemplateRoot';
 
 /** Şablonda kullanılan fontları yükler; yükleme bitene kadar bekler (TV’de satır kırılımı editörle aynı olsun diye). */
 /** Fontlar zaten yüklüyse hazır olana kadar bekler (aynı şablon iki rotasyonda ikinci mount'ta duplicate link onload tetiklenmeyebilir). */
@@ -37,24 +38,38 @@ function loadFontsForDisplay(families: string[]): Promise<void> {
   });
 }
 
-/** Full Editor (Fabric) canvas_json'ı TV display için render eder. Şablondaki fontlar yüklenir; böylece ürün adı ve fiyat satır kırılımı editördeki gibi kalır. */
+/** Full Editor (Fabric) canvas_json render. Admin preview ve user edit aynı component; font hazır olmadan mount edilmez (document.fonts.ready). */
 export function FullEditorDisplay({ canvasJson, onReady }: { canvasJson: object; onReady?: () => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const onReadyRef = useRef(onReady);
   onReadyRef.current = onReady;
+  const [fontsReady, setFontsReady] = useState(false);
 
   useEffect(() => {
-    if (!canvasJson || typeof canvasJson !== 'object' || !containerRef.current) return;
-    const el = containerRef.current;
+    if (!canvasJson || typeof canvasJson !== 'object') return;
     const safeJson = sanitizeCanvasJsonForFabric(canvasJson as Record<string, unknown>) as object;
     const families = collectFontFamiliesFromFabricJson(safeJson as Record<string, unknown>);
+    let cancelled = false;
+    loadFontsForDisplay(families)
+      .then(() => (typeof document.fonts.ready !== 'undefined' ? document.fonts.ready : Promise.resolve()))
+      .then(() => {
+        if (!cancelled) setFontsReady(true);
+      });
+    return () => {
+      cancelled = true;
+      setFontsReady(false);
+    };
+  }, [canvasJson]);
+
+  useEffect(() => {
+    if (!fontsReady || !canvasJson || typeof canvasJson !== 'object' || !containerRef.current) return;
+    const el = containerRef.current;
+    const safeJson = sanitizeCanvasJsonForFabric(canvasJson as Record<string, unknown>) as object;
     let canvas: import('fabric').Canvas | null = null;
     let cancelled = false;
 
     (async () => {
       try {
-        await loadFontsForDisplay(families);
-        if (cancelled) return;
         const canvasEl = document.createElement('canvas');
         canvasEl.width = 1920;
         canvasEl.height = 1080;
@@ -95,13 +110,15 @@ export function FullEditorDisplay({ canvasJson, onReady }: { canvasJson: object;
       }
       if (el) el.innerHTML = '';
     };
-  }, [canvasJson]);
+  }, [fontsReady, canvasJson]);
 
   return (
-    <div
-      ref={containerRef}
-      className="w-full h-full flex items-center justify-center overflow-hidden [&_canvas]:max-w-full [&_canvas]:max-h-full [&_canvas]:object-contain"
-      style={{ width: '100%', height: '100%', minHeight: 0 }}
-    />
+    <TemplateRoot className="w-full h-full flex items-center justify-center overflow-hidden" style={{ minHeight: 0 }}>
+      <div
+        ref={containerRef}
+        className="w-full h-full flex items-center justify-center overflow-hidden [&_canvas]:max-w-full [&_canvas]:max-h-full [&_canvas]:object-contain"
+        style={{ width: '100%', height: '100%', minHeight: 0 }}
+      />
+    </TemplateRoot>
   );
 }

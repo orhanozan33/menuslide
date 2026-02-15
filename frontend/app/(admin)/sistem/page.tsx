@@ -13,7 +13,8 @@ import { FONT_GROUPS, FONT_OPTIONS, GOOGLE_FONT_CHUNKS, getGoogleFontsUrl } from
 import { apiClient } from '@/lib/api';
 import { useAdminUser } from '@/lib/AdminUserContext';
 import { useToast } from '@/lib/ToastContext';
-import { FullEditorPreviewThumb, sanitizeCanvasJsonForFabric, sanitizeCanvasJsonForFabricWithVideoRestore, getVideoSrcFromFabricObject, loadFontsForCanvasJson, normalizeFontFamily } from '@/components/FullEditorPreviewThumb';
+import { FullEditorDisplay } from '@/components/display/FullEditorDisplay';
+import { sanitizeCanvasJsonForFabric, sanitizeCanvasJsonForFabricWithVideoRestore, getVideoSrcFromFabricObject, loadFontsForCanvasJson, normalizeFontFamily } from '@/components/FullEditorPreviewThumb';
 
 const OBJECT_CONFIG = { left: 200, top: 200 };
 const DRAFT_KEY = 'sistem-editor-draft';
@@ -564,8 +565,9 @@ export default function SistemPage() {
             if (!fabricCanvas) return;
             const raw = tpl.canvas_json as Record<string, unknown>;
             const safe = sanitizeCanvasJsonForFabric(raw) as object;
-            // Fontları önce yükle; yoksa Fabric metin boyutlarını yanlış hesaplar, yazılar kayar/kaybolur.
-            loadFontsForCanvasJson(raw).then(() => {
+            // Fontları önce yükle; font hazır olmadan render yapma (pixel-perfect, layout shift yok).
+            loadFontsForCanvasJson(raw).then(async () => {
+              if (typeof document.fonts.ready !== 'undefined') await document.fonts.ready;
               const c = fabricCanvasRef.current;
               if (!c) return;
               c.loadFromJSON(safe).then(() => {
@@ -2246,12 +2248,12 @@ export default function SistemPage() {
               <div className="bg-background rounded-lg shadow-xl border max-w-lg w-full overflow-hidden" onClick={(e) => e.stopPropagation()}>
                 <div className="p-3">
                   <p className="text-sm font-medium text-foreground truncate mb-2">{templatePreviewItem.name}</p>
-                  <div className="aspect-video rounded border border-gray-200 overflow-hidden bg-black mb-3">
+                  <div className="aspect-video rounded border border-gray-200 overflow-hidden bg-black mb-3 flex items-center justify-center">
                     {templatePreviewItem.preview_image ? (
                       <img src={templatePreviewItem.preview_image} alt={templatePreviewItem.name} className="w-full h-full object-contain" />
                     ) : templatePreviewItem.canvas_json && typeof templatePreviewItem.canvas_json === 'object' ? (
-                      <div className="w-full h-full min-h-[200px]">
-                        <FullEditorPreviewThumb canvasJson={templatePreviewItem.canvas_json as object} />
+                      <div className="w-full h-full min-h-[200px] [&_.template-root]:max-w-full [&_.template-root]:max-h-full [&_.template-root]:!w-full [&_.template-root]:!h-full [&_.template-root]:!max-w-full [&_.template-root]:!max-h-full">
+                        <FullEditorDisplay canvasJson={templatePreviewItem.canvas_json as object} />
                       </div>
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-gray-400">Önizleme yok</div>
@@ -2267,6 +2269,8 @@ export default function SistemPage() {
                         }
                         try {
                           const raw = templatePreviewItem.canvas_json as Record<string, unknown>;
+                          await loadFontsForCanvasJson(raw);
+                          if (typeof document.fonts.ready !== 'undefined') await document.fonts.ready;
                           const safe = sanitizeCanvasJsonForFabricWithVideoRestore(raw);
                           const reviver = (serialized: Record<string, unknown>, instance: unknown) => {
                             if (serialized?.__videoSrc != null && instance != null && typeof instance === 'object')
@@ -2820,6 +2824,7 @@ export default function SistemPage() {
           >
             <div
               className={`shadow-2xl bg-white ring-2 ring-slate-300 overflow-hidden flex items-center justify-center w-full ${showTvPreviewModal ? 'h-full min-h-0 [&_[data-fabric=wrapper]]:!w-full [&_[data-fabric=wrapper]]:!h-full [&_canvas]:!w-full [&_canvas]:!h-full [&_canvas]:!object-cover' : 'aspect-video max-w-full max-h-full [&_[data-fabric=wrapper]]:!w-full [&_[data-fabric=wrapper]]:!h-full [&_[data-fabric=wrapper]]:!flex [&_[data-fabric=wrapper]]:!items-center [&_[data-fabric=wrapper]]:!justify-center [&_canvas]:!w-full [&_canvas]:!h-full'}`}
+              style={{ transformOrigin: 'top left' }}
               onPointerDownCapture={() => (fabricCanvasRef.current as { calcOffset?: () => void })?.calcOffset?.()}
             >
               <canvas

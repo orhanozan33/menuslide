@@ -43,14 +43,14 @@ for (let i = 0; i < GOOGLE_FONT_FAMILIES_FLAT.length; i += CHUNK_SIZE) {
   GOOGLE_FONT_CHUNKS.push(GOOGLE_FONT_FAMILIES_FLAT.slice(i, i + CHUNK_SIZE));
 }
 
-/** Tek bir Google Fonts CSS2 URL'i oluşturur (en fazla CHUNK_SIZE aile) */
-export function getGoogleFontsUrl(families: string[]): string {
+/** Tek bir Google Fonts CSS2 URL'i oluşturur (en fazla CHUNK_SIZE aile). display=swap | block (block = font hazır olana kadar metin gösterme, layout shift yok). */
+export function getGoogleFontsUrl(families: string[], display: 'swap' | 'block' = 'swap'): string {
   if (families.length === 0) return '';
   const query = families.map((f) => `family=${f}`).join('&');
-  return `https://fonts.googleapis.com/css2?${query}&display=swap`;
+  return `https://fonts.googleapis.com/css2?${query}&display=${display}`;
 }
 
-/** Şablonda kullanılan font aileleri (display adı, örn. "Dancing Script") → TV/display sayfasında yüklenecek Google Fonts URL’i. Sadece Google'da olan fontlar istenir; Times New Roman, sans-serif, Impact vb. sistem/generic fontlar atlanır (403/400 hataları önlenir). */
+/** Şablonda kullanılan font aileleri (display adı, örn. "Dancing Script") → TV/display sayfasında yüklenecek Google Fonts URL’i. display=block kullanır (font hazır olmadan render yok, layout shift yok). */
 export function getGoogleFontsUrlForDisplayFamilies(displayFamilies: string[]): string {
   const unique = [...new Set(
     displayFamilies.filter(
@@ -59,7 +59,7 @@ export function getGoogleFontsUrlForDisplayFamilies(displayFamilies: string[]): 
   )];
   if (unique.length === 0) return '';
   const forUrl = unique.slice(0, 20).map((f) => `${f.trim().replace(/\s+/g, '+')}:ital,wght@0,400;0,700;1,400;1,700`);
-  return getGoogleFontsUrl(forUrl);
+  return getGoogleFontsUrl(forUrl, 'block');
 }
 
 export const TEXT_ICON_OPTIONS = [
