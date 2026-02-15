@@ -20,7 +20,9 @@ function loadFontsForDisplay(families: string[]): Promise<void> {
         loads.push(document.fonts.load(`700 16px "${f}"`).catch(() => {}));
       }
       Promise.all(loads)
-        .then(() => (typeof document.fonts.ready !== 'undefined' ? document.fonts.ready : Promise.resolve()))
+        .then(async () => {
+          if (typeof document.fonts.ready !== 'undefined') await document.fonts.ready;
+        })
         .then(() => resolve());
     };
     link.onerror = () => resolve();
