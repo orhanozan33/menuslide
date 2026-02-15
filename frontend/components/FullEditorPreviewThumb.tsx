@@ -62,13 +62,19 @@ export function stripVideoLikeObjects(json: Record<string, unknown>, removeAllIm
   return obj;
 }
 
+/** Font adından tırnakları kaldırır (Fabric bazen "Dancing Script" olarak saklar). */
+export function normalizeFontFamily(name: string): string {
+  return name.replace(/^["']|["']$/g, '').trim();
+}
+
 /** Fabric canvas JSON içinden kullanılan font ailelerini toplar (gruplar dahil). */
 export function collectFontFamiliesFromFabricJson(obj: Record<string, unknown>): string[] {
   const families: string[] = [];
   const type = String(obj?.type ?? '');
   const fontFamily = obj?.fontFamily;
   if (type && ['text', 'i-text', 'textbox', 'Textbox'].includes(type) && typeof fontFamily === 'string' && fontFamily.trim()) {
-    families.push(fontFamily.trim());
+    const clean = normalizeFontFamily(fontFamily);
+    if (clean) families.push(clean);
   }
   const objects = obj?.objects;
   if (Array.isArray(objects)) {
@@ -98,9 +104,33 @@ export function loadFontsForCanvasJson(json: Record<string, unknown>): Promise<v
   });
 }
 
-/** canvas_json'ı Fabric'da güvenle yüklenebilir hale getirir: video src'leri placeholder ile değiştirilir. Tüm loadFromJSON öncesi kullanılmalı. */
+/** JSON içindeki text nesnelerinin fontFamily değerini normalize eder (Fabric tırnaklı adları tanımaz). */
+function normalizeFontFamiliesInValue(value: unknown): unknown {
+  if (value === null || value === undefined) return value;
+  if (Array.isArray(value)) return value.map(normalizeFontFamiliesInValue);
+  if (typeof value === 'object') {
+    const o = value as Record<string, unknown>;
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(o)) {
+      if (k === 'fontFamily' && typeof v === 'string' && ['text', 'i-text', 'textbox', 'Textbox'].includes(String(o?.type ?? ''))) {
+        out[k] = normalizeFontFamily(v) || v.trim();
+      } else if (k === 'objects' && Array.isArray(v)) {
+        out[k] = v.map(normalizeFontFamiliesInValue);
+      } else if (v !== null && typeof v === 'object') {
+        out[k] = normalizeFontFamiliesInValue(v);
+      } else {
+        out[k] = v;
+      }
+    }
+    return out;
+  }
+  return value;
+}
+
+/** canvas_json'ı Fabric'da güvenle yüklenebilir hale getirir: video src'leri placeholder, fontFamily tırnakları temizlenir. Tüm loadFromJSON öncesi kullanılmalı. */
 export function sanitizeCanvasJsonForFabric(json: Record<string, unknown>): Record<string, unknown> {
-  return sanitizeVideoSources(JSON.parse(JSON.stringify(json))) as Record<string, unknown>;
+  const noVideo = sanitizeVideoSources(JSON.parse(JSON.stringify(json))) as Record<string, unknown>;
+  return normalizeFontFamiliesInValue(noVideo) as Record<string, unknown>;
 }
 
 const VIDEO_SRC_KEY = '__videoSrc';

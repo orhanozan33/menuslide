@@ -13,7 +13,7 @@ import { FONT_GROUPS, FONT_OPTIONS, GOOGLE_FONT_CHUNKS, getGoogleFontsUrl } from
 import { apiClient } from '@/lib/api';
 import { useAdminUser } from '@/lib/AdminUserContext';
 import { useToast } from '@/lib/ToastContext';
-import { FullEditorPreviewThumb, sanitizeCanvasJsonForFabric, sanitizeCanvasJsonForFabricWithVideoRestore, getVideoSrcFromFabricObject, loadFontsForCanvasJson } from '@/components/FullEditorPreviewThumb';
+import { FullEditorPreviewThumb, sanitizeCanvasJsonForFabric, sanitizeCanvasJsonForFabricWithVideoRestore, getVideoSrcFromFabricObject, loadFontsForCanvasJson, normalizeFontFamily } from '@/components/FullEditorPreviewThumb';
 
 const OBJECT_CONFIG = { left: 200, top: 200 };
 const DRAFT_KEY = 'sistem-editor-draft';
@@ -463,11 +463,12 @@ export default function SistemPage() {
         setAnimEnd(data.animEnd ?? 'none');
         if (['text', 'i-text', 'textbox', 'Textbox'].includes(type)) {
           const textContent = (o as { text?: string }).text ?? '';
+          const fontFamily = normalizeFontFamily(o.fontFamily ?? 'sans-serif') || 'sans-serif';
           setSelectedProps({
             text: textContent,
             fontSize: o.fontSize ?? 32,
             fill,
-            fontFamily: o.fontFamily ?? 'sans-serif',
+            fontFamily,
             fontWeight: o.fontWeight ?? 400,
             fontStyle: o.fontStyle ?? 'normal',
           });
@@ -569,22 +570,19 @@ export default function SistemPage() {
               if (!c) return;
               c.loadFromJSON(safe).then(() => {
                 c.renderAll();
-                requestAnimationFrame(() => {
-                  constrainAllObjects(c);
-                  ensureSingleLineTextboxWidths(c);
-                  separateOverlappingTextObjects(c);
-                  c.renderAll();
-                  const name = tpl.name ?? '';
-                  setDesignTitle(name);
-                  loadedTemplateNameRef.current = name;
-                  if (tpl.id) setSavedTemplateId(tpl.id);
-                  setSaved(false);
-                  pushHistoryRef.current();
-                  saveDraftRef.current();
-                  const u = new URL(window.location.href);
-                  u.searchParams.delete('templateId');
-                  window.history.replaceState({}, '', u.pathname + u.search);
-                });
+                // Kaydedilmiş şablonda ensureSingleLineTextboxWidths ve separateOverlappingTextObjects
+                // layout'u bozar (örn. menüde isim + fiyat yan yana iki nesne, overlap sayılıp taşınıyor).
+                constrainAllObjects(c);
+                const name = tpl.name ?? '';
+                setDesignTitle(name);
+                loadedTemplateNameRef.current = name;
+                if (tpl.id) setSavedTemplateId(tpl.id);
+                setSaved(false);
+                pushHistoryRef.current();
+                saveDraftRef.current();
+                const u = new URL(window.location.href);
+                u.searchParams.delete('templateId');
+                window.history.replaceState({}, '', u.pathname + u.search);
               }).catch(() => {});
             }).catch(() => {});
           })

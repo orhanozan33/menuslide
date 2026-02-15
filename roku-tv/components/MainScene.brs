@@ -200,7 +200,10 @@ sub renderLayout(layout as object)
     m.nextSlidePoster.uri = ""
     clearLayoutGroup()
     if layout.backgroundColor <> invalid and layout.backgroundColor <> "" then
-        m.bg.color = hexToRokuColor(layout.backgroundColor)
+        bgCol = hexToRokuColor(layout.backgroundColor)
+        m.bg.color = bgCol
+        m.currentSlidePoster.color = bgCol
+        m.nextSlidePoster.color = bgCol
     end if
     m.slides = slides
     ' Re-render (version change): keep current position so all slides keep rotating; don't jump back to 0
@@ -345,7 +348,9 @@ sub onSlideTimerFire()
         if m.nextSlidePoster.uri = invalid then m.nextSlidePoster.uri = nextSlide.Url
         m.nextSlidePoster.visible = true
         m.nextSlidePoster.translation = [1920, 0]
+        m.nextSlidePoster.opacity = 1
         m.slideLeftAnim.duration = getTransitionSec(nextSlide)
+        m.slideLeftAnim.control = "stop"
         m.slideLeftAnim.control = "start"
     else if nextType = "image" and effect = "slide-right" and m.slideRightAnim <> invalid then
         m.slideTimer.control = "stop"
@@ -355,7 +360,9 @@ sub onSlideTimerFire()
         if m.nextSlidePoster.uri = invalid then m.nextSlidePoster.uri = nextSlide.Url
         m.nextSlidePoster.visible = true
         m.nextSlidePoster.translation = [-1920, 0]
+        m.nextSlidePoster.opacity = 1
         m.slideRightAnim.duration = getTransitionSec(nextSlide)
+        m.slideRightAnim.control = "stop"
         m.slideRightAnim.control = "start"
     else if nextType = "image" and effect = "fade" and m.fadeTransition <> invalid then
         m.slideTimer.control = "stop"
@@ -366,6 +373,7 @@ sub onSlideTimerFire()
         m.nextSlidePoster.translation = [0, 0]
         m.nextSlidePoster.visible = true
         m.fadeTransition.duration = getTransitionSec(nextSlide)
+        m.fadeTransition.control = "stop"
         m.fadeTransition.control = "start"
     else
         showSlide(nextIndex)

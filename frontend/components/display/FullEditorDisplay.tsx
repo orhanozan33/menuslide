@@ -1,25 +1,8 @@
 'use client';
 
 import React, { useEffect, useRef } from 'react';
-import { sanitizeCanvasJsonForFabric } from '@/components/FullEditorPreviewThumb';
+import { sanitizeCanvasJsonForFabric, collectFontFamiliesFromFabricJson } from '@/components/FullEditorPreviewThumb';
 import { getGoogleFontsUrlForDisplayFamilies } from '@/lib/editor-fonts';
-
-/** Fabric canvas JSON içinden kullanılan font ailelerini toplar (gruplar dahil). */
-function collectFontFamiliesFromFabricJson(obj: Record<string, unknown>): string[] {
-  const families: string[] = [];
-  const type = String(obj?.type ?? '');
-  const fontFamily = obj?.fontFamily;
-  if (type && ['text', 'i-text', 'textbox', 'Textbox'].includes(type) && typeof fontFamily === 'string' && fontFamily.trim()) {
-    families.push(fontFamily.trim());
-  }
-  const objects = obj?.objects;
-  if (Array.isArray(objects)) {
-    for (const item of objects) {
-      if (item && typeof item === 'object') families.push(...collectFontFamiliesFromFabricJson(item as Record<string, unknown>));
-    }
-  }
-  return families;
-}
 
 /** Şablonda kullanılan fontları yükler; yükleme bitene kadar bekler (TV’de satır kırılımı editörle aynı olsun diye). */
 /** Tek satırlık (içinde \n yok) Textbox genişliklerini metnin gerçek genişliğine çeker; böylece "LOREM IPSUM   $0.00" yayında satır kırılmaz. */
