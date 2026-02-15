@@ -27,7 +27,8 @@ export async function GET(
       return NextResponse.json({ error: 'SERVER_NOT_CONFIGURED' }, { status: 503 });
     }
 
-    let screen: { id: string; updated_at?: string; layout_snapshot_version?: string | null } | null = null;
+    type ScreenRow = { id: string; updated_at?: string; layout_snapshot_version?: string | null };
+    let screen: ScreenRow | null = null;
     const { data: bySlug } = await supabase
       .from('screens')
       .select('id, updated_at, layout_snapshot_version')
@@ -35,7 +36,7 @@ export async function GET(
       .eq('public_slug', displayId)
       .limit(1)
       .maybeSingle();
-    if (bySlug) screen = bySlug as typeof screen;
+    if (bySlug) screen = bySlug as ScreenRow;
     if (!screen) {
       const { data: byToken } = await supabase
         .from('screens')
@@ -44,7 +45,7 @@ export async function GET(
         .eq('public_token', displayId)
         .limit(1)
         .maybeSingle();
-      if (byToken) screen = byToken as typeof screen;
+      if (byToken) screen = byToken as ScreenRow;
     }
     if (!screen) {
       const { data: byCode } = await supabase
@@ -54,7 +55,7 @@ export async function GET(
         .eq('broadcast_code', displayId)
         .limit(1)
         .maybeSingle();
-      if (byCode) screen = byCode as typeof screen;
+      if (byCode) screen = byCode as ScreenRow;
     }
     if (!screen && /^[a-f0-9-]{36}$/i.test(displayId)) {
       const { data: byId } = await supabase
@@ -64,7 +65,7 @@ export async function GET(
         .eq('id', displayId)
         .limit(1)
         .maybeSingle();
-      if (byId) screen = byId as typeof screen;
+      if (byId) screen = byId as ScreenRow;
     }
     if (!screen) {
       const { data: byNum } = await supabase
@@ -74,7 +75,7 @@ export async function GET(
         .eq('broadcast_code', /^\d+$/.test(displayId) ? parseInt(displayId, 10) : displayId)
         .limit(1)
         .maybeSingle();
-      if (byNum) screen = byNum as typeof screen;
+      if (byNum) screen = byNum as ScreenRow;
     }
 
     if (!screen) {
