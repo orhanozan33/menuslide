@@ -4,11 +4,11 @@ export type RotationForCapture = {
   display_duration?: number;
 };
 
-/** Her şablon geçişinden 3 sn sonra ekran görüntüsü; tek canlı sayfa, her zaman güncel resim. */
-const LIVE_CAPTURE_SETTLE_MS = 3000;
+/** Her şablon göründükten 10 sn sonra ekran görüntüsü; tek canlı sayfa, her zaman güncel resim. */
+const LIVE_CAPTURE_SETTLE_MS = 10000;
 
 /**
- * Canlı sayfa: tek URL açılır, her template geçişinden 3 sn sonra 1 resim alınır (Puppeteer).
+ * Canlı sayfa: tek URL açılır, her template göründükten 10 sn sonra 1 resim alınır (Puppeteer).
  * Kullanıcı URL açmasa bile arka planda güncel slaytlar üretilir.
  */
 export async function captureDisplaySlidesFromLivePage(options: {

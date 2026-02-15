@@ -240,6 +240,23 @@ sub renderLayout(layout as object)
     m.status.visible = false
     startHeartbeat()
     startKeepAlive()
+    startDisplayRefresh()
+end sub
+
+' TV ekran koruyucudan uyaninca Poster icerik kaybolabiliyor; periyodik yenileme ile yayin geri gelir
+sub startDisplayRefresh()
+    if m.displayRefreshTimer <> invalid then return
+    m.displayRefreshTimer = m.top.createChild("Timer")
+    m.displayRefreshTimer.duration = 60
+    m.displayRefreshTimer.repeat = true
+    m.displayRefreshTimer.observeField("fire", "onDisplayRefreshFire")
+    m.displayRefreshTimer.control = "start"
+end sub
+
+sub onDisplayRefreshFire()
+    if m.slides = invalid or m.slides.count() = 0 then return
+    showSlide(m.slideIndex)
+    preloadNextImage()
 end sub
 
 function getTransitionSec(slide as object) as float

@@ -104,7 +104,7 @@ export async function generateSlidesForScreen(screenId: string): Promise<Generat
   const usePuppeteerLoop = !process.env.VERCEL;
 
   if (usePuppeteerLoop) {
-    // Canlı sayfa: tek URL açılır, her template geçişinden 3 sn sonra 1 resim alınır
+    // Canlı sayfa: tek URL açılır, her template göründükten 10 sn sonra 1 resim alınır
     const buffers = await captureDisplaySlidesFromLivePage({
       baseUrl,
       slug,
