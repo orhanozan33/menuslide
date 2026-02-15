@@ -497,11 +497,11 @@ sub startHeartbeat()
     m.heartbeatTimer.control = "start"
 end sub
 
-' Ekran koruyucuyu onlemek icin periyodik tuş simülasyonu (ECP localhost)
+' Ekran koruyucuyu / TV uygku modunu onlemek icin periyodik tuş simülasyonu (ECP localhost)
 sub startKeepAlive()
     if m.keepAliveTimer <> invalid then return
     m.keepAliveTimer = m.top.createChild("Timer")
-    m.keepAliveTimer.duration = 240
+    m.keepAliveTimer.duration = 60
     m.keepAliveTimer.repeat = true
     m.keepAliveTimer.observeField("fire", "onKeepAliveFire")
     m.keepAliveTimer.control = "start"

@@ -67,15 +67,44 @@ export function normalizeFontFamily(name: string): string {
   return name.replace(/^["']|["']$/g, '').trim();
 }
 
-/** Fabric canvas JSON içinden kullanılan font ailelerini toplar (gruplar dahil). */
+const FABRIC_TEXT_TYPES = new Set([
+  'text', 'itext', 'textbox', 'fabrictext',
+]);
+
+/** styles objesinden fontFamily değerlerini toplar (Fabric per-character styles). */
+function collectFontFamiliesFromStyles(styles: unknown): string[] {
+  const families: string[] = [];
+  if (styles == null || typeof styles !== 'object') return families;
+  const obj = styles as Record<string, unknown>;
+  for (const v of Object.values(obj)) {
+    if (v != null && typeof v === 'object') {
+      const inner = v as Record<string, unknown>;
+      const ff = inner?.fontFamily;
+      if (typeof ff === 'string' && ff.trim()) {
+        const clean = normalizeFontFamily(ff);
+        if (clean) families.push(clean);
+      }
+      families.push(...collectFontFamiliesFromStyles(v));
+    }
+  }
+  return families;
+}
+
+/** Fabric canvas JSON içinden kullanılan font ailelerini toplar (gruplar, styles dahil). */
 export function collectFontFamiliesFromFabricJson(obj: Record<string, unknown>): string[] {
   const families: string[] = [];
-  const type = String(obj?.type ?? '');
+  const type = String(obj?.type ?? '').toLowerCase().replace('-', '');
   const fontFamily = obj?.fontFamily;
-  if (type && ['text', 'i-text', 'textbox', 'Textbox'].includes(type) && typeof fontFamily === 'string' && fontFamily.trim()) {
-    const clean = normalizeFontFamily(fontFamily);
-    if (clean) families.push(clean);
+
+  if (type && FABRIC_TEXT_TYPES.has(type)) {
+    if (typeof fontFamily === 'string' && fontFamily.trim()) {
+      const clean = normalizeFontFamily(fontFamily);
+      if (clean) families.push(clean);
+    }
+    const styles = obj?.styles;
+    if (styles) families.push(...collectFontFamiliesFromStyles(styles));
   }
+
   const objects = obj?.objects;
   if (Array.isArray(objects)) {
     for (const item of objects) {
@@ -114,7 +143,7 @@ export function loadFontsForCanvasJson(json: Record<string, unknown>): Promise<v
   });
 }
 
-/** JSON içindeki text nesnelerinin fontFamily değerini normalize eder (Fabric tırnaklı adları tanımaz). */
+/** JSON içindeki text nesnelerinin fontFamily değerini normalize eder (Fabric tırnaklı adları tanımaz). styles içindeki fontFamily de dahil. */
 function normalizeFontFamiliesInValue(value: unknown): unknown {
   if (value === null || value === undefined) return value;
   if (Array.isArray(value)) return value.map(normalizeFontFamiliesInValue);
@@ -122,10 +151,12 @@ function normalizeFontFamiliesInValue(value: unknown): unknown {
     const o = value as Record<string, unknown>;
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(o)) {
-      if (k === 'fontFamily' && typeof v === 'string' && ['text', 'i-text', 'textbox', 'Textbox'].includes(String(o?.type ?? ''))) {
+      if (k === 'fontFamily' && typeof v === 'string') {
         out[k] = normalizeFontFamily(v) || v.trim();
       } else if (k === 'objects' && Array.isArray(v)) {
         out[k] = v.map(normalizeFontFamiliesInValue);
+      } else if (k === 'styles' && v !== null && typeof v === 'object') {
+        out[k] = normalizeFontFamiliesInStyles(v as Record<string, unknown>);
       } else if (v !== null && typeof v === 'object') {
         out[k] = normalizeFontFamiliesInValue(v);
       } else {
@@ -135,6 +166,32 @@ function normalizeFontFamiliesInValue(value: unknown): unknown {
     return out;
   }
   return value;
+}
+
+function normalizeFontFamiliesInStyles(styles: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [lineKey, lineVal] of Object.entries(styles)) {
+    if (lineVal != null && typeof lineVal === 'object') {
+      const lineObj = lineVal as Record<string, unknown>;
+      const lineOut: Record<string, unknown> = {};
+      for (const [charKey, charVal] of Object.entries(lineObj)) {
+        if (charVal != null && typeof charVal === 'object') {
+          const charObj = charVal as Record<string, unknown>;
+          const charOut = { ...charObj };
+          if (typeof charObj.fontFamily === 'string') {
+            charOut.fontFamily = normalizeFontFamily(charObj.fontFamily) || charObj.fontFamily.trim();
+          }
+          lineOut[charKey] = charOut;
+        } else {
+          lineOut[charKey] = charVal;
+        }
+      }
+      out[lineKey] = lineOut;
+    } else {
+      out[lineKey] = lineVal;
+    }
+  }
+  return out;
 }
 
 /** canvas_json'ı Fabric'da güvenle yüklenebilir hale getirir: video src'leri placeholder, fontFamily tırnakları temizlenir. Tüm loadFromJSON öncesi kullanılmalı. */
