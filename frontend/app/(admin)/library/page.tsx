@@ -126,6 +126,7 @@ export default function LibraryPage() {
   const [previewItem, setPreviewItem] = useState<ContentLibraryItem | null>(null);
   const [removingDuplicates, setRemovingDuplicates] = useState(false);
   const [confirmModal, setConfirmModal] = useState<{ message: string; onConfirm: () => void } | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [pageTitle, setPageTitle] = useState('');
   const [formData, setFormData] = useState<{
     name: string;
@@ -291,7 +292,54 @@ export default function LibraryPage() {
     try {
       setSaving(true);
       await apiClient(`/content-library/${id}`, { method: 'DELETE' });
+      setSelectedIds((prev) => { const n = new Set(prev); n.delete(id); return n; });
       setSuccess(t('library_content_deleted'));
+      setTimeout(() => setSuccess(''), 2000);
+      loadData();
+      if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('content-library-updated'));
+    } catch (err: any) {
+      setError(err?.message || t('common_delete_failed'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAllFiltered = () => {
+    const ids = new Set(filteredItems.map((i) => i.id));
+    setSelectedIds((prev) => (prev.size === filteredItems.length ? new Set() : ids));
+  };
+
+  const handleDeleteSelected = () => {
+    const n = selectedIds.size;
+    if (n === 0) return;
+    setConfirmModal({
+      message: n === 1 ? t('library_confirm_delete_content') : t('library_confirm_delete_selected', { n }),
+      onConfirm: () => {
+        setConfirmModal(null);
+        runDeleteSelected();
+      },
+    });
+  };
+
+  const runDeleteSelected = async () => {
+    const ids = Array.from(selectedIds);
+    if (!ids.length) return;
+    try {
+      setSaving(true);
+      for (const id of ids) {
+        await apiClient(`/content-library/${id}`, { method: 'DELETE' });
+      }
+      setSelectedIds(new Set());
+      setSuccess(ids.length === 1 ? t('library_content_deleted') : `${ids.length} öğe silindi.`);
       setTimeout(() => setSuccess(''), 2000);
       loadData();
       if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('content-library-updated'));
@@ -340,16 +388,26 @@ export default function LibraryPage() {
       const fd = new FormData();
       fd.append('file', file);
       const up = await fetch('/api/upload', { method: 'POST', body: fd });
-      const upJson = await up.json();
+      const text = await up.text();
+      let upJson: { error?: string; assets?: { src: string }[]; data?: { src: string }[] } = {};
+      try {
+        upJson = text ? JSON.parse(text) : {};
+      } catch {
+        const msg = up.status === 413 || /request entity|too large|413/i.test(text)
+          ? 'Dosya boyutu çok büyük (413).'
+          : 'Sunucu JSON döndürmedi. Supabase Storage yapılandırmasını kontrol edin.';
+        setError(t('library_upload_supabase_required', { msg }));
+        return;
+      }
       const src = upJson?.assets?.[0]?.src || upJson?.data?.[0]?.src;
       if (src) {
         setFormData((f) => ({ ...f, url: src }));
         return;
       }
-      const errMsg = upJson?.error || 'Upload failed';
+      const errMsg = upJson?.error || (up.status === 413 ? 'Dosya boyutu çok büyük' : 'Yükleme başarısız');
       setError(t('library_upload_supabase_required', { msg: errMsg }));
     } catch (err: any) {
-      setError(t('library_upload_supabase_required', { msg: err?.message || 'Upload failed' }));
+      setError(t('library_upload_supabase_required', { msg: err?.message || 'Yükleme başarısız' }));
     }
   };
 
@@ -537,6 +595,25 @@ export default function LibraryPage() {
             >
               + {t('common_add_content')}
             </button>
+            {filteredItems.length > 0 && (
+              <button
+                type="button"
+                onClick={selectAllFiltered}
+                className="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white text-sm rounded-lg font-medium"
+              >
+                {selectedIds.size === filteredItems.length ? t('library_clear_selection') : t('library_select_all')}
+              </button>
+            )}
+            {selectedIds.size > 0 && (
+              <button
+                type="button"
+                onClick={handleDeleteSelected}
+                disabled={saving}
+                className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-sm rounded-lg font-medium disabled:opacity-50"
+              >
+                {saving ? t('common_loading') : `${t('library_delete_selected')} (${selectedIds.size})`}
+              </button>
+            )}
           </div>
         </div>
 
@@ -614,9 +691,17 @@ export default function LibraryPage() {
                   onDrop={(e) => onDrop(e, item.id)}
                   onDragEnd={() => setDraggedId(null)}
                   className={`group relative flex flex-col bg-slate-700/50 rounded-xl overflow-hidden border-2 cursor-grab active:cursor-grabbing transition-all ${
-                    draggedId === item.id ? 'opacity-50 scale-95' : 'border-transparent hover:border-slate-500'
+                    draggedId === item.id ? 'opacity-50 scale-95' : selectedIds.has(item.id) ? 'border-blue-400 ring-2 ring-blue-400/50' : 'border-transparent hover:border-slate-500'
                   }`}
                 >
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); e.preventDefault(); toggleSelect(item.id); }}
+                    className="absolute top-2 left-2 z-10 w-6 h-6 rounded border-2 bg-slate-800/90 flex items-center justify-center border-slate-500 hover:border-white focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    title={selectedIds.has(item.id) ? t('library_clear_selection') : t('library_select')}
+                  >
+                    {selectedIds.has(item.id) ? <span className="text-blue-400 text-sm">✓</span> : null}
+                  </button>
                   <div
                     className="aspect-square bg-slate-600 cursor-pointer flex-shrink-0"
                     onClick={(e) => { e.stopPropagation(); setPreviewItem(item); }}

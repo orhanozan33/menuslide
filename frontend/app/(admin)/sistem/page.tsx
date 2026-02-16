@@ -15,6 +15,7 @@ import { useAdminUser } from '@/lib/AdminUserContext';
 import { useToast } from '@/lib/ToastContext';
 import { FullEditorDisplay } from '@/components/display/FullEditorDisplay';
 import { sanitizeCanvasJsonForFabric, sanitizeCanvasJsonForFabricWithVideoRestore, getVideoSrcFromFabricObject, loadFontsForCanvasJson, normalizeFontFamily } from '@/components/FullEditorPreviewThumb';
+import { resolveMediaUrl } from '@/lib/resolveMediaUrl';
 
 const OBJECT_CONFIG = { left: 200, top: 200 };
 const DRAFT_KEY = 'sistem-editor-draft';
@@ -274,6 +275,8 @@ export default function SistemPage() {
   const [overwriteConfirm, setOverwriteConfirm] = useState<{ id: string; name: string } | null>(null);
   const [fontPickerOpen, setFontPickerOpen] = useState(false);
   const fontPickerRef = useRef<HTMLDivElement>(null);
+  const [libraryShapeItems, setLibraryShapeItems] = useState<{ id: string; name: string; category: string; type: string; url?: string; content?: string }[]>([]);
+  const [libraryShapeLoading, setLibraryShapeLoading] = useState(false);
   const [savedTemplateId, setSavedTemplateId] = useState<string | null>(null);
   const [historyTick, setHistoryTick] = useState(0);
   const [layersKey, setLayersKey] = useState(0);
@@ -845,6 +848,75 @@ export default function SistemPage() {
     window.addEventListener('content-library-updated', onUpdate);
     return () => window.removeEventListener('content-library-updated', onUpdate);
   }, [refreshUploadsList, leftTab]);
+
+  const loadLibraryShapes = useCallback(() => {
+    setLibraryShapeLoading(true);
+    apiClient('/content-library')
+      .then((data: Record<string, unknown> | unknown[]) => {
+        let flat: { id: string; name: string; category: string; type: string; url?: string; content?: string }[] = [];
+        if (typeof data === 'object' && !Array.isArray(data)) {
+          Object.values(data).forEach((arr) => {
+            if (Array.isArray(arr)) flat.push(...arr);
+          });
+        } else if (Array.isArray(data)) {
+          flat = data;
+        }
+        const filtered = flat.filter(
+          (i: { category?: string }) => (i.category || '').toLowerCase() === 'badges' || (i.category || '').toLowerCase() === 'icons'
+        );
+        setLibraryShapeItems(filtered);
+      })
+      .catch(() => setLibraryShapeItems([]))
+      .finally(() => setLibraryShapeLoading(false));
+  }, []);
+
+  useEffect(() => {
+    if (leftTab !== 'text') return;
+    loadLibraryShapes();
+  }, [leftTab, loadLibraryShapes]);
+
+  useEffect(() => {
+    const onUpdate = () => { if (leftTab === 'text') loadLibraryShapes(); };
+    window.addEventListener('content-library-updated', onUpdate);
+    return () => window.removeEventListener('content-library-updated', onUpdate);
+  }, [leftTab, loadLibraryShapes]);
+
+  const addLibraryShapeToCanvas = useCallback(
+    async (item: { id: string; name: string; url?: string; content?: string }) => {
+      const canvas = fabricCanvasRef.current;
+      if (!canvas) return;
+      if (item.url) {
+        await addImageFromUrl(resolveMediaUrl(item.url));
+        return;
+      }
+      const fabric = await import('fabric');
+      const cw = (canvas as { width?: number }).width ?? 1920;
+      const ch = (canvas as { height?: number }).height ?? 1080;
+      const text = (item.content || item.name || '').trim() || '?';
+      const t = new fabric.Textbox(text, {
+        left: cw / 2,
+        top: ch / 2,
+        originX: 'center',
+        originY: 'center',
+        width: 280,
+        fontSize: 48,
+        fill: '#ffffff',
+        fontFamily: 'sans-serif',
+        textAlign: 'center',
+        padding: 8,
+      });
+      canvas.add(t);
+      t.setCoords();
+      fitObjectToCanvas(t, cw, ch);
+      canvas.setActiveObject(t);
+      canvas.renderAll();
+      pushHistoryRef.current();
+      setSaved(false);
+      refreshLayers();
+      saveDraftRef.current();
+    },
+    [addImageFromUrl, refreshLayers]
+  );
 
   const addText = useCallback(async () => {
     const canvas = fabricCanvasRef.current;
@@ -1568,7 +1640,15 @@ export default function SistemPage() {
     for (let i = 0; i < files.length; i++) formData.append('files', files[i]);
     try {
       const res = await fetch('/api/upload', { method: 'POST', body: formData });
-      const data = await res.json();
+      const text = await res.text();
+      let data: { assets?: { src: string }[]; data?: { src: string }[] } = {};
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        toast.showError(res.status === 413 ? 'Dosya boyutu çok büyük. Supabase Storage gerekli.' : 'Yükleme yanıtı okunamadı. Supabase Storage yapılandırmasını kontrol edin.');
+        e.target.value = '';
+        return;
+      }
       const assets = data?.assets ?? data?.data ?? [];
       for (let i = 0; i < assets.length; i++) {
         const a = assets[i];
@@ -1607,7 +1687,15 @@ export default function SistemPage() {
     for (let i = 0; i < files.length; i++) formData.append('files', files[i]);
     try {
       const res = await fetch('/api/upload', { method: 'POST', body: formData });
-      const data = await res.json();
+      const text = await res.text();
+      let data: { assets?: { src: string }[]; data?: { src: string }[] } = {};
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        toast.showError(res.status === 413 ? 'Dosya boyutu çok büyük. Supabase Storage gerekli.' : 'Yükleme yanıtı okunamadı. Supabase Storage yapılandırmasını kontrol edin.');
+        e.target.value = '';
+        return;
+      }
       const assets = data?.assets ?? data?.data ?? [];
       for (let i = 0; i < assets.length; i++) {
         const a = assets[i];
@@ -2100,6 +2188,38 @@ export default function SistemPage() {
                     </button>
                   ))}
                 </div>
+              </div>
+              <div>
+                <h3 className="text-xs font-semibold text-foreground mb-1">Kütüphane: İndirim & İkonlar</h3>
+                <p className="text-[10px] text-muted mb-2">Kütüphanedeki rozet ve ikonları tasarıma ekleyin</p>
+                {libraryShapeLoading ? (
+                  <p className="text-[10px] text-muted">Yükleniyor…</p>
+                ) : libraryShapeItems.length === 0 ? (
+                  <p className="text-[10px] text-muted">İçerik Kütüphanesinde rozet veya ikon yok. Kütüphane sayfasından ekleyin.</p>
+                ) : (
+                  <div className="grid grid-cols-2 gap-1">
+                    {libraryShapeItems.map((item) => (
+                      <button
+                        key={item.id}
+                        onClick={() => addLibraryShapeToCanvas(item)}
+                        className="flex items-center gap-1.5 px-2 py-1.5 border border-gray-200 rounded text-[10px] hover:bg-foreground/5 hover:border-blue-400 text-left"
+                        title={item.name}
+                      >
+                        {item.url ? (
+                          <img
+                            src={resolveMediaUrl(item.url)}
+                            alt=""
+                            className="w-5 h-5 shrink-0 rounded object-contain bg-gray-100"
+                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                          />
+                        ) : (
+                          <span className="w-5 h-5 shrink-0 rounded border border-gray-200 flex items-center justify-center text-sm bg-gray-50">{item.content || '?'}</span>
+                        )}
+                        <span className="truncate flex-1">{item.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -2975,14 +3095,22 @@ export default function SistemPage() {
                         formData.append('files', f);
                         try {
                           const res = await fetch('/api/upload', { method: 'POST', body: formData });
-                          const data = await res.json();
+                          const text = await res.text();
+                          let data: { assets?: { src: string }[]; data?: { src: string }[] } = {};
+                          try {
+                            data = text ? JSON.parse(text) : {};
+                          } catch {
+                            toast.showError(res.status === 413 ? 'Dosya boyutu çok büyük.' : 'Yükleme yanıtı okunamadı. Supabase Storage gerekli.');
+                            e.target.value = '';
+                            return;
+                          }
                           const assets = data?.assets ?? data?.data ?? [];
                           const src = assets[0]?.src;
                           if (src) {
                             await setBlockBackgroundImage(src);
                             refreshUploadsList();
                           } else {
-                            toast.showError('Yükleme başarısız.');
+                            toast.showError((data as { error?: string }).error || 'Yükleme başarısız.');
                           }
                         } catch {
                           toast.showError('Yükleme başarısız.');

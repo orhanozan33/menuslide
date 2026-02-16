@@ -722,10 +722,25 @@ export default function ContentLibrary({ onSelectContent, initialCategory, compa
         const fd = new FormData();
         fd.append('file', f);
         const up = await fetch('/api/upload', { method: 'POST', body: fd });
-        const upJson = await up.json();
+        const text = await up.text();
+        let upJson: { error?: string; assets?: { src: string }[]; data?: { src: string }[] } = {};
+        try {
+          upJson = text ? JSON.parse(text) : {};
+        } catch {
+          const hint = up.status === 413 || /request entity|too large|413/i.test(text)
+            ? 'Dosya boyutu çok büyük.'
+            : 'Sunucu beklenmeyen yanıt döndürdü.';
+          toast.showError(`${file.name}: ${hint} Resimler için Supabase Storage gerekli.`);
+          loadedCount++;
+          if (loadedCount === totalFiles) {
+            setIsUploading(false);
+            event.target.value = '';
+          }
+          continue;
+        }
         const imageUrl = upJson?.assets?.[0]?.src || upJson?.data?.[0]?.src;
         if (!imageUrl) {
-          const errMsg = upJson?.error || 'Upload failed';
+          const errMsg = upJson?.error || (up.status === 413 ? 'Dosya boyutu çok büyük (413)' : 'Yükleme başarısız');
           toast.showError(`${file.name}: ${errMsg}. Supabase Storage gerekli.`);
           loadedCount++;
           if (loadedCount === totalFiles) {
