@@ -50,19 +50,26 @@ function PartnersRow({
       <div className="text-xs font-semibold text-white/50 uppercase tracking-wider mb-2 text-center">
         {title}
       </div>
-      {/* Kayan marquee: iki kopya; mobilde daha az gap ile kırpılma azaltıldı */}
+      {/* Mobil: sabit grid, kart yarım kesilmesin. md+: kayan marquee */}
       <div className="overflow-hidden max-w-4xl mx-auto px-4 md:px-6">
+        {/* Mobil: animasyonsuz grid, tüm kartlar tam görünsün */}
+        <div className="flex md:hidden flex-wrap justify-center gap-3 py-2">
+          {items.map((item, i) => (
+            <ItemBlock key={`m-${i}-${item.value}`} item={item} />
+          ))}
+        </div>
+        {/* md ve üzeri: kayan marquee */}
         <div
-          className={`flex items-stretch py-2 ${direction === 'left' ? 'partners-marquee-left' : 'partners-marquee-right'}`}
+          className={`hidden md:flex items-stretch py-2 ${direction === 'left' ? 'partners-marquee-left' : 'partners-marquee-right'}`}
           style={{ width: 'calc(200% + 6rem)' }}
         >
-          <div className="flex gap-2 sm:gap-4 md:gap-5 items-center flex-shrink-0 min-w-0 overflow-hidden justify-start pl-1 pr-1 sm:pl-2 sm:pr-2 md:pl-3 md:pr-3" style={{ width: 'calc(50% - 3rem)', boxSizing: 'border-box' }}>
+          <div className="flex gap-4 md:gap-5 items-center flex-shrink-0 min-w-0 overflow-hidden justify-start pl-2 pr-2 md:pl-3 md:pr-3" style={{ width: 'calc(50% - 3rem)', boxSizing: 'border-box' }}>
             {items.map((item, i) => (
               <ItemBlock key={`a-${i}-${item.value}`} item={item} />
             ))}
           </div>
           <div className="flex-shrink-0 w-[6rem]" aria-hidden />
-          <div className="flex gap-2 sm:gap-4 md:gap-5 items-center flex-shrink-0 min-w-0 overflow-hidden justify-start pl-1 pr-1 sm:pl-2 sm:pr-2 md:pl-3 md:pr-3" style={{ width: 'calc(50% - 3rem)', boxSizing: 'border-box' }}>
+          <div className="flex gap-4 md:gap-5 items-center flex-shrink-0 min-w-0 overflow-hidden justify-start pl-2 pr-2 md:pl-3 md:pr-3" style={{ width: 'calc(50% - 3rem)', boxSizing: 'border-box' }}>
             {items.map((item, i) => (
               <ItemBlock key={`b-${i}-${item.value}`} item={item} />
             ))}
