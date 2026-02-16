@@ -8,7 +8,7 @@ function ItemBlock({ item }: { item: PartnerItem }) {
   const [imgError, setImgError] = useState(false);
   return (
     <div
-      className={`flex-shrink-0 flex items-center justify-center px-2 py-1.5 ${isLogo ? 'min-w-[100px] sm:min-w-[120px] md:min-w-[140px]' : 'min-w-[80px] md:min-w-[100px]'}`}
+      className={`flex-shrink-0 flex items-center justify-center px-1 sm:px-2 py-1.5 ${isLogo ? 'min-w-[64px] xs:min-w-[72px] sm:min-w-[120px] md:min-w-[140px]' : 'min-w-[56px] xs:min-w-[64px] md:min-w-[100px]'}`}
     >
       {isLogo ? (
         imgError ? (
@@ -56,13 +56,13 @@ function PartnersRow({
           className={`flex items-stretch py-2 ${direction === 'left' ? 'partners-marquee-left' : 'partners-marquee-right'}`}
           style={{ width: 'calc(200% + 6rem)' }}
         >
-          <div className="flex gap-3 sm:gap-4 md:gap-5 items-center flex-shrink-0 min-w-0 overflow-hidden justify-start pl-2 pr-2 md:pl-3 md:pr-3" style={{ width: 'calc(50% - 3rem)', boxSizing: 'border-box' }}>
+          <div className="flex gap-2 sm:gap-4 md:gap-5 items-center flex-shrink-0 min-w-0 overflow-hidden justify-start pl-1 pr-1 sm:pl-2 sm:pr-2 md:pl-3 md:pr-3" style={{ width: 'calc(50% - 3rem)', boxSizing: 'border-box' }}>
             {items.map((item, i) => (
               <ItemBlock key={`a-${i}-${item.value}`} item={item} />
             ))}
           </div>
           <div className="flex-shrink-0 w-[6rem]" aria-hidden />
-          <div className="flex gap-3 sm:gap-4 md:gap-5 items-center flex-shrink-0 min-w-0 overflow-hidden justify-start pl-2 pr-2 md:pl-3 md:pr-3" style={{ width: 'calc(50% - 3rem)', boxSizing: 'border-box' }}>
+          <div className="flex gap-2 sm:gap-4 md:gap-5 items-center flex-shrink-0 min-w-0 overflow-hidden justify-start pl-1 pr-1 sm:pl-2 sm:pr-2 md:pl-3 md:pr-3" style={{ width: 'calc(50% - 3rem)', boxSizing: 'border-box' }}>
             {items.map((item, i) => (
               <ItemBlock key={`b-${i}-${item.value}`} item={item} />
             ))}
