@@ -781,15 +781,26 @@ export default function SistemPage() {
   useEffect(() => {
     if (leftTab !== 'media') return;
     setMediaLibraryLoading(true);
-    apiClient('/content-library?type=image')
-      .then((data) => {
-        const arr = Array.isArray(data) ? data : [];
-        setMediaLibraryList(arr.map((r: { id: string; name?: string; url?: string; type?: string }) => ({
+    Promise.all([
+      apiClient('/content-library?type=image'),
+      apiClient('/content-library?type=video'),
+    ])
+      .then(([imgData, vidData]) => {
+        const imgArr = Array.isArray(imgData) ? imgData : [];
+        const vidArr = Array.isArray(vidData) ? vidData : [];
+        const images = imgArr.map((r: { id: string; name?: string; url?: string; type?: string }) => ({
           id: r.id,
           name: String(r.name ?? ''),
           url: String(r.url ?? ''),
-          type: r.type ?? 'image',
-        })));
+          type: (r.type ?? 'image') as string,
+        }));
+        const videos = vidArr.map((r: { id: string; name?: string; url?: string; type?: string }) => ({
+          id: r.id,
+          name: String(r.name ?? ''),
+          url: String(r.url ?? ''),
+          type: (r.type ?? 'video') as string,
+        }));
+        setMediaLibraryList([...images, ...videos]);
       })
       .catch(() => setMediaLibraryList([]))
       .finally(() => setMediaLibraryLoading(false));
@@ -807,15 +818,26 @@ export default function SistemPage() {
           .catch(() => {});
       }
       if (leftTab === 'media') {
-        apiClient('/content-library?type=image')
-          .then((data) => {
-            const arr = Array.isArray(data) ? data : [];
-            setMediaLibraryList(arr.map((r: { id: string; name?: string; url?: string; type?: string }) => ({
+        Promise.all([
+          apiClient('/content-library?type=image'),
+          apiClient('/content-library?type=video'),
+        ])
+          .then(([imgData, vidData]) => {
+            const imgArr = Array.isArray(imgData) ? imgData : [];
+            const vidArr = Array.isArray(vidData) ? vidData : [];
+            const images = imgArr.map((r: { id: string; name?: string; url?: string; type?: string }) => ({
               id: r.id,
               name: String(r.name ?? ''),
               url: String(r.url ?? ''),
-              type: r.type ?? 'image',
-            })));
+              type: (r.type ?? 'image') as string,
+            }));
+            const videos = vidArr.map((r: { id: string; name?: string; url?: string; type?: string }) => ({
+              id: r.id,
+              name: String(r.name ?? ''),
+              url: String(r.url ?? ''),
+              type: (r.type ?? 'video') as string,
+            }));
+            setMediaLibraryList([...images, ...videos]);
           })
           .catch(() => setMediaLibraryList([]));
       }
@@ -2190,21 +2212,29 @@ export default function SistemPage() {
                       onClick={() => setMediaPreviewItem(u)}
                       className="relative aspect-video rounded border border-gray-200 overflow-hidden hover:ring-2 hover:ring-blue-500 bg-gray-100"
                     >
-                      <img src={u.url} alt={u.name} className="w-full h-full object-cover" />
+                      {u.type === 'video' ? (
+                        <span className="absolute inset-0 flex items-center justify-center text-gray-500 text-lg">▶</span>
+                      ) : (
+                        <img src={u.url} alt={u.name} className="w-full h-full object-cover" />
+                      )}
                       <span className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[10px] px-1 py-0.5 truncate">{u.name}</span>
                     </button>
                   ))}
                 </div>
               ) : (
-                <p className="text-xs text-muted">Kütüphanede resim bulunamadı.</p>
+                <p className="text-xs text-muted">Kütüphanede resim veya video bulunamadı.</p>
               )}
               {mediaPreviewItem && (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onClick={() => setMediaPreviewItem(null)}>
                   <div className="bg-background rounded-lg shadow-xl border max-w-sm w-full overflow-hidden" onClick={(e) => e.stopPropagation()}>
                     <div className="p-3">
                       <p className="text-sm font-medium text-foreground truncate mb-2">{mediaPreviewItem.name}</p>
-                      <div className="aspect-video rounded border border-gray-200 overflow-hidden bg-gray-100 mb-3">
-                        <img src={mediaPreviewItem.url} alt={mediaPreviewItem.name} className="w-full h-full object-contain" />
+                      <div className="aspect-video rounded border border-gray-200 overflow-hidden bg-gray-100 mb-3 flex items-center justify-center">
+                        {mediaPreviewItem.type === 'video' ? (
+                          <video src={mediaPreviewItem.url} className="w-full h-full object-contain" muted playsInline preload="metadata" />
+                        ) : (
+                          <img src={mediaPreviewItem.url} alt={mediaPreviewItem.name} className="w-full h-full object-contain" />
+                        )}
                       </div>
                       <div className="flex flex-col gap-2">
                         <div className="flex gap-2">
@@ -2212,8 +2242,13 @@ export default function SistemPage() {
                             onClick={() => {
                               const active = fabricCanvasRef.current?.getActiveObject();
                               const isRect = (active as { type?: string })?.type === 'rect';
-                              if (isRect && mediaPreviewItem.type !== 'video') setBlockBackgroundImage(mediaPreviewItem.url);
-                              else addImageFromUrl(mediaPreviewItem.url);
+                              if (mediaPreviewItem.type === 'video') {
+                                addVideoToCanvas(mediaPreviewItem.url);
+                              } else if (isRect) {
+                                setBlockBackgroundImage(mediaPreviewItem.url);
+                              } else {
+                                addImageFromUrl(mediaPreviewItem.url);
+                              }
                               setMediaPreviewItem(null);
                             }}
                             className="flex-1 py-2 px-3 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700"
@@ -2695,8 +2730,13 @@ export default function SistemPage() {
                       onClick={() => {
                         const active = fabricCanvasRef.current?.getActiveObject();
                         const isRect = (active as { type?: string })?.type === 'rect';
-                        if (isRect && u.type !== 'video') setBlockBackgroundImage(u.url);
-                        else addImageFromUrl(u.url);
+                        if (u.type === 'video') {
+                          addVideoToCanvas(u.url);
+                        } else if (isRect) {
+                          setBlockBackgroundImage(u.url);
+                        } else {
+                          addImageFromUrl(u.url);
+                        }
                       }}
                       className="relative aspect-video rounded border border-gray-200 overflow-hidden hover:ring-2 hover:ring-blue-500 bg-gray-100"
                     >
