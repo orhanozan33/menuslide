@@ -62,7 +62,7 @@ function TVFrame({
       className="group flex flex-col items-center cursor-pointer touch-manipulation w-full min-w-0"
       onClick={onClick}
     >
-      <div className="relative w-full min-w-0 max-w-[520px] sm:max-w-[600px] md:max-w-[680px] lg:max-w-[780px] transition-transform duration-300 group-hover:scale-[1.01] group-active:scale-[0.99]">
+      <div className="relative w-full min-w-0 max-w-full sm:max-w-[600px] md:max-w-[680px] lg:max-w-[780px] transition-transform duration-300 group-hover:scale-[1.01] group-active:scale-[0.99]">
         {/* TV kabini — ince metalik çerçeve 4 taraf, taşma yok */}
         <div
           className="relative overflow-hidden rounded-[4px]"
@@ -202,7 +202,7 @@ export function HomePage({ localePath }: HomePageProps) {
   }, [previewChannel]);
 
   return (
-    <div className="min-h-screen bg-[#06090f] text-white font-sans antialiased overflow-x-auto">
+    <div className="min-h-screen bg-[#06090f] text-white font-sans antialiased overflow-x-hidden w-full">
       {/* Header: logo + nav + Giriş + Kayıt + dil */}
       <header className="fixed top-0 left-0 right-0 z-50 min-h-[4rem] h-16 flex items-center justify-between px-3 sm:px-6 md:px-12 pt-[env(safe-area-inset-top)] bg-[#06090f]/98 sm:bg-[#06090f]/95 backdrop-blur-md border-b border-white/5">
         <Link href={localePath('/')} className="flex items-center gap-2 sm:gap-3 flex-shrink-0 min-w-0" onClick={() => setMobileNavOpen(false)}>
@@ -327,16 +327,16 @@ export function HomePage({ localePath }: HomePageProps) {
         </div>
       </section>
 
-      {/* TV Kanalları - Önce gösteriliyor */}
-      <section id="channels" className="pt-6 sm:pt-10 md:pt-12 pb-10 sm:pb-16 md:pb-20 px-3 sm:px-6 md:px-12 scroll-mt-20">
+      {/* TV Kanalları - Canlı kartlar; mobilde tek sütun, taşma yok */}
+      <section id="channels" className="pt-6 sm:pt-10 md:pt-12 pb-10 sm:pb-16 md:pb-20 px-3 sm:px-6 md:px-12 scroll-mt-20 overflow-hidden">
         <div className="max-w-7xl mx-auto w-full min-w-0">
           <h2 className="text-xl sm:text-3xl font-bold text-white text-center mb-6 sm:mb-12">
             {t('home_channels_title')}
           </h2>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-10 sm:gap-12 md:gap-16 place-items-center">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 sm:gap-12 md:gap-16 place-items-center">
             {channels.map((ch) => (
-                <div key={ch.slug} className="flex justify-center w-full min-w-0 max-w-[520px] sm:max-w-[600px] md:max-w-[680px] lg:max-w-[780px]">
+                <div key={ch.slug} className="flex justify-center w-full min-w-0 max-w-full sm:max-w-[600px] md:max-w-[680px] lg:max-w-[780px]">
                   <TVFrame
                     previewUrl={getPreviewUrl(ch, localePath)}
                     title={ch.title}
@@ -380,8 +380,8 @@ export function HomePage({ localePath }: HomePageProps) {
       </section>
 
       {/* Özellikler - İhtiyacınız olan her şey */}
-      <section id="features" className="py-10 sm:py-16 md:py-20 px-3 sm:px-6 md:px-12 bg-white/[0.02] border-y border-white/5 scroll-mt-20">
-        <div className="max-w-6xl mx-auto">
+      <section id="features" className="py-10 sm:py-16 md:py-20 px-3 sm:px-6 md:px-12 bg-white/[0.02] border-y border-white/5 scroll-mt-20 overflow-hidden">
+        <div className="max-w-6xl mx-auto w-full min-w-0">
           <h2 className="text-xl sm:text-3xl font-bold text-white text-center mb-2 sm:mb-4">
             {t('home_features_title')}
           </h2>

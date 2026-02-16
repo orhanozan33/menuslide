@@ -88,7 +88,7 @@ export function PartnersMarquee({
   if (!hasAny) return null;
 
   return (
-    <div className="w-full max-w-4xl mx-auto space-y-6 mt-6 sm:mt-8">
+    <div className="w-full max-w-4xl mx-auto space-y-6 mt-6 sm:mt-8 overflow-hidden min-w-0">
       {business_partners.length > 0 && (
         <PartnersRow title={titleBusinessPartners} items={business_partners} direction="left" />
       )}
