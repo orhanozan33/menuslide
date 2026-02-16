@@ -334,19 +334,19 @@ textarea::placeholder {
   animation: partners-marquee-right 50s linear infinite;
 }
 
-/* Mobilde marquee kaysın; pencerede tam 1 blok görünsün, kart kesilmesin */
+/* Mobilde marquee kaysın; pencerede tam 1 blok görünsün, kart kesilmesin. Spacer ile son/ilk kart üst üste binmesin. */
 @media (max-width: 767px) {
   .partners-marquee-track {
-    width: 200% !important;
+    width: calc(200% + 2rem) !important;
   }
   .partners-marquee-block {
-    width: 50% !important;
-    min-width: 50% !important;
-    max-width: 50% !important;
+    width: calc(50% - 1rem) !important;
+    min-width: calc(50% - 1rem) !important;
+    max-width: calc(50% - 1rem) !important;
   }
   .partners-marquee-spacer {
-    width: 0 !important;
-    min-width: 0 !important;
+    width: 2rem !important;
+    min-width: 2rem !important;
   }
 }
 
