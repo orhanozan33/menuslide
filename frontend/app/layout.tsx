@@ -31,7 +31,14 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
       </head>
-      <body suppressHydrationWarning>
+      <body
+        suppressHydrationWarning
+        className="min-h-screen min-h-[100dvh] overflow-x-hidden antialiased"
+        style={{
+          paddingLeft: 'env(safe-area-inset-left)',
+          paddingRight: 'env(safe-area-inset-right)',
+        }}
+      >
         <ClientProvidersWrapper>{children}</ClientProvidersWrapper>
       </body>
     </html>

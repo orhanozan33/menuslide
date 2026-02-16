@@ -1,7 +1,7 @@
 sub init()
     m.sec = CreateObject("roRegistrySection", "menuslide")
     m.deviceId = CreateObject("roDeviceInfo").getChannelClientId()
-    if m.deviceId = "" then m.deviceId = CreateObject("roDeviceInfo").getDeviceUniqueId()
+    if m.deviceId = "" then m.deviceId = CreateObject("roDeviceInfo").getChannelClientId()
     m.keyboardShown = false
     token = m.sec.read("deviceToken")
     if token <> "" and token <> invalid

@@ -4,7 +4,7 @@ sub init()
     m.error = m.top.findNode("error")
     m.sec = CreateObject("roRegistrySection", "menuslide")
     m.deviceId = CreateObject("roDeviceInfo").getChannelClientId()
-    if m.deviceId = "" then m.deviceId = CreateObject("roDeviceInfo").getDeviceUniqueId()
+    if m.deviceId = "" then m.deviceId = CreateObject("roDeviceInfo").getChannelClientId()
     m.keyboardShown = false
     m.top.setFocus(true)
 end sub

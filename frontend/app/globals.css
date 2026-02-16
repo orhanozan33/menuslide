@@ -26,6 +26,13 @@
   }
 }
 
+/* Mobil: tüm cihazlar için temel optimizasyon */
+html {
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
   background: linear-gradient(
       to bottom,
@@ -34,6 +41,19 @@ body {
     )
     var(--background);
   color: var(--foreground);
+  min-height: 100dvh;
+  min-height: 100vh;
+  overflow-x: hidden;
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0.08);
+  tap-highlight-color: rgba(0, 0, 0, 0.08);
+}
+
+/* Mobilde görseller yatay taşmasın (içerik alanları için) */
+@media (max-width: 767px) {
+  img:not([class*="object-"]):not([style*="object-fit"]) {
+    max-width: 100%;
+    height: auto;
+  }
 }
 
 /* Tüm input ve textarea alanlarındaki yazılar siyah, arka plan beyaz olsun */
