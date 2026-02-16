@@ -334,6 +334,22 @@ textarea::placeholder {
   animation: partners-marquee-right 50s linear infinite;
 }
 
+/* Mobilde marquee kaysın; pencerede tam 1 blok görünsün, kart kesilmesin */
+@media (max-width: 767px) {
+  .partners-marquee-track {
+    width: 200% !important;
+  }
+  .partners-marquee-block {
+    width: 50% !important;
+    min-width: 50% !important;
+    max-width: 50% !important;
+  }
+  .partners-marquee-spacer {
+    width: 0 !important;
+    min-width: 0 !important;
+  }
+}
+
 /* Template root: sabit 1920x1080, preview ve edit aynı ölçü. Global body stilleri bu alanı etkilemesin. */
 .template-root {
   width: 1920px;
