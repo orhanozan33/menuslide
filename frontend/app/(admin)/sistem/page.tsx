@@ -859,7 +859,7 @@ export default function SistemPage() {
             if (Array.isArray(arr)) flat.push(...arr);
           });
         } else if (Array.isArray(data)) {
-          flat = data;
+          flat = data as { id: string; name: string; category: string; type: string; url?: string; content?: string }[];
         }
         const filtered = flat.filter(
           (i: { category?: string }) => (i.category || '').toLowerCase() === 'badges' || (i.category || '').toLowerCase() === 'icons'
