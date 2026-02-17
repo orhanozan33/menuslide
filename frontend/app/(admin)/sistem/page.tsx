@@ -277,6 +277,7 @@ export default function SistemPage() {
   const fontPickerRef = useRef<HTMLDivElement>(null);
   const [libraryShapeItems, setLibraryShapeItems] = useState<{ id: string; name: string; category: string; type: string; url?: string; content?: string }[]>([]);
   const [libraryShapeLoading, setLibraryShapeLoading] = useState(false);
+  const [libraryShapePreviewItem, setLibraryShapePreviewItem] = useState<{ id: string; name: string; url?: string; content?: string } | null>(null);
   const [savedTemplateId, setSavedTemplateId] = useState<string | null>(null);
   const [historyTick, setHistoryTick] = useState(0);
   const [layersKey, setLayersKey] = useState(0);
@@ -1240,7 +1241,7 @@ export default function SistemPage() {
         setSaveDestinationModalOpen(false);
         setFileMenuOpen(false);
         refreshTemplates();
-        toast.showSuccess('Şablon güncellendi.');
+        toast.showSuccess(t('sistem_template_updated'));
         setSaving(false);
         return;
       }
@@ -1281,7 +1282,7 @@ export default function SistemPage() {
         const err = await res.json().catch(() => ({}));
         const msg = res.status === 401
           ? 'Oturum gerekli. Çıkış yapıp tekrar giriş yapın, sonra şablonu tekrar kaydedin.'
-          : (err?.detail ? `${err?.error || 'Kaydetme başarısız'}: ${err.detail}` : (err?.error || 'Kaydetme başarısız'));
+          : (err?.detail ? `${err?.error || t('sistem_save_error')}: ${err.detail}` : (err?.error || t('sistem_save_error')));
         throw new Error(msg);
       }
       const data = await res.json().catch(() => ({}));
@@ -1294,9 +1295,9 @@ export default function SistemPage() {
       setOverwriteConfirm(null);
       setFileMenuOpen(false);
       refreshTemplates();
-      toast.showSuccess(isAdmin ? 'Tasarım kaydedildi.' : `"${name.trim()}" benim şablonlarıma kaydedildi.`);
+      toast.showSuccess(isAdmin ? t('sistem_save_success') : t('sistem_template_saved', { name: name.trim() }));
     } catch (e) {
-      const errMsg = (e as Error).message || 'Kaydetme başarısız';
+      const errMsg = (e as Error).message || t('sistem_save_error');
       if ((errMsg.includes('full_editor_templates') || errMsg.includes('schema cache')) && isAdmin) {
         try {
           const token = typeof window !== 'undefined' ? (sessionStorage.getItem('impersonation_token') || localStorage.getItem('auth_token')) : null;
@@ -1305,17 +1306,17 @@ export default function SistemPage() {
             headers: token ? { Authorization: `Bearer ${token}` } : {},
           });
           if (setupRes.ok) {
-            toast.showSuccess('Tablolar oluşturuldu. Tekrar kaydetmeyi deneyin.');
+            toast.showSuccess(t('sistem_tables_created'));
           } else {
             const setupErr = await setupRes.json().catch(() => ({}));
             const setupMsg = setupErr?.message || setupErr?.error || 'Tablolar oluşturulamadı. Supabase SQL Editor\'da migration-full-editor-categories-templates.sql çalıştırın.';
             toast.showError(setupMsg);
           }
         } catch {
-          toast.showError('Veritabanı hazır değil. Yönetici /api/setup/full-editor-tables çalıştırmalı.');
+          toast.showError(t('sistem_db_not_ready'));
         }
       } else if (errMsg.includes('full_editor_templates') || errMsg.includes('schema cache')) {
-        toast.showError('Veritabanı hazır değil. Lütfen yönetici ile iletişime geçin.');
+        toast.showError(t('sistem_db_contact_admin'));
       } else {
         toast.showError(errMsg);
       }
@@ -1355,9 +1356,9 @@ export default function SistemPage() {
       setOverwriteConfirm(null);
       setFileMenuOpen(false);
       refreshTemplates();
-      toast.showSuccess('Şablon güncellendi.');
+      toast.showSuccess(t('sistem_template_updated'));
     } catch (e) {
-      toast.showError((e as Error).message || 'Güncelleme başarısız');
+      toast.showError((e as Error).message || t('sistem_update_failed'));
     } finally {
       setSaving(false);
     }
@@ -1645,7 +1646,7 @@ export default function SistemPage() {
       try {
         data = text ? JSON.parse(text) : {};
       } catch {
-        toast.showError(res.status === 413 ? 'Dosya boyutu çok büyük. Supabase Storage gerekli.' : 'Yükleme yanıtı okunamadı. Supabase Storage yapılandırmasını kontrol edin.');
+        toast.showError(res.status === 413 ? t('sistem_file_too_large') : t('sistem_response_unreadable'));
         e.target.value = '';
         return;
       }
@@ -1675,7 +1676,7 @@ export default function SistemPage() {
       }
       refreshUploadsList();
     } catch {
-      toast.showError('Yükleme başarısız.');
+      toast.showError(t('sistem_upload_error'));
     }
     e.target.value = '';
   }, [addImageFromUrl, refreshUploadsList]);
@@ -1692,7 +1693,7 @@ export default function SistemPage() {
       try {
         data = text ? JSON.parse(text) : {};
       } catch {
-        toast.showError(res.status === 413 ? 'Dosya boyutu çok büyük. Supabase Storage gerekli.' : 'Yükleme yanıtı okunamadı. Supabase Storage yapılandırmasını kontrol edin.');
+        toast.showError(res.status === 413 ? t('sistem_file_too_large') : t('sistem_response_unreadable'));
         e.target.value = '';
         return;
       }
@@ -2033,15 +2034,15 @@ export default function SistemPage() {
   }, []);
 
   const leftTabs: { id: LeftTab; label: string; Icon: typeof Upload }[] = [
-    { id: 'uploads', label: 'Yüklemelerim', Icon: Upload },
-    { id: 'templates', label: 'Şablonlar', Icon: LayoutTemplate },
-    { id: 'record', label: 'video yop', Icon: CircleDot },
-    { id: 'media', label: 'Medya', Icon: Image },
-    { id: 'text', label: 'Metin', Icon: Type },
-    { id: 'ai', label: 'AI', Icon: Sparkles },
-    { id: 'background', label: 'Arka Plan', Icon: Palette },
-    { id: 'layout', label: 'Yerleşim', Icon: Grid3X3 },
-    { id: 'more', label: 'Daha Fazla', Icon: MoreHorizontal },
+    { id: 'uploads', label: t('sistem_uploads'), Icon: Upload },
+    { id: 'templates', label: t('sistem_templates'), Icon: LayoutTemplate },
+    { id: 'record', label: t('sistem_video'), Icon: CircleDot },
+    { id: 'media', label: t('sistem_media'), Icon: Image },
+    { id: 'text', label: t('sistem_text'), Icon: Type },
+    { id: 'ai', label: t('sistem_ai'), Icon: Sparkles },
+    { id: 'background', label: t('sistem_background'), Icon: Palette },
+    { id: 'layout', label: t('sistem_layout'), Icon: Grid3X3 },
+    { id: 'more', label: t('sistem_more'), Icon: MoreHorizontal },
   ];
 
   const canUndo = historyIndexRef.current > 0;
@@ -2098,11 +2099,11 @@ export default function SistemPage() {
           <span className="font-semibold text-foreground">MenuSlide</span>
           <div className="relative">
             <button onClick={() => setFileMenuOpen((o) => !o)} className="text-sm text-foreground/70 hover:text-foreground flex items-center gap-1">
-              Dosya <ChevronDown className="w-3.5 h-3.5" />
+              {t('sistem_file')} <ChevronDown className="w-3.5 h-3.5" />
             </button>
             {fileMenuOpen && (
               <div className="absolute top-full left-0 mt-1 py-1 bg-background border rounded-lg shadow-lg z-50 min-w-[140px]">
-                <button onClick={newCanvas} className="w-full text-left px-3 py-2 text-sm hover:bg-foreground/5">Yeni</button>
+                <button onClick={newCanvas} className="w-full text-left px-3 py-2 text-sm hover:bg-foreground/5">{t('sistem_new')}</button>
                 <button
                   onClick={() => {
                     setSaveName(loadedTemplateNameRef.current || designTitle || '');
@@ -2111,32 +2112,32 @@ export default function SistemPage() {
                   }}
                   className="w-full text-left px-3 py-2 text-sm hover:bg-foreground/5"
                 >
-                  Kaydet
+                  {t('sistem_save')}
                 </button>
-                <button onClick={exportPng} className="w-full text-left px-3 py-2 text-sm hover:bg-foreground/5">İndir (PNG)</button>
+                <button onClick={exportPng} className="w-full text-left px-3 py-2 text-sm hover:bg-foreground/5">{t('sistem_download_png')}</button>
               </div>
             )}
           </div>
-          <button onClick={() => document.getElementById('canvas-size-section')?.scrollIntoView({ behavior: 'smooth' })} className="text-sm text-foreground/70 hover:text-foreground">Resize</button>
+          <button onClick={() => document.getElementById('canvas-size-section')?.scrollIntoView({ behavior: 'smooth' })} className="text-sm text-foreground/70 hover:text-foreground">{t('sistem_resize')}</button>
           <div className="flex gap-1">
-            <button onClick={undo} disabled={!canUndo} className="p-1.5 rounded hover:bg-foreground/10 disabled:opacity-40" title="Geri al (Ctrl+Z)"><RotateCcw className="w-4 h-4" /></button>
-            <button onClick={redo} disabled={!canRedo} className="p-1.5 rounded hover:bg-foreground/10 disabled:opacity-40" title="İleri al (Ctrl+Y)"><RotateCw className="w-4 h-4" /></button>
+            <button onClick={undo} disabled={!canUndo} className="p-1.5 rounded hover:bg-foreground/10 disabled:opacity-40" title={t('sistem_undo_title')}><RotateCcw className="w-4 h-4" /></button>
+            <button onClick={redo} disabled={!canRedo} className="p-1.5 rounded hover:bg-foreground/10 disabled:opacity-40" title={t('sistem_redo_title')}><RotateCw className="w-4 h-4" /></button>
           </div>
         </div>
         <div className="flex items-center gap-4">
-          <span className="text-sm text-green-600">{saved ? 'Değişiklikler kaydedildi' : 'Kaydedilmedi'}</span>
-          <button onClick={addText} className="flex items-center gap-1.5 px-3 py-1.5 text-sm border rounded hover:bg-foreground/5" title="Metin Ekle">
-            <Type className="w-4 h-4" /> Metin Ekle
+          <span className="text-sm text-green-600">{saved ? t('sistem_changes_saved') : t('sistem_changes_not_saved')}</span>
+          <button onClick={addText} className="flex items-center gap-1.5 px-3 py-1.5 text-sm border rounded hover:bg-foreground/5" title={t('sistem_add_text')}>
+            <Type className="w-4 h-4" /> {t('sistem_add_text')}
           </button>
-          <button onClick={duplicateSelected} className="flex items-center gap-1.5 px-3 py-1.5 text-sm border rounded hover:bg-foreground/5" title="Seçiliyi Çoğalt">
-            <Copy className="w-4 h-4" /> Seçiliyi Çoğalt
+          <button onClick={duplicateSelected} className="flex items-center gap-1.5 px-3 py-1.5 text-sm border rounded hover:bg-foreground/5" title={t('sistem_duplicate_selected')}>
+            <Copy className="w-4 h-4" /> {t('sistem_duplicate_selected')}
           </button>
           <button onClick={alignSelected} className="flex items-center gap-1.5 px-3 py-1.5 text-sm border rounded hover:bg-foreground/5" title="Seçili nesneleri sola hizala ve satır aralıklarını eşitle">
             <AlignLeft className="w-4 h-4" /> Hizala
           </button>
           <button className="px-3 py-1.5 text-sm bg-amber-500 text-white rounded hover:bg-amber-600">Upgrade</button>
-          <button onClick={() => { navigator.clipboard?.writeText(window.location.href); toast.showSuccess('Link kopyalandı.'); }} className="text-sm text-foreground/70 hover:text-foreground">Paylaş</button>
-          <button onClick={exportPng} className="text-sm text-foreground/70 hover:text-foreground">İndir</button>
+          <button onClick={() => { navigator.clipboard?.writeText(window.location.href); toast.showSuccess(t('sistem_link_copied')); }} className="text-sm text-foreground/70 hover:text-foreground">{t('sistem_share')}</button>
+          <button onClick={exportPng} className="text-sm text-foreground/70 hover:text-foreground">{t('sistem_download')}</button>
           <button
             onClick={() => {
               setSaveName(loadedTemplateNameRef.current || designTitle || '');
@@ -2145,7 +2146,7 @@ export default function SistemPage() {
             }}
             className="px-4 py-2 text-sm font-medium bg-blue-800 text-white rounded-lg hover:bg-blue-900"
           >
-            {isAdmin ? 'Kaydet ▾' : 'Şablonlarıma Kaydet'}
+            {isAdmin ? `${t('sistem_save')} ▾` : t('sistem_save_to_templates')}
           </button>
         </div>
       </header>
@@ -2190,32 +2191,31 @@ export default function SistemPage() {
                 </div>
               </div>
               <div>
-                <h3 className="text-xs font-semibold text-foreground mb-1">Kütüphane: İndirim & İkonlar</h3>
-                <p className="text-[10px] text-muted mb-2">Kütüphanedeki rozet ve ikonları tasarıma ekleyin</p>
+                <h3 className="text-xs font-semibold text-foreground mb-1">{t('sistem_library_discount_icons')}</h3>
+                <p className="text-[10px] text-muted mb-2">{t('sistem_library_hint')}</p>
                 {libraryShapeLoading ? (
-                  <p className="text-[10px] text-muted">Yükleniyor…</p>
+                  <p className="text-[10px] text-muted">{t('sistem_loading')}</p>
                 ) : libraryShapeItems.length === 0 ? (
-                  <p className="text-[10px] text-muted">İçerik Kütüphanesinde rozet veya ikon yok. Kütüphane sayfasından ekleyin.</p>
+                  <p className="text-[10px] text-muted">{t('sistem_library_empty')}</p>
                 ) : (
-                  <div className="grid grid-cols-2 gap-1">
+                  <div className="grid grid-cols-3 gap-2">
                     {libraryShapeItems.map((item) => (
                       <button
                         key={item.id}
-                        onClick={() => addLibraryShapeToCanvas(item)}
-                        className="flex items-center gap-1.5 px-2 py-1.5 border border-gray-200 rounded text-[10px] hover:bg-foreground/5 hover:border-blue-400 text-left"
+                        onClick={() => setLibraryShapePreviewItem(item)}
+                        className="aspect-square w-full rounded-lg border-2 border-gray-200 hover:border-blue-400 hover:ring-2 hover:ring-blue-400/30 bg-gray-50 dark:bg-slate-800 flex items-center justify-center overflow-hidden p-1 transition-all"
                         title={item.name}
                       >
                         {item.url ? (
                           <img
                             src={resolveMediaUrl(item.url)}
                             alt=""
-                            className="w-5 h-5 shrink-0 rounded object-contain bg-gray-100"
+                            className="w-full h-full object-contain"
                             onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                           />
                         ) : (
-                          <span className="w-5 h-5 shrink-0 rounded border border-gray-200 flex items-center justify-center text-sm bg-gray-50">{item.content || '?'}</span>
+                          <span className="text-2xl md:text-3xl">{item.content || '?'}</span>
                         )}
-                        <span className="truncate flex-1">{item.name}</span>
                       </button>
                     ))}
                   </div>
@@ -2226,53 +2226,53 @@ export default function SistemPage() {
           {leftTab === 'ai' && (
             <div className="p-4 space-y-2">
               <button onClick={() => generateLayout('bar')} disabled={generating} className="w-full py-2 px-3 bg-amber-600 text-white rounded text-sm hover:bg-amber-700 disabled:opacity-50">
-                {generating ? 'Üretiliyor…' : 'Bar'}
+                {generating ? t('sistem_generating') : t('sistem_bar')}
               </button>
               <button onClick={() => generateLayout('restoran')} disabled={generating} className="w-full py-2 px-3 bg-amber-600 text-white rounded text-sm hover:bg-amber-700 disabled:opacity-50">
-                {generating ? 'Üretiliyor…' : 'Restoran'}
+                {generating ? t('sistem_generating') : t('sistem_restoran')}
               </button>
               <button onClick={() => generateLayout('cafe')} disabled={generating} className="w-full py-2 px-3 bg-amber-600 text-white rounded text-sm hover:bg-amber-700 disabled:opacity-50">
-                {generating ? 'Üretiliyor…' : 'Cafe'}
+                {generating ? t('sistem_generating') : t('sistem_cafe')}
               </button>
-              <p className="text-xs text-muted mt-2">1920×1080 menü şablonu</p>
+              <p className="text-xs text-muted mt-2">{t('sistem_template_1920')}</p>
               <button
                 onClick={clearBlockBackground}
                 disabled={removingBg}
                 className="w-full py-2 px-3 border border-amber-200 rounded text-sm font-medium text-amber-700 hover:bg-amber-50 mt-3 disabled:opacity-50"
               >
-                {removingBg ? 'İşleniyor…' : 'Arka plan kaldır'}
+                {removingBg ? t('sistem_processing') : t('sistem_remove_bg')}
               </button>
-              <p className="text-xs text-muted">Seçili bloktan veya resimden arka planı kaldırır (AI)</p>
+              <p className="text-xs text-muted">{t('sistem_remove_bg_hint')}</p>
             </div>
           )}
           {leftTab === 'background' && (
             <div className="p-4 space-y-3">
               <button onClick={removeBackgroundImage} className="w-full flex items-center justify-center gap-2 py-2 px-3 border border-red-200 rounded-lg text-sm text-red-600 hover:bg-red-50">
-                <Trash2 className="w-4 h-4" /> Arka plan resmini sil
+                <Trash2 className="w-4 h-4" /> {t('sistem_remove_bg_image')}
               </button>
-              <label className="block text-xs font-medium text-muted">Hızlı Renkler</label>
+              <label className="block text-xs font-medium text-muted">{t('sistem_quick_colors')}</label>
               <div className="grid grid-cols-3 gap-2">
                 {BACKGROUND_PRESETS.map((color) => (
                   <button key={color} onClick={() => setBackground(color)} className={`aspect-square rounded-lg border-2 transition-all ${bgColor === color ? 'ring-2 ring-blue-700 border-blue-700' : 'border-gray-200 hover:border-gray-300'}`} style={{ backgroundColor: color }} title={color} />
                 ))}
               </div>
-              <label className="block text-xs font-medium text-muted">Özel Renk</label>
+              <label className="block text-xs font-medium text-muted">{t('sistem_custom_color')}</label>
               <input type="color" value={bgColor} onChange={(e) => setBackground(e.target.value)} className="w-full h-10 rounded border cursor-pointer" />
               <input type="text" value={bgColor} onChange={(e) => setBackground(e.target.value)} className="w-full px-2 py-1 text-xs font-mono border rounded" />
             </div>
           )}
           {leftTab === 'templates' && (
             <div className="p-4 space-y-4">
-              <h3 className="text-sm font-semibold text-foreground">Kategoriler</h3>
+              <h3 className="text-sm font-semibold text-foreground">{t('sistem_categories')}</h3>
               {categoriesLoading ? (
-                <p className="text-xs text-muted">Yükleniyor…</p>
+                <p className="text-xs text-muted">{t('sistem_loading')}</p>
               ) : (
                 <>
                   <button
                     onClick={() => setSelectedCategoryId(null)}
                     className={`w-full text-left p-2 rounded-lg text-sm ${!selectedCategoryId ? 'bg-blue-800/30 text-blue-400' : 'hover:bg-gray-50 dark:hover:bg-foreground/5'}`}
                   >
-                    Tümü
+                    {t('sistem_all')}
                   </button>
                   {categories.map((cat) => (
                     <button
@@ -2297,7 +2297,7 @@ export default function SistemPage() {
               )}
               {templates.length > 0 && (
                 <div className="pt-3 border-t">
-                  <h3 className="text-sm font-semibold text-foreground mb-2">Şablonlar ({templates.length})</h3>
+                  <h3 className="text-sm font-semibold text-foreground mb-2">{t('sistem_templates_count', { count: String(templates.length) })}</h3>
                   <div className="space-y-2">
                     {templates.map((tpl) => (
                       <button
@@ -2320,10 +2320,10 @@ export default function SistemPage() {
           )}
           {leftTab === 'media' && (
             <div className="p-4 space-y-3">
-              <h3 className="text-sm font-semibold text-foreground">Medya Kütüphanesi</h3>
-              <p className="text-xs text-muted">Kütüphanedeki resimlere tıklayarak önizleme açın, sonra Kullan ile ekleyin.</p>
+              <h3 className="text-sm font-semibold text-foreground">{t('sistem_media_library')}</h3>
+              <p className="text-xs text-muted">{t('sistem_media_hint')}</p>
               {mediaLibraryLoading ? (
-                <p className="text-xs text-muted">Yükleniyor…</p>
+                <p className="text-xs text-muted">{t('sistem_loading')}</p>
               ) : mediaLibraryList.length > 0 ? (
                 <div className="grid grid-cols-2 gap-2 mt-2">
                   {mediaLibraryList.map((u) => (
@@ -2342,7 +2342,7 @@ export default function SistemPage() {
                   ))}
                 </div>
               ) : (
-                <p className="text-xs text-muted">Kütüphanede resim veya video bulunamadı.</p>
+                <p className="text-xs text-muted">{t('sistem_media_empty')}</p>
               )}
               {mediaPreviewItem && (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onClick={() => setMediaPreviewItem(null)}>
@@ -2373,13 +2373,13 @@ export default function SistemPage() {
                             }}
                             className="flex-1 py-2 px-3 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700"
                           >
-                            Kullan
+                            {t('sistem_use')}
                           </button>
                           <button
                             onClick={() => setMediaPreviewItem(null)}
                             className="flex-1 py-2 px-3 border border-gray-300 rounded text-sm font-medium hover:bg-foreground/5"
                           >
-                            Kapat
+                            {t('sistem_close')}
                           </button>
                         </div>
                         <button
@@ -2389,7 +2389,7 @@ export default function SistemPage() {
                           }}
                           className="w-full py-2 px-3 border border-amber-200 rounded text-sm font-medium text-amber-700 hover:bg-amber-50"
                         >
-                          Arka plan kaldır
+                          {t('sistem_remove_bg')}
                         </button>
                       </div>
                     </div>
@@ -2411,7 +2411,7 @@ export default function SistemPage() {
                         <FullEditorDisplay canvasJson={templatePreviewItem.canvas_json as object} />
                       </div>
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center text-gray-400">Önizleme yok</div>
+                      <div className="w-full h-full flex items-center justify-center text-gray-400">{t('sistem_preview_unavailable')}</div>
                     )}
                   </div>
                   <div className="flex gap-2">
@@ -2832,16 +2832,48 @@ export default function SistemPage() {
               </div>
             </div>
           )}
+          {libraryShapePreviewItem && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onClick={() => setLibraryShapePreviewItem(null)}>
+              <div className="bg-background rounded-lg shadow-xl border max-w-xs w-full overflow-hidden" onClick={(e) => e.stopPropagation()}>
+                <div className="p-4">
+                  <div className="aspect-square rounded-lg border border-gray-200 overflow-hidden bg-gray-100 flex items-center justify-center mb-4 min-h-[180px]">
+                    {libraryShapePreviewItem.url ? (
+                      <img src={resolveMediaUrl(libraryShapePreviewItem.url)} alt="" className="w-full h-full object-contain" />
+                    ) : (
+                      <span className="text-6xl">{libraryShapePreviewItem.content || '?'}</span>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        addLibraryShapeToCanvas(libraryShapePreviewItem);
+                        setLibraryShapePreviewItem(null);
+                      }}
+                      className="flex-1 py-2 px-3 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700"
+                    >
+                      {t('sistem_use')}
+                    </button>
+                    <button
+                      onClick={() => setLibraryShapePreviewItem(null)}
+                      className="flex-1 py-2 px-3 border border-gray-300 rounded text-sm font-medium hover:bg-foreground/5"
+                    >
+                      {t('sistem_close')}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
           {leftTab === 'uploads' && (
             <div className="p-4 space-y-3">
-              <h3 className="text-sm font-semibold text-foreground">Yüklemelerim</h3>
+              <h3 className="text-sm font-semibold text-foreground">{t('sistem_uploads')}</h3>
               <input ref={uploadInputRef} type="file" accept="image/*,video/*" multiple className="hidden" onChange={handleUpload} />
               <button onClick={() => uploadInputRef.current?.click()} className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-gray-800 text-white rounded-lg text-sm hover:bg-gray-700">
-                <Upload className="w-5 h-5" /> Resim/Video Yükle
+                <Upload className="w-5 h-5" /> {t('sistem_upload_image_video')}
               </button>
-              <p className="text-xs text-muted">Resim veya video yükleyip tasarıma ekleyebilirsiniz. Kayıtlı yüklemeler aşağıda görünür.</p>
+              <p className="text-xs text-muted">{t('sistem_upload_hint')}</p>
               {uploadsLoading ? (
-                <p className="text-xs text-muted">Yükleniyor…</p>
+                <p className="text-xs text-muted">{t('sistem_loading')}</p>
               ) : uploadsList.length > 0 ? (
                 <div className="grid grid-cols-2 gap-2 mt-2">
                   {uploadsList.map((u) => (
@@ -2870,18 +2902,18 @@ export default function SistemPage() {
                   ))}
                 </div>
               ) : (
-                <p className="text-xs text-muted">Henüz kayıtlı yükleme yok. Yukarıdaki butonla yükleyin.</p>
+                <p className="text-xs text-muted">{t('sistem_no_uploads_yet')}</p>
               )}
             </div>
           )}
           {leftTab === 'layout' && (
             <div className="p-4 space-y-3">
-              <h3 className="text-sm font-semibold text-foreground">Yerleşim</h3>
+              <h3 className="text-sm font-semibold text-foreground">{t('sistem_layout')}</h3>
               <button onClick={fitAllToCanvas} className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">
-                <LayoutTemplate className="w-4 h-4" /> Alana Sığdır
+                <LayoutTemplate className="w-4 h-4" /> {t('sistem_fit_to_canvas')}
               </button>
-              <p className="text-xs text-muted">Tüm tasarımı 16:9 alana sığdırır. Önizleme ve TV yayını ile birebir aynı olur.</p>
-              <button onClick={() => document.getElementById('canvas-size-section')?.scrollIntoView({ behavior: 'smooth' })} className="w-full py-2 px-3 text-sm border rounded hover:bg-foreground/5">Canvas Boyutuna Git</button>
+              <p className="text-xs text-muted">{t('sistem_fit_hint')}</p>
+              <button onClick={() => document.getElementById('canvas-size-section')?.scrollIntoView({ behavior: 'smooth' })} className="w-full py-2 px-3 text-sm border rounded hover:bg-foreground/5">{t('sistem_canvas_size_go')}</button>
               <button
                 onClick={async () => {
                   setShowImageLoopModal(true);
@@ -2998,7 +3030,7 @@ export default function SistemPage() {
           {/* TV önizleme kapat */}
           {showTvPreviewModal && (
             <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
-              <button type="button" onClick={() => setShowTvPreviewModal(false)} className="px-4 py-2 bg-white/90 hover:bg-white text-black rounded-lg font-medium shadow-lg">Kapat</button>
+              <button type="button" onClick={() => setShowTvPreviewModal(false)} className="px-4 py-2 bg-white/90 hover:bg-white text-black rounded-lg font-medium shadow-lg">{t('sistem_close')}</button>
             </div>
           )}
           <div className={`absolute bottom-6 left-6 flex items-center gap-2 ${showTvPreviewModal ? 'hidden' : ''}`}>
@@ -3006,19 +3038,19 @@ export default function SistemPage() {
               onClick={fitAllToCanvas}
               className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg shadow-lg hover:bg-blue-700 text-sm"
             >
-              <LayoutTemplate className="w-4 h-4" /> Alana Sığdır
+              <LayoutTemplate className="w-4 h-4" /> {t('sistem_fit_to_canvas')}
             </button>
             <button
               onClick={fitCanvasToContainer}
               className="flex items-center gap-2 px-3 py-2 bg-background rounded-lg shadow-lg border border hover:bg-foreground/5 text-sm"
             >
-              <Tv className="w-4 h-4" /> Sığdır
+              <Tv className="w-4 h-4" /> {t('sistem_fit')}
             </button>
             <button
               onClick={() => updatePreviewRef.current()}
               className="flex items-center gap-2 px-3 py-2 bg-background rounded-lg shadow-lg border border hover:bg-foreground/5 text-sm"
             >
-              Önizlemeyi Yenile
+              {t('sistem_refresh_preview')}
             </button>
           </div>
           <div className={`absolute bottom-6 right-6 flex items-center gap-1 bg-background rounded-lg shadow-lg border border px-2 py-1 ${showTvPreviewModal ? 'hidden' : ''}`}>
@@ -3033,7 +3065,7 @@ export default function SistemPage() {
           <div className="p-4 space-y-6">
             {/* Önizleme – tıkla: TV önizlemesi aç, yazı/etiket/ikon fare ile konumlandırılabilir */}
             <section>
-              <h3 className="text-sm font-semibold text-foreground mb-2">Önizleme</h3>
+              <h3 className="text-sm font-semibold text-foreground mb-2">{t('sistem_preview')}</h3>
               <button
                 type="button"
                 onClick={() => {
@@ -3050,30 +3082,30 @@ export default function SistemPage() {
                 {tvPreviewDataUrl ? (
                   <img
                     src={tvPreviewDataUrl}
-                    alt="TV Önizlemesi – tıklayın"
+                    alt={t('sistem_preview_click_hint')}
                     className="block w-full h-full pointer-events-none"
                     style={{ objectFit: 'contain', objectPosition: 'center' }}
                   />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-muted text-xs">Önizlemeyi Yenile</div>
+                  <div className="w-full h-full flex items-center justify-center text-muted text-xs">{t('sistem_refresh_preview')}</div>
                 )}
               </button>
-              <p className="text-[10px] text-muted mt-1">Tıkla: TV önizlemesi aç, öğeleri fare ile sürükle</p>
+              <p className="text-[10px] text-muted mt-1">{t('sistem_preview_click_hint')}</p>
             </section>
             <section id="canvas-size-section">
-              <h3 className="text-sm font-semibold text-foreground mb-3">Tasarım</h3>
+              <h3 className="text-sm font-semibold text-foreground mb-3">{t('sistem_design')}</h3>
               <div className="space-y-3">
                 <div>
-                  <label className="block text-xs text-muted mb-1">Canvas Boyutu (16:9 TV)</label>
+                  <label className="block text-xs text-muted mb-1">{t('sistem_canvas_size')}</label>
                   <p className="text-sm font-medium text-foreground">1920×1080</p>
-                  <p className="text-[10px] text-green-600 mt-1">Sabit 16:9 – TV yayını birebir</p>
+                  <p className="text-[10px] text-green-600 mt-1">{t('sistem_canvas_fixed')}</p>
                 </div>
                 <div>
-                  <label className="block text-xs text-muted mb-1">Stiller</label>
-                  <input type="color" id="stiller-color" value={typeof selectedProps.fill === 'string' && selectedProps.fill.startsWith('#') ? selectedProps.fill : '#374151'} onChange={(e) => updateObjectFill(e.target.value)} className="w-8 h-8 rounded border border-gray-300 cursor-pointer bg-transparent p-0" title="Seçili öğe rengi" />
+                  <label className="block text-xs text-muted mb-1">{t('sistem_styles')}</label>
+                  <input type="color" id="stiller-color" value={typeof selectedProps.fill === 'string' && selectedProps.fill.startsWith('#') ? selectedProps.fill : '#374151'} onChange={(e) => updateObjectFill(e.target.value)} className="w-8 h-8 rounded border border-gray-300 cursor-pointer bg-transparent p-0" title={t('sistem_selected_color')} />
                 </div>
                 <div>
-                  <label className="block text-xs text-muted mb-1">Canvas arka planı</label>
+                  <label className="block text-xs text-muted mb-1">{t('sistem_canvas_bg')}</label>
                   <div className="grid grid-cols-3 gap-1.5 mb-2">
                     {BACKGROUND_PRESETS.map((color) => (
                       <button key={color} onClick={() => setBackground(color)} className={`w-full h-8 rounded border-2 transition-all ${bgColor === color ? 'border-blue-700 ring-2 ring-blue-700/50' : 'border-gray-200 hover:border-gray-300'}`} style={{ backgroundColor: color }} title={color} />
@@ -3084,10 +3116,10 @@ export default function SistemPage() {
                 </div>
                 {selectedObjectType === 'rect' && (
                   <div>
-                    <label className="block text-xs text-muted mb-1">Blok arka planı</label>
-                    <p className="text-[10px] text-muted mb-2">Resim: Sol panel Yüklemeler sekmesinden bir resme tıklayın veya aşağıdan seçin.</p>
+                    <label className="block text-xs text-muted mb-1">{t('sistem_block_bg')}</label>
+                    <p className="text-[10px] text-muted mb-2">{t('sistem_block_bg_hint')}</p>
                     <label className="flex items-center justify-center gap-2 py-2 px-3 border border-dashed border-gray-300 rounded text-sm hover:bg-gray-50 cursor-pointer">
-                      <Image className="w-4 h-4" /> Resim seç
+                      <Image className="w-4 h-4" /> {t('sistem_select_image')}
                       <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
                         const f = e.target.files?.[0];
                         if (!f) return;
@@ -3100,7 +3132,7 @@ export default function SistemPage() {
                           try {
                             data = text ? JSON.parse(text) : {};
                           } catch {
-                            toast.showError(res.status === 413 ? 'Dosya boyutu çok büyük.' : 'Yükleme yanıtı okunamadı. Supabase Storage gerekli.');
+                            toast.showError(res.status === 413 ? t('sistem_file_too_large_short') : t('sistem_response_unreadable'));
                             e.target.value = '';
                             return;
                           }
@@ -3110,10 +3142,10 @@ export default function SistemPage() {
                             await setBlockBackgroundImage(src);
                             refreshUploadsList();
                           } else {
-                            toast.showError((data as { error?: string }).error || 'Yükleme başarısız.');
+                            toast.showError((data as { error?: string }).error || t('sistem_upload_error'));
                           }
                         } catch {
-                          toast.showError('Yükleme başarısız.');
+                          toast.showError(t('sistem_upload_error'));
                         }
                         e.target.value = '';
                       }} />
@@ -3284,27 +3316,27 @@ export default function SistemPage() {
         {saveDestinationModalOpen && isAdmin && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50" onClick={() => setSaveDestinationModalOpen(false)}>
             <div className="bg-background border rounded-lg shadow-xl p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
-              <h3 className="text-lg font-semibold mb-4">Nereye kaydedilsin?</h3>
+              <h3 className="text-lg font-semibold mb-4">{t('sistem_save_where')}</h3>
               <div className="space-y-3 mb-4">
                 <label className="flex items-start gap-3 p-3 border rounded-lg cursor-pointer hover:bg-foreground/5">
                   <input type="radio" name="saveScope" checked={saveScope === 'system'} onChange={() => { setSaveScope('system'); setSaveTargetUserId(''); }} className="mt-1" />
                   <div>
-                    <span className="font-medium">Sistem şablonlarına kaydet</span>
-                    <p className="text-xs text-muted mt-0.5">Tüm kullanıcılar görebilir</p>
+                    <span className="font-medium">{t('sistem_save_to_system')}</span>
+                    <p className="text-xs text-muted mt-0.5">{t('sistem_save_to_system_desc')}</p>
                   </div>
                 </label>
                 <label className="flex items-start gap-3 p-3 border rounded-lg cursor-pointer hover:bg-foreground/5">
                   <input type="radio" name="saveScope" checked={saveScope === 'user'} onChange={() => setSaveScope('user')} className="mt-1" />
                   <div className="flex-1">
-                    <span className="font-medium">Kullanıcının benim şablonlarıma kaydet</span>
-                    <p className="text-xs text-muted mt-0.5">Seçilen kullanıcının şablonlarına eklenir</p>
+                    <span className="font-medium">{t('sistem_save_to_user_templates')}</span>
+                    <p className="text-xs text-muted mt-0.5">{t('sistem_save_to_user_desc')}</p>
                     {saveScope === 'user' && (
                       <select
                         value={saveTargetUserId}
                         onChange={(e) => setSaveTargetUserId(e.target.value)}
                         className="mt-2 w-full px-3 py-2 text-sm border rounded"
                       >
-                        <option value="">Kullanıcı seçin</option>
+                        <option value="">{t('sistem_select_user_option')}</option>
                         {usersList.map((u) => (
                           <option key={u.id} value={u.id}>{u.email} {u.role !== 'business_user' ? `(${u.role})` : ''}</option>
                         ))}
@@ -3314,11 +3346,11 @@ export default function SistemPage() {
                 </label>
               </div>
               <div className="flex justify-end gap-2">
-                <button onClick={() => setSaveDestinationModalOpen(false)} className="px-4 py-2 text-sm border rounded hover:bg-foreground/5">İptal</button>
+                <button onClick={() => setSaveDestinationModalOpen(false)} className="px-4 py-2 text-sm border rounded hover:bg-foreground/5">{t('btn_cancel')}</button>
                 <button
                   onClick={() => {
                     if (saveScope === 'user' && !saveTargetUserId) {
-                      toast.showWarning('Lütfen bir kullanıcı seçin.');
+                      toast.showWarning(t('sistem_select_user'));
                       return;
                     }
                     setSaveDestinationModalOpen(false);
@@ -3328,7 +3360,7 @@ export default function SistemPage() {
                   disabled={saveScope === 'user' && !saveTargetUserId}
                   className="px-4 py-2 text-sm bg-blue-800 text-white rounded hover:bg-blue-700 disabled:opacity-50"
                 >
-                  Devam
+                  {t('sistem_continue')}
                 </button>
               </div>
             </div>
@@ -3339,20 +3371,20 @@ export default function SistemPage() {
         {saveDialogOpen && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50" onClick={() => { if (!saving) { setSaveDialogOpen(false); setOverwriteConfirm(null); } }}>
             <div className="bg-background border rounded-lg shadow-xl p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
-              <h3 className="text-lg font-semibold mb-4">Tasarımı Kaydet</h3>
-              <input type="text" value={saveName} onChange={(e) => { setSaveName(e.target.value); setOverwriteConfirm(null); }} placeholder="Şablon adı" className="w-full px-3 py-2 border rounded mb-4" />
+              <h3 className="text-lg font-semibold mb-4">{t('sistem_save_design')}</h3>
+              <input type="text" value={saveName} onChange={(e) => { setSaveName(e.target.value); setOverwriteConfirm(null); }} placeholder={t('sistem_template_name')} className="w-full px-3 py-2 border rounded mb-4" />
               {overwriteConfirm ? (
                 <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded text-sm">
-                  <p className="text-amber-800 mb-2">&quot;{overwriteConfirm.name}&quot; adında şablon zaten var. Üzerine kaydetmek istiyor musunuz?</p>
+                  <p className="text-amber-800 mb-2">{t('sistem_overwrite_confirm', { name: overwriteConfirm.name })}</p>
                   <div className="flex justify-end gap-2">
-                    <button onClick={() => setOverwriteConfirm(null)} disabled={saving} className="px-3 py-1.5 text-sm border rounded hover:bg-foreground/5">Vazgeç</button>
-                    <button onClick={() => saveDesignOverwrite()} disabled={saving} className="px-3 py-1.5 text-sm bg-amber-600 text-white rounded hover:bg-amber-700 disabled:opacity-50">{saving ? 'Güncelleniyor…' : 'Üzerine Kaydet'}</button>
+                    <button onClick={() => setOverwriteConfirm(null)} disabled={saving} className="px-3 py-1.5 text-sm border rounded hover:bg-foreground/5">{t('sistem_revert')}</button>
+                    <button onClick={() => saveDesignOverwrite()} disabled={saving} className="px-3 py-1.5 text-sm bg-amber-600 text-white rounded hover:bg-amber-700 disabled:opacity-50">{saving ? t('sistem_updating') : t('sistem_overwrite')}</button>
                   </div>
                 </div>
               ) : (
                 <div className="flex justify-end gap-2">
-                  <button onClick={() => { setSaveDialogOpen(false); setOverwriteConfirm(null); }} disabled={saving} className="px-4 py-2 text-sm border rounded hover:bg-foreground/5">İptal</button>
-                  <button onClick={() => saveDesign()} disabled={saving || !saveName.trim()} className="px-4 py-2 text-sm bg-blue-800 text-white rounded hover:bg-blue-700 disabled:opacity-50">{saving ? 'Kaydediliyor…' : (isAdmin ? 'Kaydet' : 'Şablonlarıma Kaydet')}</button>
+                  <button onClick={() => { setSaveDialogOpen(false); setOverwriteConfirm(null); }} disabled={saving} className="px-4 py-2 text-sm border rounded hover:bg-foreground/5">{t('btn_cancel')}</button>
+                  <button onClick={() => saveDesign()} disabled={saving || !saveName.trim()} className="px-4 py-2 text-sm bg-blue-800 text-white rounded hover:bg-blue-700 disabled:opacity-50">{saving ? t('sistem_saving') : (isAdmin ? t('sistem_save') : t('sistem_save_to_templates'))}</button>
                 </div>
               )}
             </div>

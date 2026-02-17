@@ -310,7 +310,7 @@ function PricingPageContent() {
             <h1 className="text-xl md:text-3xl font-bold text-white mb-2">{t('pricing_title')}</h1>
             <p className="text-sm md:text-base text-white/60">{t('pricing_subtitle')}</p>
             <Link href={localePath('/checkout-preview')} className="inline-block mt-3 text-xs text-white/50 hover:text-emerald-400 transition-colors">
-              Checkout sol panel önizlemesi →
+              {t('pricing_checkout_preview_link')} →
             </Link>
           </div>
 

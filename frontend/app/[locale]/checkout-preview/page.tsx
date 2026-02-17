@@ -17,9 +17,9 @@ export default function CheckoutPreviewPage() {
     <div className="min-h-screen bg-[#06090f] text-white font-sans">
       <div className="max-w-2xl mx-auto p-6 sm:p-10">
         <Link href={localePath('/pricing')} className="inline-flex items-center gap-2 text-white/60 hover:text-white text-sm mb-8">
-          ← Fiyatlandırmaya dön
+          ← Back to pricing
         </Link>
-        <p className="text-xs text-white/40 uppercase tracking-wider mb-6">Checkout sol panel önizlemesi</p>
+        <p className="text-xs text-white/40 uppercase tracking-wider mb-6">Checkout left panel preview</p>
 
         <div className="rounded-xl overflow-hidden border border-white/10 mb-8">
           <Image
@@ -57,10 +57,10 @@ export default function CheckoutPreviewPage() {
         </div>
 
         <div className="mt-12 p-6 rounded-xl border border-dashed border-white/20 bg-white/5">
-          <p className="text-xs text-white/50 uppercase tracking-wider mb-2">Sağda Stripe alanı</p>
+          <p className="text-xs text-white/50 uppercase tracking-wider mb-2">Stripe area on the right</p>
           <p className="text-white/60 text-sm">
-            Bu sayfa sadece sol paneli gösterir. Gerçek Checkout&apos;ta sağda Stripe&apos;ın kart formu, adres alanı ve ödeme butonu bulunur. Tümünü görmek için{' '}
-            <Link href={localePath('/pricing')} className="text-emerald-400 hover:underline">fiyatlandırma</Link> sayfasından bir plan seçip Abone ol&apos;a tıklayın.
+            This page only shows the left panel. In the real Checkout, the right side contains Stripe&apos;s card form, address field, and payment button. To see the full experience,{' '}
+            <Link href={localePath('/pricing')} className="text-emerald-400 hover:underline">select a plan from the pricing page</Link> and click Subscribe.
           </p>
         </div>
       </div>
