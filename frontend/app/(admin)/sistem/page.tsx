@@ -881,43 +881,6 @@ export default function SistemPage() {
     return () => window.removeEventListener('content-library-updated', onUpdate);
   }, [leftTab, loadLibraryShapes]);
 
-  const addLibraryShapeToCanvas = useCallback(
-    async (item: { id: string; name: string; url?: string; content?: string }) => {
-      const canvas = fabricCanvasRef.current;
-      if (!canvas) return;
-      if (item.url) {
-        await addImageFromUrl(resolveMediaUrl(item.url));
-        return;
-      }
-      const fabric = await import('fabric');
-      const cw = (canvas as { width?: number }).width ?? 1920;
-      const ch = (canvas as { height?: number }).height ?? 1080;
-      const text = (item.content || item.name || '').trim() || '?';
-      const t = new fabric.Textbox(text, {
-        left: cw / 2,
-        top: ch / 2,
-        originX: 'center',
-        originY: 'center',
-        width: 280,
-        fontSize: 48,
-        fill: '#ffffff',
-        fontFamily: 'sans-serif',
-        textAlign: 'center',
-        padding: 8,
-      });
-      canvas.add(t);
-      t.setCoords();
-      fitObjectToCanvas(t, cw, ch);
-      canvas.setActiveObject(t);
-      canvas.renderAll();
-      pushHistoryRef.current();
-      setSaved(false);
-      refreshLayers();
-      saveDraftRef.current();
-    },
-    [addImageFromUrl, refreshLayers]
-  );
-
   const addText = useCallback(async () => {
     const canvas = fabricCanvasRef.current;
     if (!canvas) return;
@@ -1568,6 +1531,43 @@ export default function SistemPage() {
       toast.showError('Resim yüklenemedi.');
     }
   }, [refreshLayers]);
+
+  const addLibraryShapeToCanvas = useCallback(
+    async (item: { id: string; name: string; url?: string; content?: string }) => {
+      const canvas = fabricCanvasRef.current;
+      if (!canvas) return;
+      if (item.url) {
+        await addImageFromUrl(resolveMediaUrl(item.url));
+        return;
+      }
+      const fabric = await import('fabric');
+      const cw = (canvas as { width?: number }).width ?? 1920;
+      const ch = (canvas as { height?: number }).height ?? 1080;
+      const text = (item.content || item.name || '').trim() || '?';
+      const t = new fabric.Textbox(text, {
+        left: cw / 2,
+        top: ch / 2,
+        originX: 'center',
+        originY: 'center',
+        width: 280,
+        fontSize: 48,
+        fill: '#ffffff',
+        fontFamily: 'sans-serif',
+        textAlign: 'center',
+        padding: 8,
+      });
+      canvas.add(t);
+      t.setCoords();
+      fitObjectToCanvas(t, cw, ch);
+      canvas.setActiveObject(t);
+      canvas.renderAll();
+      pushHistoryRef.current();
+      setSaved(false);
+      refreshLayers();
+      saveDraftRef.current();
+    },
+    [addImageFromUrl, refreshLayers]
+  );
 
   const addVideoToCanvas = useCallback(async (url: string) => {
     const canvas = fabricCanvasRef.current;
