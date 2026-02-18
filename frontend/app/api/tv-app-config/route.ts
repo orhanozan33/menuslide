@@ -37,12 +37,20 @@ export async function GET() {
       const row = data as TvAppRow;
       const apiBaseUrl = (row.api_base_url ?? '').toString().trim() || defaultConfig.apiBaseUrl;
       const downloadUrl = (row.download_url ?? '').toString().trim() || defaultConfig.downloadUrl;
+      const toInt = (v: unknown): number | null => {
+        if (v == null) return null;
+        if (typeof v === 'number' && Number.isInteger(v)) return v;
+        const n = Number.parseInt(String(v), 10);
+        return Number.isInteger(n) ? n : null;
+      };
+      const minVersionCode = toInt(row.min_version_code) ?? defaultConfig.minVersionCode;
+      const latestVersionCode = toInt(row.latest_version_code) ?? defaultConfig.latestVersionCode;
       return NextResponse.json({
         apiBaseUrl,
         downloadUrl,
-        watchdogIntervalMinutes: row.watchdog_interval_minutes ?? 5,
-        minVersionCode: row.min_version_code ?? defaultConfig.minVersionCode,
-        latestVersionCode: row.latest_version_code ?? defaultConfig.latestVersionCode,
+        watchdogIntervalMinutes: Number(row.watchdog_interval_minutes) || 5,
+        minVersionCode,
+        latestVersionCode,
         latestVersionName: row.latest_version_name ?? defaultConfig.latestVersionName,
       });
     }

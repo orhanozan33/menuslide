@@ -63,10 +63,17 @@ export async function GET(request: NextRequest) {
         transition_duration: 300,
       });
     } else {
+      // Web public-screen ile aynı: kullanıcı ne ayarladıysa birebir (sayıya çevir; Supabase bazen string döner)
+      const toNum = (v: unknown, fallback: number): number => {
+        if (v == null) return fallback;
+        if (typeof v === 'number' && Number.isFinite(v)) return v;
+        const n = Number(v);
+        return Number.isFinite(n) ? n : fallback;
+      };
       rotations.forEach((r, orderIndex) => {
-        const duration = Math.max(1, r.display_duration ?? 8);
-        const transitionEffect = r.transition_effect ?? 'slide-left';
-        const transitionDuration = Math.min(5000, Math.max(100, r.transition_duration ?? 5000));
+        const duration = Math.max(1, Math.min(86400, toNum((r as { display_duration?: unknown }).display_duration, 5)));
+        const transitionEffect = (r as { transition_effect?: string }).transition_effect ?? 'fade';
+        const transitionDuration = Math.min(5000, Math.max(100, toNum((r as { transition_duration?: unknown }).transition_duration, 1400)));
         const baseSlide = { duration, transition_effect: transitionEffect, transition_duration: transitionDuration };
         if (versionHash && SLIDE_IMAGE_BASE) {
           const t = encodeURIComponent(updatedAt);

@@ -173,10 +173,11 @@ export async function generateSlidesForScreen(screenId: string): Promise<Generat
     };
   }
 
+  // Web/APK ile aynı: kullanıcı süresi birebir (varsayılan 5 sn, 1400 ms geçiş)
   const slides = rotations.map((r, index) => {
-    const duration = Math.max(1, r.display_duration ?? 8);
-    const transitionEffect = r.transition_effect ?? 'slide-left';
-    const transitionDuration = Math.min(5000, Math.max(100, r.transition_duration ?? 5000));
+    const duration = Math.max(1, r.display_duration ?? 5);
+    const transitionEffect = r.transition_effect ?? 'fade';
+    const transitionDuration = Math.min(5000, Math.max(100, r.transition_duration ?? 1400));
     const url = SLIDE_IMAGE_BASE ? `${SLIDE_IMAGE_BASE}/slides/${screenId}/${versionHash}/slide_${index}.jpg` : '';
     return {
       type: 'image' as const,

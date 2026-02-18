@@ -137,6 +137,23 @@ class DeviceRepository @Inject constructor(
         layoutCacheDao.getCachedLayout()?.layoutJson
     }
 
+    /** Web ile aynı kaynak: GET device/layout ile güncel slides alır ve cache günceller (template sayısı web ile eşit). */
+    suspend fun fetchAndUpdateLayout(): Boolean = withContext(Dispatchers.IO) {
+        val token = getDeviceToken() ?: return@withContext false
+        try {
+            val res = api.getLayout(token)
+            if (!res.isSuccessful) return@withContext false
+            val body = res.body() ?: return@withContext false
+            val layout = body.layout ?: return@withContext false
+            val layoutJson = gson.toJson(layout)
+            val version = layout.version ?: 0
+            layoutCacheDao.insert(LayoutCacheEntity(layoutJson = layoutJson, version = version, updatedAt = System.currentTimeMillis()))
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     suspend fun getDeviceEntity(): DeviceEntity? = withContext(Dispatchers.IO) {
         deviceDao.getDevice()
     }

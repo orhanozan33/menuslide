@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">MenuSlide TV</string>
+    <string name="app_name">Menu Slide</string>
     <string name="label_broadcast_code">Display Code</string>
     <string name="hint_code">Enter code</string>
     <string name="recent_codes_title">Daha önce girilen kodlar</string>
@@ -14,12 +14,12 @@
     <string name="error_not_json">Server returned unexpected response. Check TV network or proxy.</string>
     <string name="error_no_stream">Stream URL could not be retrieved.</string>
     <string name="error_playback_failed">Playback could not start. Check internet and code; try again.</string>
-    <string name="update_required_title">Update Required</string>
-    <string name="update_required_message">This version is no longer supported. Please update for uninterrupted playback.</string>
-    <string name="update_available_title">Update Available</string>
-    <string name="update_available_message">A new version is available. Would you like to update?</string>
-    <string name="btn_update">Update</string>
-    <string name="btn_skip">Later</string>
+    <string name="update_required_title">Güncelleme gerekli</string>
+    <string name="update_required_message">Bu sürüm artık desteklenmiyor. Güncellemek için \"Güncelle\"ye basın; indirme uygulama içinden başlar.</string>
+    <string name="update_available_title">Yeni sürüm var</string>
+    <string name="update_available_message">Yeni sürüm var. Güncellemek için \"Güncelle\"ye basın; indirme uygulama içinden başlar.</string>
+    <string name="btn_update">Güncelle</string>
+    <string name="btn_skip">Daha sonra</string>
     <string name="permission_battery_title">Uninterrupted playback</string>
     <string name="permission_battery_message">Allow \"Exempt from battery optimization\" for 24/7 playback.</string>
     <string name="btn_allow">Allow</string>
@@ -30,4 +30,6 @@
     <string name="notification_channel_playback">Playback</string>
     <string name="notification_playback_running">Playback running</string>
     <string name="version_label">Version %s</string>
+    <string name="no_broadcast">Yayın yok. Admin panelden bu ekran için içerik atayın.</string>
+    <string name="slide_loading">İçerik yükleniyor…</string>
 </resources>

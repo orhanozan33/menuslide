@@ -337,8 +337,7 @@ export default function SistemPage() {
           fabricCanvas!.backgroundColor = savedBg;
           fabricCanvas!.setDimensions({ width: 1920, height: 1080 });
           constrainAllObjects(fabricCanvas!);
-          ensureSingleLineTextboxWidths(fabricCanvas!);
-          separateOverlappingTextObjects(fabricCanvas!);
+          // Konum kayması olmasın: ensureSingleLineTextboxWidths / separateOverlappingTextObjects çağrılmaz.
           fabricCanvas!.renderAll();
           setSaved(true);
           pushHistory();
@@ -1373,8 +1372,7 @@ export default function SistemPage() {
     try {
       await canvas.loadFromJSON(json);
       constrainAllObjects(canvas);
-      ensureSingleLineTextboxWidths(canvas);
-      separateOverlappingTextObjects(canvas);
+      // Konum kayması olmasın: geri alınan state aynen kalsın.
       canvas.renderAll();
       setSaved(false);
       setHistoryTickRef.current?.((t) => t + 1);
@@ -1392,8 +1390,7 @@ export default function SistemPage() {
     try {
       await canvas.loadFromJSON(json);
       constrainAllObjects(canvas);
-      ensureSingleLineTextboxWidths(canvas);
-      separateOverlappingTextObjects(canvas);
+      // Konum kayması olmasın: ileri alınan state aynen kalsın.
       canvas.renderAll();
       setSaved(false);
       setHistoryTickRef.current?.((t) => t + 1);
@@ -2435,8 +2432,7 @@ export default function SistemPage() {
                           await c.loadFromJSON(safe as object, reviver as any);
                           c.setDimensions({ width: 1920, height: 1080 });
                           constrainAllObjects(c);
-                          ensureSingleLineTextboxWidths(c);
-                          separateOverlappingTextObjects(c);
+                          // Kullanıcının kaydettiği konumlar aynen kalsın; kayma olmasın.
                           const cw = (c as { width?: number }).width ?? 1920;
                           const ch = (c as { height?: number }).height ?? 1080;
                           await restoreVideoObjectsInCanvas(c, cw, ch, () => {

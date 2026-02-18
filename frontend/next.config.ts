@@ -34,6 +34,13 @@ const nextConfig: NextConfig = {
         ],
       },
       {
+        source: '/downloads/Menuslide.apk',
+        headers: [
+          { key: 'Content-Type', value: 'application/vnd.android.package-archive' },
+          { key: 'Content-Disposition', value: 'attachment; filename="Menuslide.apk"' },
+        ],
+      },
+      {
         source: '/display/:path*',
         headers: [
           { key: 'X-Content-Type-Options', value: 'nosniff' },

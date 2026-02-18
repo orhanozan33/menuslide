@@ -10,8 +10,12 @@ import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import com.digitalsignage.tv.data.api.LayoutPayload
 import com.digitalsignage.tv.data.api.LayoutPayloadTypeAdapter
+import com.digitalsignage.tv.data.api.LayoutSlide
+import com.digitalsignage.tv.data.api.LayoutSlideTypeAdapter
 import com.digitalsignage.tv.data.api.RegisterResponse
 import com.digitalsignage.tv.data.api.RegisterResponseTypeAdapter
+import com.digitalsignage.tv.data.api.TvAppConfigResponse
+import com.digitalsignage.tv.data.api.TvAppConfigResponseTypeAdapter
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import retrofit2.Retrofit
@@ -42,13 +46,18 @@ object AppModule {
     @Singleton
     fun provideGson(): Gson {
         val plainGson = GsonBuilder().create()
-        val layoutPayloadAdapter = LayoutPayloadTypeAdapter(plainGson)
+        val gsonWithSlide = GsonBuilder()
+            .registerTypeAdapter(LayoutSlide::class.java, LayoutSlideTypeAdapter())
+            .create()
+        val layoutPayloadAdapter = LayoutPayloadTypeAdapter(gsonWithSlide)
         return GsonBuilder()
             .registerTypeAdapter(LayoutPayload::class.java, layoutPayloadAdapter)
             .registerTypeAdapter(
                 RegisterResponse::class.java,
                 RegisterResponseTypeAdapter(plainGson, layoutPayloadAdapter)
             )
+            .registerTypeAdapter(TvAppConfigResponse::class.java, TvAppConfigResponseTypeAdapter())
+            .registerTypeAdapter(LayoutSlide::class.java, LayoutSlideTypeAdapter())
             .create()
     }
 

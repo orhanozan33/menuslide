@@ -3,15 +3,20 @@ package com.digitalsignage.tv.data.api
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
+import retrofit2.http.Header
 import retrofit2.http.POST
 
 /**
  * Enterprise device API. HTTPS only; certificate pinning can be added via OkHttp.
+ * Web ile aynı layout: GET device/layout ile slides (template rotasyonları) alınır.
  */
 interface ApiService {
 
     @GET("tv-app-config")
     suspend fun getTvAppConfig(): Response<TvAppConfigResponse>
+
+    @GET("device/layout")
+    suspend fun getLayout(@Header("x-device-token") deviceToken: String): Response<DeviceLayoutResponse>
 
     @POST("device/register")
     suspend fun register(@Body body: RegisterRequest): Response<RegisterResponse>
@@ -19,6 +24,13 @@ interface ApiService {
     @POST("device/heartbeat")
     suspend fun heartbeat(@Body body: HeartbeatRequest): Response<HeartbeatResponse>
 }
+
+/** GET device/layout yanıtı — web /api/layout ile aynı slides yapısı. */
+data class DeviceLayoutResponse(
+    val layout: LayoutPayload? = null,
+    val layoutVersion: String? = null,
+    val refreshIntervalSeconds: Int? = null
+)
 
 data class RegisterRequest(
     val displayCode: String,
@@ -34,12 +46,24 @@ data class RegisterResponse(
     val refreshIntervalSeconds: Int = 300
 )
 
+/** Backend bazen slides döner (slayt carousel), bazen components. */
 data class LayoutPayload(
     val version: Int? = null,
     val type: String? = null,
     val videoUrl: String? = null,
     val backgroundColor: String? = null,
-    val components: List<LayoutComponent>? = null
+    val components: List<LayoutComponent>? = null,
+    val slides: List<LayoutSlide>? = null
+)
+
+data class LayoutSlide(
+    val type: String? = null,
+    val url: String? = null,
+    val title: String? = null,
+    val description: String? = null,
+    val duration: Int = 10,
+    val transition_effect: String? = null,
+    val transition_duration: Int? = null
 )
 
 data class LayoutComponent(

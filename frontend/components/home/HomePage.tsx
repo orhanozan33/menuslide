@@ -130,20 +130,11 @@ export function HomePage({ localePath }: HomePageProps) {
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [contactInfo, setContactInfo] = useState({ email: '', phone: '', address: '', whatsapp: '' });
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const [downloadUrl, setDownloadUrl] = useState('/downloads/Menuslide.apk');
+  const [downloadUrl, setDownloadUrl] = useState('/api/download-apk');
   const [partners, setPartners] = useState<{ business_partners: PartnerItem[]; partners: PartnerItem[] }>({
     business_partners: [],
     partners: [],
   });
-
-  useEffect(() => {
-    fetch('/api/tv-app-config', { cache: 'no-store' })
-      .then((res) => res.json())
-      .then((data: { downloadUrl?: string }) => {
-        if (data.downloadUrl) setDownloadUrl(data.downloadUrl);
-      })
-      .catch(() => {});
-  }, []);
 
   useEffect(() => {
     fetch('/api/home-channels', { cache: 'no-store' })
@@ -545,9 +536,7 @@ export function HomePage({ localePath }: HomePageProps) {
             </a>
             <a
               href={downloadUrl}
-              download={downloadUrl.startsWith('/') ? 'Menuslide.apk' : undefined}
-              target={downloadUrl.startsWith('http') ? '_blank' : undefined}
-              rel={downloadUrl.startsWith('http') ? 'noopener noreferrer' : undefined}
+              download="Menuslide.apk"
               className="inline-block rounded-lg overflow-hidden shadow-lg hover:opacity-95 active:opacity-90 transition-opacity touch-manipulation focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-[#06090f]"
               aria-label={t('home_download_btn')}
             >

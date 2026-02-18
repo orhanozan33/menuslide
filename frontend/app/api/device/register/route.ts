@@ -105,13 +105,20 @@ export async function POST(request: Request) {
     const slides: Array<{ type: string; url?: string; title?: string; description?: string; duration: number; transition_effect?: string; transition_duration?: number }> = [];
 
     const versionHash = (screen as { layout_snapshot_version?: string | null }).layout_snapshot_version;
+    // Kullanıcı ne ayarladıysa birebir (sayıya çevir; Supabase bazen string döner)
+    const toNum = (v: unknown, fallback: number): number => {
+      if (v == null) return fallback;
+      if (typeof v === 'number' && Number.isFinite(v)) return v;
+      const n = Number(v);
+      return Number.isFinite(n) ? n : fallback;
+    };
     ordered.forEach((r, index) => {
       const templateId =
         (r as { full_editor_template_id?: string | null }).full_editor_template_id ||
         (r as { template_id?: string }).template_id;
-      const duration = Math.max(1, (r as { display_duration?: number }).display_duration ?? 8);
-      const transitionEffect = (r as { transition_effect?: string }).transition_effect ?? 'slide-left';
-      const transitionDuration = Math.min(5000, Math.max(100, (r as { transition_duration?: number }).transition_duration ?? 5000));
+      const duration = Math.max(1, Math.min(86400, toNum((r as { display_duration?: unknown }).display_duration, 5)));
+      const transitionEffect = (r as { transition_effect?: string }).transition_effect ?? 'fade';
+      const transitionDuration = Math.min(5000, Math.max(100, toNum((r as { transition_duration?: unknown }).transition_duration, 1400)));
 
       const baseSlide = { duration, transition_effect: transitionEffect, transition_duration: transitionDuration };
       if (SLIDE_IMAGE_BASE) {

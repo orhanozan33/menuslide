@@ -53,7 +53,7 @@ class RegisterResponseTypeAdapter(
                 "deviceToken" -> deviceToken = reader.nextString()
                 "layout" -> layout = layoutPayloadAdapter.read(reader)
                 "videoUrls" -> videoUrls = readStringArray(reader)
-                "refreshIntervalSeconds" -> refreshIntervalSeconds = reader.nextInt()
+                "refreshIntervalSeconds" -> refreshIntervalSeconds = readIntSafe(reader, 300)
                 else -> reader.skipValue()
             }
         }
@@ -65,6 +65,14 @@ class RegisterResponseTypeAdapter(
             videoUrls = videoUrls,
             refreshIntervalSeconds = refreshIntervalSeconds
         )
+    }
+
+    private fun readIntSafe(reader: JsonReader, default: Int): Int {
+        return when (reader.peek()) {
+            JsonToken.NUMBER -> try { reader.nextInt() } catch (_: NumberFormatException) { default }
+            JsonToken.STRING -> try { reader.nextString().toIntOrNull() ?: default } catch (_: NumberFormatException) { default }
+            else -> { reader.skipValue(); default }
+        }
     }
 
     private fun readStringArray(reader: JsonReader): List<String>? {

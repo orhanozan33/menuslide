@@ -19,6 +19,7 @@ import com.digitalsignage.tv.MainActivity
 import com.digitalsignage.tv.R
 import com.digitalsignage.tv.data.repository.DeviceRepository
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
@@ -52,7 +53,10 @@ class ActivationActivity : AppCompatActivity() {
         val recentCodes = repository.getRecentCodes()
         val adapter = ArrayAdapter(this, R.layout.list_item_recent_code, R.id.item_code, recentCodes)
         listRecentCodes.adapter = adapter
+        listRecentCodes.isFocusable = recentCodes.isNotEmpty()
+        if (recentCodes.isNotEmpty()) listRecentCodes.requestFocus()
 
+        // Sağdaki "daha önce girilen kodlar" listesinde bir koda tıklanınca / Enter ile o kodla doğrudan giriş
         listRecentCodes.setOnItemClickListener { _, _, position, _ ->
             val code = adapter.getItem(position)?.toString()?.trim() ?: return@setOnItemClickListener
             if (code.isNotEmpty()) {
@@ -76,7 +80,10 @@ class ActivationActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        checkForUpdate()
+        lifecycleScope.launch {
+            delay(800)
+            checkForUpdate()
+        }
     }
 
     private fun performActivate(
@@ -104,22 +111,24 @@ class ActivationActivity : AppCompatActivity() {
 
     private fun checkForUpdate() {
         lifecycleScope.launch {
-            val config = withContext(Dispatchers.IO) { repository.getTvAppConfig() } ?: return@launch
+            var config = withContext(Dispatchers.IO) { repository.getTvAppConfig() }
+            if (config == null) {
+                delay(2000)
+                config = withContext(Dispatchers.IO) { repository.getTvAppConfig() }
+            }
+            val cfg = config ?: return@launch
             val currentCode = BuildConfig.VERSION_CODE
-            val minRequired = config.minVersionCode
-            val latestAvailable = config.latestVersionCode ?: config.minVersionCode
+            val minRequired = cfg.minVersionCode
+            val latestAvailable = cfg.latestVersionCode ?: cfg.minVersionCode
 
-            val isRequired = minRequired != null && currentCode < minRequired
-            val isOptional = latestAvailable != null && currentCode < latestAvailable && !isRequired
+            val hasUpdate = (minRequired != null && currentCode < minRequired) ||
+                (latestAvailable != null && currentCode < latestAvailable)
 
-            if (isRequired || isOptional) {
-                val downloadUrl = buildDownloadUrl(config.apiBaseUrl, config.downloadUrl)
+            if (hasUpdate) {
+                val downloadUrl = buildDownloadUrl(cfg.apiBaseUrl, cfg.downloadUrl)
                 if (downloadUrl.isNotBlank() && !isFinishing) {
                     withContext(Dispatchers.Main) {
-                        if (!isFinishing) showUpdateDialog(
-                            required = isRequired,
-                            downloadUrl = downloadUrl
-                        )
+                        if (!isFinishing) showUpdateDialog(downloadUrl = downloadUrl)
                     }
                 }
             }
@@ -133,22 +142,14 @@ class ActivationActivity : AppCompatActivity() {
         return if (url.startsWith("/")) base + url else "$base/$url"
     }
 
-    private fun showUpdateDialog(required: Boolean, downloadUrl: String) {
-        val title = if (required) getString(R.string.update_required_title) else getString(R.string.update_available_title)
-        val message = if (required) getString(R.string.update_required_message) else getString(R.string.update_available_message)
-        val builder = AlertDialog.Builder(this)
-            .setTitle(title)
-            .setMessage(message)
-            .setPositiveButton(getString(R.string.btn_update)) { _, _ ->
-                openDownloadUrl(downloadUrl)
-                if (required) finish()
-            }
-        if (!required) {
-            builder.setNegativeButton(getString(R.string.btn_skip), null)
-        } else {
-            builder.setCancelable(false)
-        }
-        builder.show()
+    private fun showUpdateDialog(downloadUrl: String) {
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.update_available_title))
+            .setMessage(getString(R.string.update_available_message))
+            .setPositiveButton(getString(R.string.btn_update)) { _, _ -> openDownloadUrl(downloadUrl) }
+            .setNegativeButton(getString(R.string.btn_skip), null)
+            .setCancelable(true)
+            .show()
     }
 
     private fun openDownloadUrl(url: String) {

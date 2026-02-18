@@ -24,7 +24,7 @@ export async function captureDisplaySlidesFromLivePage(options: {
   if (!puppeteer?.default) return rotations.map(() => null);
 
   const liveUrl = `${baseUrl.replace(/\/$/, '')}/display/${encodeURIComponent(String(slug))}?lite=1&_live=${runTs}`;
-  const durationsSec = rotations.map((r) => Math.max(1, r.display_duration ?? 8));
+  const durationsSec = rotations.map((r) => Math.max(1, r.display_duration ?? 5));
   const results: (Buffer | null)[] = [];
 
   const browser = await puppeteer.default.launch({

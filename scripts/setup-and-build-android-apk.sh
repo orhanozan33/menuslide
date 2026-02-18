@@ -1,66 +1,88 @@
 #!/usr/bin/env bash
 #
-# macOS: Java 17 + Android SDK kurar (yoksa), sonra TV uygulaması APK derler ve
-# frontend/public/downloads/Menuslide.apk olarak kopyalar.
+# macOS: Gerekli kurulumları yapar (Java 17, Android SDK, gerekirse Homebrew/Gradle),
+# sonra TV uygulaması APK derler ve frontend/public/downloads/Menuslide.apk olarak kopyalar.
 # Tek seferde: ./scripts/setup-and-build-android-apk.sh
 #
 set -e
 cd "$(dirname "$0")/.."
 PROJECT_ROOT="$(pwd)"
 
-echo "=============================================="
-echo "  1) Java 17 kontrolü"
-echo "=============================================="
-if ! java -version 2>&1 | grep -qE "17|18|21"; then
-  echo "Java 17 bulunamadı. Homebrew ile kuruluyor..."
-  if ! command -v brew >/dev/null 2>&1; then
-    echo "Homebrew yüklü değil. Önce kurun: https://brew.sh"
-    echo "  /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
-    exit 1
-  fi
-  brew install openjdk@17
-  export PATH="/opt/homebrew/opt/openjdk@17/bin:$PATH"
-  export JAVA_HOME="/opt/homebrew/opt/openjdk@17"
-  if [ -d "/usr/local/opt/openjdk@17" ]; then
-    export PATH="/usr/local/opt/openjdk@17/bin:$PATH"
-    export JAVA_HOME="/usr/local/opt/openjdk@17"
-  fi
-else
-  export JAVA_HOME="${JAVA_HOME:-$(/usr/libexec/java_home 2>/dev/null || echo '')}"
-  [ -z "$JAVA_HOME" ] && export JAVA_HOME="/opt/homebrew/opt/openjdk@17"
+# Homebrew yoksa kurulum talimatı (otomatik kurulum uzun sürer)
+if ! command -v brew >/dev/null 2>&1; then
+  echo "Homebrew bulunamadı. Kurulum için:"
+  echo "  /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
+  echo "Kurduktan sonra bu scripti tekrar çalıştırın."
+  exit 1
 fi
+
+# HOMEBREW_PREFIX (Apple Silicon: /opt/homebrew, Intel: /usr/local)
+BREW_PREFIX="${HOMEBREW_PREFIX:-$(brew --prefix 2>/dev/null || echo "/usr/local")}"
+
+echo "=============================================="
+echo "  1) Java 17"
+echo "=============================================="
+setup_java() {
+  export PATH="$BREW_PREFIX/opt/openjdk@17/bin:$PATH"
+  export JAVA_HOME="$BREW_PREFIX/opt/openjdk@17"
+  if [ ! -d "$JAVA_HOME" ]; then
+    JAVA_HOME="/usr/local/opt/openjdk@17"
+    PATH="/usr/local/opt/openjdk@17/bin:$PATH"
+  fi
+  if [ -d "$JAVA_HOME" ] && java -version 2>&1 | grep -qE "17|18|21"; then
+    return 0
+  fi
+  return 1
+}
+if ! setup_java 2>/dev/null; then
+  echo "Java 17 kuruluyor (brew install openjdk@17)..."
+  brew install openjdk@17
+  setup_java
+fi
+export PATH="$BREW_PREFIX/opt/openjdk@17/bin:$PATH"
+export JAVA_HOME="$BREW_PREFIX/opt/openjdk@17"
+[ -d "/usr/local/opt/openjdk@17" ] && export JAVA_HOME="/usr/local/opt/openjdk@17" && export PATH="/usr/local/opt/openjdk@17/bin:$PATH"
 java -version
 echo ""
 
 echo "=============================================="
-echo "  2) Android SDK kontrolü"
+echo "  2) Android SDK"
 echo "=============================================="
-if [ -z "$ANDROID_HOME" ]; then
+if [ -z "$ANDROID_HOME" ] || [ ! -d "$ANDROID_HOME" ]; then
   if [ -d "$HOME/Library/Android/sdk" ]; then
     export ANDROID_HOME="$HOME/Library/Android/sdk"
-    echo "ANDROID_HOME=$ANDROID_HOME (Android Studio SDK)"
+    echo "ANDROID_HOME=$ANDROID_HOME (Android Studio)"
+  elif [ -d "$BREW_PREFIX/share/android-commandlinetools" ]; then
+    export ANDROID_HOME="$BREW_PREFIX/share/android-commandlinetools"
+    echo "ANDROID_HOME=$ANDROID_HOME (Homebrew)"
   elif [ -d "/usr/local/share/android-commandlinetools" ]; then
     export ANDROID_HOME="/usr/local/share/android-commandlinetools"
-    echo "ANDROID_HOME=$ANDROID_HOME (commandlinetools)"
+    echo "ANDROID_HOME=$ANDROID_HOME (Homebrew)"
   else
-    echo "ANDROID_HOME tanımlı değil ve ~/Library/Android/sdk yok."
-    echo ""
-    echo "İki seçenek:"
-    echo "  A) Android Studio kurun: https://developer.android.com/studio"
-    echo "     Kurulumdan sonra Android Studio'yu bir kez açıp SDK'yı indirin."
-    echo "     Sonra bu scripti tekrar çalıştırın."
-    echo "  B) Sadece komut satırı araçları:"
-    echo "     brew install --cask android-commandlinetools"
-    echo "     Sonra ANDROID_HOME ayarlayıp bu scripti tekrar çalıştırın."
-    echo ""
-    exit 1
+    echo "Android SDK bulunamadı. Homebrew ile kuruluyor (brew install --cask android-commandlinetools)..."
+    brew install --cask android-commandlinetools
+    if [ -d "$BREW_PREFIX/share/android-commandlinetools" ]; then
+      export ANDROID_HOME="$BREW_PREFIX/share/android-commandlinetools"
+    else
+      export ANDROID_HOME="/usr/local/share/android-commandlinetools"
+    fi
+    echo "ANDROID_HOME=$ANDROID_HOME"
   fi
+fi
+export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
+
+# Gerekli SDK bileşenleri (platform android-34, build-tools 34.x, platform-tools)
+SDKMAN="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+if [ -x "$SDKMAN" ]; then
+  echo "Gerekli SDK paketleri kontrol ediliyor..."
+  yes | "$SDKMAN" --licenses 2>/dev/null || true
+  "$SDKMAN" "platform-tools" "platforms;android-34" "build-tools;34.0.0" 2>/dev/null || true
 fi
 echo "ANDROID_HOME=$ANDROID_HOME"
 echo ""
 
 echo "=============================================="
-echo "  3) SDK lisansları (gerekirse)"
+echo "  3) SDK lisansları"
 echo "=============================================="
 if [ -x "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]; then
   yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses 2>/dev/null || true
@@ -73,24 +95,32 @@ echo "=============================================="
 cd "$PROJECT_ROOT/android-tv"
 export JAVA_HOME
 if ! ./gradlew assembleRelease 2>/dev/null; then
-  echo "Gradle wrapper hatası. Gradle ile wrapper oluşturuluyor..."
+  echo "Gradle wrapper hatası. Sistem Gradle ile tekrar denenecek..."
+  if ! command -v gradle >/dev/null 2>&1; then
+    echo "Gradle kuruluyor (brew install gradle)..."
+    brew install gradle
+  fi
   if command -v gradle >/dev/null 2>&1; then
-    gradle wrapper --gradle-version=8.1.2
+    gradle wrapper --gradle-version=8.7 --distribution-type=bin
     ./gradlew assembleRelease
   else
-    echo "Gradle yüklü değil. Kurun: brew install gradle"
-    echo "Sonra: cd android-tv && gradle wrapper --gradle-version=8.1.2 && ./gradlew assembleRelease"
+    echo "HATA: Gradle kurulamadı. Manuel: brew install gradle"
     exit 1
   fi
 fi
-APK_SIGNED="app/build/outputs/apk/release/app-release.apk"
-APK_UNSIGNED="app/build/outputs/apk/release/app-release-unsigned.apk"
-if [ -f "$APK_SIGNED" ]; then
+RELEASE_DIR="app/build/outputs/apk/release"
+APK_SIGNED="$RELEASE_DIR/app-release.apk"
+APK_UNSIGNED="$RELEASE_DIR/app-release-unsigned.apk"
+# Proje Menuslide.<version>.apk adında da üretir (app/build.gradle applicationVariants)
+APK_MENUSLIDE=$(ls "$RELEASE_DIR"/Menuslide.*.apk 2>/dev/null | head -1)
+if [ -n "$APK_MENUSLIDE" ] && [ -f "$APK_MENUSLIDE" ]; then
+  APK="$APK_MENUSLIDE"
+elif [ -f "$APK_SIGNED" ]; then
   APK="$APK_SIGNED"
 elif [ -f "$APK_UNSIGNED" ]; then
   APK="$APK_UNSIGNED"
 else
-  echo "HATA: APK oluşmadı."
+  echo "HATA: APK oluşmadı. $RELEASE_DIR içine bakın."
   exit 1
 fi
 mkdir -p "$PROJECT_ROOT/frontend/public/downloads"

@@ -29,6 +29,14 @@ class LayoutPayloadTypeAdapter(private val gson: Gson) : TypeAdapter<LayoutPaylo
             }
             out.endArray()
         }
+        value.slides?.let { list ->
+            out.name("slides")
+            out.beginArray()
+            for (slide in list) {
+                gson.toJson(slide, LayoutSlide::class.java, out)
+            }
+            out.endArray()
+        }
         out.endObject()
     }
 
@@ -40,17 +48,43 @@ class LayoutPayloadTypeAdapter(private val gson: Gson) : TypeAdapter<LayoutPaylo
         var version: Int? = null
         var backgroundColor: String? = null
         var components: List<LayoutComponent>? = null
+        var slides: List<LayoutSlide>? = null
         reader.beginObject()
         while (reader.hasNext()) {
             when (reader.nextName()) {
-                "version" -> version = reader.nextInt()
+                "version" -> version = readVersionSafe(reader)
                 "backgroundColor" -> backgroundColor = reader.nextString()
                 "components" -> components = readComponentsArray(reader)
+                "slides" -> slides = readSlidesArray(reader)
                 else -> reader.skipValue()
             }
         }
         reader.endObject()
-        return LayoutPayload(version = version, backgroundColor = backgroundColor, components = components)
+        return LayoutPayload(version = version, backgroundColor = backgroundColor, components = components, slides = slides)
+    }
+
+    private fun readSlidesArray(reader: JsonReader): List<LayoutSlide>? {
+        if (reader.peek() == JsonToken.NULL) {
+            reader.nextNull()
+            return null
+        }
+        val list = ArrayList<LayoutSlide>()
+        reader.beginArray()
+        while (reader.hasNext()) {
+            val slide: LayoutSlide? = gson.fromJson(reader, LayoutSlide::class.java)
+            if (slide != null) list.add(slide)
+        }
+        reader.endArray()
+        return list
+    }
+
+    /** API bazen version'ı string (ISO tarih/hash) gönderir; nextInt() "For input string" hatası verir. */
+    private fun readVersionSafe(reader: JsonReader): Int? {
+        return when (reader.peek()) {
+            JsonToken.NUMBER -> try { reader.nextInt() } catch (_: NumberFormatException) { null }
+            JsonToken.STRING -> try { reader.nextString().toIntOrNull() } catch (_: NumberFormatException) { null }
+            else -> { reader.skipValue(); null }
+        }
     }
 
     private fun readComponentsArray(reader: JsonReader): List<LayoutComponent>? {

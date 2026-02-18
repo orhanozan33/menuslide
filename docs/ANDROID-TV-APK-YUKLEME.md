@@ -1,5 +1,16 @@
 # Android TV APK Derleme ve Yükleme
 
+## Adımlar (kısa özet)
+
+| Adım | Ne yapılır |
+|------|------------|
+| 1 | Proje kökünde `./scripts/setup-and-build-android-apk.sh` çalıştır. |
+| 2 | Script gerekirse Java 17, Android SDK, SDK paketleri ve Gradle kurar. |
+| 3 | Release APK derlenir; çıktı `frontend/public/downloads/Menuslide.apk` olarak kopyalanır. |
+| 4 | Siteyi deploy edersen kullanıcılar bu APK’yı indirebilir; veya ADB / USB ile TV’ye yüklersin. |
+
+---
+
 ## 1. APK derleme (bilgisayarınızda)
 
 ### Gereksinimler
@@ -14,6 +25,7 @@
 ### Tek komutla derleme (önerilen)
 Proje kökünde:
 ```bash
+cd /Users/admin/Desktop/Tvproje
 ./scripts/setup-and-build-android-apk.sh
 ```
 Bu script Java ve SDK kontrol eder; Release APK’yı derleyip `frontend/public/downloads/Menuslide.apk` konumuna kopyalar.
@@ -25,7 +37,7 @@ cd android-tv
 export JAVA_HOME="/opt/homebrew/opt/openjdk@17"   # veya kendi Java yolunuz
 ./gradlew assembleRelease
 ```
-APK çıktısı: `android-tv/app/build/outputs/apk/release/app-release.apk`
+APK çıktısı: `android-tv/app/build/outputs/apk/release/Menuslide.<version>.apk` (örn. Menuslide.1.0.28.apk)
 
 Debug APK (test için):
 ```bash
