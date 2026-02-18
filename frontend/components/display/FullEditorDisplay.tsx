@@ -68,7 +68,7 @@ async function waitForCanvasImages(canvas: import('fabric').Canvas): Promise<voi
   await Promise.all(imagePromises);
 }
 
-/** Full Editor (Fabric) canvas_json render. Tek canvas instance; clear + async loadFromJSON + image bekleme; duplicate/üst üste binme yok. */
+/** Full Editor (Fabric) canvas_json render. Koordinatlar/pozisyonlar değiştirilmez; kaydedilen noktada kalır (admin/kullanıcı/yayın aynı). */
 export function FullEditorDisplay({ canvasJson, onReady }: { canvasJson: object; onReady?: () => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const onReadyRef = useRef(onReady);
@@ -135,7 +135,7 @@ export function FullEditorDisplay({ canvasJson, onReady }: { canvasJson: object;
 
         await canvas.loadFromJSON(safeJson, reviver as any);
         if (cancelled) return;
-
+        // Pozisyon kayması yok: constrainAllObjects / ensureSingleLine / separateOverlapping çağrılmaz
         lastLoadedJsonRef.current = jsonKey;
 
         await waitForCanvasImages(canvas);

@@ -1226,6 +1226,7 @@ export default function SistemPage() {
           body: JSON.stringify({
             id: savedTemplateId,
             name: name.trim(),
+            // left/top/width/height toObject ile aynen kaydedilir; kayma olmaz
             canvas_json: (canvas as { toObject: (p?: string[]) => object }).toObject(['selectable', 'evented', 'fontFamily', 'fontWeight', 'fontStyle', 'fontSize', 'fill', 'textAlign', 'underline', 'linethrough', 'overline', 'styles']),
             preview_image: previewDataUrl || null,
             category_id: selectedCategoryId || null,
