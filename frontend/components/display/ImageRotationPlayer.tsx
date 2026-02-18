@@ -230,6 +230,11 @@ export function ImageRotationPlayer({
             muted
             loop
             playsInline
+            preload="metadata"
+            onError={(e) => {
+              const el = e.currentTarget;
+              el.style.display = 'none';
+            }}
           />
         ) : (
           <img

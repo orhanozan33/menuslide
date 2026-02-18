@@ -98,12 +98,14 @@ function getItemDisplayName(item: ContentLibraryItem, t: (key: string) => string
 }
 
 function getCategoryLabel(cat: ContentCategory, t: (key: string) => string): string {
+  const slug = (cat.slug ?? '').toLowerCase();
+  const key = CATEGORY_SLUG_TO_KEY[slug];
+  if (key) return t(key);
   const customLabel = (cat.label ?? '').trim();
   if (customLabel) return customLabel;
-  const slug = (cat.slug ?? '').toLowerCase();
   const labelNorm = (cat.label ?? '').toLowerCase().trim();
-  const key = CATEGORY_SLUG_TO_KEY[slug] ?? CATEGORY_LABEL_TO_KEY[labelNorm];
-  return key ? t(key) : cat.label || '';
+  const key2 = CATEGORY_LABEL_TO_KEY[labelNorm];
+  return key2 ? t(key2) : cat.label || '';
 }
 
 export default function LibraryPage() {
@@ -339,7 +341,7 @@ export default function LibraryPage() {
         await apiClient(`/content-library/${id}`, { method: 'DELETE' });
       }
       setSelectedIds(new Set());
-      setSuccess(ids.length === 1 ? t('library_content_deleted') : `${ids.length} öğe silindi.`);
+      setSuccess(ids.length === 1 ? t('library_content_deleted') : t('library_items_deleted', { n: ids.length }));
       setTimeout(() => setSuccess(''), 2000);
       loadData();
       if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('content-library-updated'));
@@ -570,7 +572,7 @@ export default function LibraryPage() {
                 if (typeof window !== 'undefined') localStorage.setItem('library_page_title', v);
               }}
               className="bg-white/20 text-white font-bold text-xl placeholder-white/80 border-0 rounded-lg px-3 py-1 focus:ring-2 focus:ring-white/50 w-64"
-              placeholder="Sayfa adı"
+              placeholder={t('library_page_name')}
             />
           </div>
           <div className="flex gap-2 flex-wrap">

@@ -193,8 +193,20 @@ export function VideoRotationPlayer({
         autoPlay={!stopped}
         muted
         playsInline
+        preload="metadata"
         loop={phase === 'first' && !hasRotation ? true : false}
         onEnded={stopped ? undefined : handleEnded}
+        onError={() => {
+          if (phase === 'first' && hasRotation && items.length > 0) {
+            setPhase('rotation');
+            setCurrentUrl(items[0].url);
+            setRotationIndex(0);
+          } else if (phase === 'rotation' && hasRotation && items.length > 0) {
+            const next = (rotationIndex + 1) % items.length;
+            setCurrentUrl(items[next].url);
+            setRotationIndex(next);
+          }
+        }}
         style={{
           objectFit,
           objectPosition,

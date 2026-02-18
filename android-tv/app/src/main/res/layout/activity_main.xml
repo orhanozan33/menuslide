@@ -22,10 +22,11 @@
         tools:visibility="visible">
 
         <ImageView
-            android:layout_width="120dp"
-            android:layout_height="120dp"
-            android:src="@mipmap/ic_launcher"
+            android:layout_width="200dp"
+            android:layout_height="wrap_content"
+            android:src="@drawable/logo_menuslide_canada"
             android:contentDescription="@string/app_name"
+            android:adjustViewBounds="true"
             android:layout_marginBottom="32dp" />
 
         <TextView

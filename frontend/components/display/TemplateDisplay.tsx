@@ -456,6 +456,10 @@ export function TemplateDisplay({
                           loop
                           muted
                           playsInline
+                          preload="metadata"
+                          onError={(e) => {
+                            e.currentTarget.style.visibility = 'hidden';
+                          }}
                           style={{ transform: `scale(${scale})`, transformOrigin: pos, objectFit: fit, objectPosition: pos, imageRendering: 'auto', backfaceVisibility: 'hidden' }}
                         />
                       </div>

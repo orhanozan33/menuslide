@@ -13,7 +13,16 @@
         android:layout_height="match_parent"
         android:orientation="vertical"
         android:gravity="center"
-        android:padding="48dp">
+        android:padding="48dp"
+        android:background="@drawable/bg_activation">
+
+        <ImageView
+            android:layout_width="200dp"
+            android:layout_height="wrap_content"
+            android:src="@drawable/logo_menuslide_canada"
+            android:contentDescription="@string/app_name"
+            android:adjustViewBounds="true"
+            android:layout_marginBottom="32dp" />
 
         <TextView
             android:layout_width="wrap_content"

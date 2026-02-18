@@ -4,7 +4,7 @@
     android:layout_height="match_parent"
     android:orientation="horizontal"
     android:padding="48dp"
-    android:background="#111111"
+    android:background="@drawable/bg_activation"
     android:gravity="center_vertical">
 
     <!-- Sol: Kod girişi -->
@@ -15,6 +15,14 @@
         android:orientation="vertical"
         android:gravity="center_horizontal"
         android:paddingEnd="32dp">
+
+        <ImageView
+            android:layout_width="180dp"
+            android:layout_height="wrap_content"
+            android:src="@drawable/logo_menuslide_canada"
+            android:contentDescription="@string/app_name"
+            android:adjustViewBounds="true"
+            android:layout_marginBottom="24dp" />
 
         <TextView
             android:layout_width="wrap_content"

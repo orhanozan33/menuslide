@@ -132,7 +132,7 @@ function DisplayVideoNode({ shape, layerRef }: { shape: Record<string, unknown>;
     v.muted = true;
     v.loop = true;
     v.playsInline = true;
-    v.preload = 'auto';
+    v.preload = 'metadata';
     v.crossOrigin = 'anonymous';
     const onReady = () => {
       setVideoEl(v);
@@ -140,6 +140,10 @@ function DisplayVideoNode({ shape, layerRef }: { shape: Record<string, unknown>;
     };
     v.onloadeddata = onReady;
     v.oncanplay = onReady;
+    v.onerror = () => {
+      v.src = '';
+      setVideoEl(null);
+    };
     v.load();
     return () => {
       v.pause();
